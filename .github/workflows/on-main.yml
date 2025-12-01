@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - change-preview-domain
 
 concurrency:
   group: 'main-staging-${{ github.workflow }}'
