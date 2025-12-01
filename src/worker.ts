@@ -9,9 +9,9 @@
  *   - Production: bun run workers:start
  */
 
-import { gracefulShutdown } from './lib/queue/client';
-import { previewQueue, schedulePreviewCleanup } from './lib/queue/queues/previews';
-import { previewWorker } from './lib/queue/workers/previews';
+import { gracefulShutdown } from '@/lib/queue/client';
+import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { previewWorker } from '@/lib/queue/workers/previews';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
