@@ -441,7 +441,7 @@ class PreviewService {
     const { services, environment, storages } = kosukeConfig.preview;
 
     // Process special __KSK__ values in environment
-    const configEnv = environment ? buildEnviornment(environment) : {};
+    const configEnv = environment ? buildEnviornment(environment, projectId) : {};
 
     // Create storages
     console.log('Creating preview storages...');

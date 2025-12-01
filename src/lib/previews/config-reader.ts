@@ -35,7 +35,10 @@ export async function readKosukeConfig(sessionPath: string): Promise<KosukeConfi
  * Currently supports:
  * - __KSK__PREVIEW_RESEND_API_KEY: Loads PREVIEW_RESEND_API_KEY from process.env
  */
-export function buildEnviornment(environment: EnvironmentConfig): EnvironmentConfig {
+export function buildEnviornment(
+  environment: EnvironmentConfig,
+  projectId: string
+): EnvironmentConfig {
   const finalEnvironment: EnvironmentConfig = {};
 
   for (const [key, value] of Object.entries(environment)) {
@@ -44,6 +47,8 @@ export function buildEnviornment(environment: EnvironmentConfig): EnvironmentCon
       // Handle known special values
       if (value === '__KSK__RESEND_API_KEY') {
         finalEnvironment[key] = process.env.PREVIEW_RESEND_API_KEY || '';
+      } else if (value === '__KSK__COOKIE_PREFIX') {
+        finalEnvironment[key] = projectId;
       }
     } else {
       finalEnvironment[key] = value;
