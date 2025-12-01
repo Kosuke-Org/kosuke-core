@@ -65,6 +65,7 @@ function validateEnvironmentVariables() {
     },
 
     // Redis Configuration
+    { key: 'REDIS_PASSWORD', description: 'Redis password' },
     { key: 'REDIS_URL', description: 'Redis connection URL for job queue' },
 
     // Preview Cleanup Configuration
