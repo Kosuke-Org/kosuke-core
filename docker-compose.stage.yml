@@ -1,9 +1,10 @@
-version: '3.8'
-
 services:
   traefik:
     volumes:
       - ./traefik/dynamic.stage.yml:/etc/traefik/dynamic.yml:ro
 
   nextjs:
+    image: ghcr.io/kosuke-org/kosuke-core-stage:latest
+
+  worker:
     image: ghcr.io/kosuke-org/kosuke-core-stage:latest
