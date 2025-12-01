@@ -119,7 +119,7 @@ jobs:
           echo "🔐 Logging into GitHub Container Registry..."
           ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} "echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin"
           echo "🐳 Pulling Docker image version ${{ steps.version.outputs.VERSION }}..."
-          ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} "cd /home/filippo/kosuke-core/ && IMAGE_TAG=${{ steps.version.outputs.VERSION }} docker compose pull nextjs"
+          ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} "cd /home/filippo/kosuke-core/ && IMAGE_TAG=${{ steps.version.outputs.VERSION }} docker compose pull nextjs worker"
           echo "🚢 Starting containers..."
           ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} "cd /home/filippo/kosuke-core/ && IMAGE_TAG=${{ steps.version.outputs.VERSION }} docker compose -f docker-compose.yml up -d"
           echo "📊 Running database migrations..."

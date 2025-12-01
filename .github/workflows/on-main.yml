@@ -110,7 +110,7 @@ jobs:
           echo "🔐 Logging into GitHub Container Registry..."
           ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin"
           echo "🐳 Pulling latest Docker image..."
-          ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "cd /home/developer/kosuke-core/ && docker compose -f docker-compose.yml -f docker-compose.stage.yml pull nextjs"
+          ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "cd /home/developer/kosuke-core/ && docker compose -f docker-compose.yml -f docker-compose.stage.yml pull nextjs worker"
           echo "🚢 Starting containers..."
           ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "cd /home/developer/kosuke-core/ && docker compose -f docker-compose.yml -f docker-compose.stage.yml up -d"
           echo "📊 Running database migrations..."
