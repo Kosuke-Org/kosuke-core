@@ -47,7 +47,7 @@ services:
       - redis_data:/data
     networks:
       - kosuke_network
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
 
   nextjs:
     image: ghcr.io/kosuke-org/kosuke-core:${IMAGE_TAG:-latest}
