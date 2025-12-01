@@ -79,6 +79,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.* ./
 COPY --from=builder --chown=nextjs:nodejs /app/src/middleware.ts ./middleware.ts
 COPY --from=builder --chown=nextjs:nodejs /app/sentry*.config.* ./
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/src/worker.ts ./src/worker.ts
 
 USER nextjs
 
