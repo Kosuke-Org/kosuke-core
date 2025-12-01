@@ -34,6 +34,7 @@ export async function readKosukeConfig(sessionPath: string): Promise<KosukeConfi
  * Process special __KSK__ prefixed values in environment variables
  * Currently supports:
  * - __KSK__PREVIEW_RESEND_API_KEY: Loads PREVIEW_RESEND_API_KEY from process.env
+ * - __KSK__COOKIE_PREFIX: Sets the cookie prefix for authentication cookies to the projectId
  */
 export function buildEnviornment(
   environment: EnvironmentConfig,
