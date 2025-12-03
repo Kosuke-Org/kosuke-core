@@ -16,6 +16,7 @@ export * from './docker';
 export * from './ghost';
 export * from './github';
 export * from './infrastructure';
+export * from './kosuke-agent';
 export * from './kosuke-config';
 export * from './preview';
 export * from './preview-urls';

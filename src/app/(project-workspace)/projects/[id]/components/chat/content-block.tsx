@@ -155,46 +155,44 @@ export default function ContentBlock({
                 <div className={cn(
                   "text-[10px] font-medium text-muted-foreground"
                 )}>
-                  {/* Extract filename from tool input */}
+                  {/* Extract target from tool input - show shortened path */}
                   {(() => {
-                    // First priority: check tool input for file_path
-                    if (contentBlock.toolInput && 'file_path' in contentBlock.toolInput) {
-                      const filePath = contentBlock.toolInput.file_path as string;
-                      return filePath.split('/').pop(); // Get just the filename
-                    }
+                    const input = contentBlock.toolInput;
+                    let target: string | null = null;
 
-                    // Second priority: extract from tool result for backward compatibility
-                    if (contentBlock.toolResult) {
-                      // Pattern 1: "The file [file_path] has been updated/created/read" - Claude Code SDK format
+                    // Check for path (read_file, list_directory from plan tools)
+                    if (input && 'path' in input) {
+                      target = input.path as string;
+                    }
+                    // Check for file_path (Claude Code SDK format)
+                    else if (input && 'file_path' in input) {
+                      target = input.file_path as string;
+                    }
+                    // Check for pattern (glob_search)
+                    else if (input && 'pattern' in input) {
+                      target = input.pattern as string;
+                    }
+                    // Check for directory (list_directory alternative)
+                    else if (input && 'directory' in input) {
+                      target = input.directory as string;
+                    }
+                    // Fallback: extract from tool result
+                    else if (contentBlock.toolResult) {
                       const fileMatch = contentBlock.toolResult.match(/The file\s+([^\s]+)\s+has been/i);
                       if (fileMatch) {
-                        const filePath = fileMatch[1].trim();
-                        return filePath.split('/').pop(); // Get just the filename
-                      }
-
-                      // Pattern 2: "Successfully [action] [file_path]" - legacy format
-                      const successMatch = contentBlock.toolResult.match(/Successfully\s+(?:edited|read|created|deleted)\s+(.+?)(?:\s|$)/i);
-                      if (successMatch) {
-                        const filePath = successMatch[1].trim();
-                        return filePath.split('/').pop(); // Get just the filename
-                      }
-
-                      // Pattern 3: "[action] file: [file_path]"
-                      const actionMatch = contentBlock.toolResult.match(/(?:file|path)[:=]\s*["']?([^"'\s]+)["']?/i);
-                      if (actionMatch) {
-                        return actionMatch[1].split('/').pop(); // Get just the filename
-                      }
-
-                      // Pattern 4: Look for any file-like path (contains . and /)
-                      const pathMatch = contentBlock.toolResult.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_.\/-]+\.[a-zA-Z0-9]+)/);
-                      if (pathMatch) {
-                        return pathMatch[1].split('/').pop(); // Get just the filename
+                        target = fileMatch[1].trim();
                       }
                     }
 
-                    // Fallback to tool name processing
-                    const toolAction = contentBlock.toolName?.replace(/_/g, ' ') || 'Tool';
-                    return toolAction;
+                    if (!target) return null;
+                    if (target === '.') return '.';
+
+                    // Shorten paths - show .../last-2-segments
+                    const parts = target.split('/').filter(Boolean);
+                    if (parts.length <= 2) return target;
+
+                    // Show .../<parent>/<name> format
+                    return `.../${parts.slice(-2).join('/')}`;
                   })()}
                 </div>
               </div>

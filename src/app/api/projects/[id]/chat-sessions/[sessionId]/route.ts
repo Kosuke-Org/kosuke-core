@@ -1,14 +1,14 @@
+import type { MessageAttachmentPayload } from '@kosuke-ai/cli';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { Agent } from '@/lib/agent';
-import { buildMessageParam, type MessageAttachmentPayload } from '@/lib/agent/message-builder';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
+import { DatabaseService } from '@/lib/database/service';
 import { db } from '@/lib/db/drizzle';
 import { attachments, chatMessages, chatSessions, messageAttachments } from '@/lib/db/schema';
 import { deleteDir } from '@/lib/fs/operations';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { KosukeAgent } from '@/lib/kosuke-agent';
 import { getPreviewService } from '@/lib/previews';
 import { verifyProjectAccess } from '@/lib/projects';
 import { uploadFile } from '@/lib/storage';
@@ -400,26 +400,6 @@ export async function POST(
     void includeContext;
     void contextFiles;
 
-    // Get GitHub token based on project ownership (optional for GitHub integration)
-    let githubToken: string | null = null;
-
-    try {
-      const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-      const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-      githubToken = isKosukeRepo
-        ? await getKosukeGitHubToken()
-        : await getUserGitHubToken(userId);
-
-      if (githubToken) {
-        console.log(`🔗 GitHub integration enabled for session: ${chatSession.sessionId}`);
-      } else {
-        console.log(`⚪ GitHub integration disabled: no token found`);
-      }
-    } catch (error) {
-      console.log(`⚠️ GitHub token retrieval failed: ${error}`);
-    }
-
     // Validate session directory exists
     const { sessionManager: sm } = await import('@/lib/sessions');
     const sessionValid = await sm.validateSessionDirectory(projectId, chatSession.sessionId);
@@ -438,42 +418,34 @@ export async function POST(
 
     console.log(`✅ Session environment validated for session ${chatSession.sessionId}`);
 
-    // Initialize Agent with session configuration using factory method
-    const agent = await Agent.create({
-      projectId,
-      sessionId: chatSession.sessionId,
-      githubToken,
-      assistantMessageId: assistantMessage.id,
-      userId,
-    });
-
-    console.log(`🚀 Starting agent stream for session ${chatSession.sessionId}`);
-
-    // Build proper content blocks for Claude (text + image/document if present)
-    const messageParam = buildMessageParam(messageContent, attachmentPayloads);
-
-    console.log('messageParam', JSON.stringify(messageParam, null, 2));
-
-    // Create a ReadableStream from the agent's async generator
+    // Create a ReadableStream for Kosuke agent
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Stream events from agent, passing the messageParam and remoteId for session resumption
-          for await (const event of agent.run(messageParam, chatSession.remoteId)) {
-            // Check if this is the message_complete event with a captured remoteId
-            if (event.type === 'message_complete' && event.remoteId && !chatSession.remoteId) {
-              // Save the captured remoteId to the database
-              await db
-                .update(chatSessions)
-                .set({ remoteId: event.remoteId })
-                .where(eq(chatSessions.id, chatSession.id));
-              console.log(`✅ Saved remoteId to database for session ${chatSession.sessionId}: ${event.remoteId}`);
+            console.log(`🚀 Starting Kosuke agent stream for session ${chatSession.sessionId}`);
 
-            }
+            // Get session database URL for migrations
+            const databaseService = new DatabaseService(projectId, chatSession.sessionId);
+            const dbUrl = databaseService.getDatabaseUrl();
 
-            // Format as Server-Sent Events
-            const data = JSON.stringify(event);
-            controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+            const kosukeAgent = await KosukeAgent.create({
+            orgId: project.orgId || projectId, // Use projectId as fallback if no org
+              projectId,
+              sessionId: chatSession.sessionId,
+              cwd: sm.getSessionPath(projectId, chatSession.sessionId),
+              dbUrl,
+              enableReview: true,
+              enableTest: false, // Can be configured later
+            });
+
+          // Stream events from Kosuke agent (with optional attachments for plan phase)
+          for await (const event of kosukeAgent.run(
+            messageContent,
+            assistantMessage.id,
+            attachmentPayloads.length > 0 ? attachmentPayloads : undefined
+          )) {
+              const data = JSON.stringify(event);
+              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
           }
 
           // Send completion marker

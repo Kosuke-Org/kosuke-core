@@ -18,6 +18,8 @@ const knipConfig = {
     'src/lib/db/scripts/**',
   ],
   ignoreDependencies: [
+    // Used via dynamic imports (knip can't detect these)
+    '@kosuke-ai/cli',
     // Shadcn/UI dependencies (only used in components/ui/** which is ignored)
     '@radix-ui/*',
     'embla-carousel-react',

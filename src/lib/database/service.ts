@@ -81,6 +81,15 @@ export class DatabaseService {
   }
 
   /**
+   * Get the full database URL for this session
+   * Used by kosuke-cli for migrations
+   */
+  getDatabaseUrl(): string {
+    const { host, port, username, password } = this.config;
+    return `postgres://${username}:${password}@${host}:${port}/${this.dbName}`;
+  }
+
+  /**
    * Get database connection; creates the database if it does not exist
    */
   private async getConnection(): Promise<ReturnType<typeof postgres>> {

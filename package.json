@@ -29,7 +29,6 @@
     "workers:trigger-job": "npx tsx src/lib/queue/trigger.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.42",
     "@anthropic-ai/sdk": "^0.69.0",
     "@aws-sdk/client-s3": "^3.932.0",
     "@clerk/nextjs": "^6.35.1",
@@ -113,7 +112,6 @@
     "simple-git": "^3.29.0",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.0",
-    "tiktoken": "^1.0.22",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vaul": "^1.1.2",

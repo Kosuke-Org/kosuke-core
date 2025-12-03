@@ -235,11 +235,13 @@ const sendMessage = async (
                 contentBlockCallback([...contentBlocks]);
               }
             } else if (data.type === 'content_block_stop') {
-              // Find and finalize the last streaming block
+              // Find and finalize the last streaming text/thinking block (NOT tool blocks)
+              // Tool blocks are only completed by tool_stop events
               let lastStreamingBlock: ContentBlock | null = null;
               for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                if (contentBlocks[i].status === 'streaming') {
-                  lastStreamingBlock = contentBlocks[i];
+                const block = contentBlocks[i];
+                if (block.status === 'streaming' && block.type !== 'tool') {
+                  lastStreamingBlock = block;
                   break;
                 }
               }
@@ -459,11 +461,13 @@ export function useSendMessage(
         args.options,
         contentBlockCallback,
         setAssistantIdCallback,
-        // onStreamEnd: flip streaming to false immediately on stream completion
+        // onStreamEnd: flip streaming to false and set expectingWebhookUpdate
+        // This keeps the streaming content visible until the saved message appears
         () => {
           setStreamingState(prev => ({
             ...prev,
             isStreaming: false,
+            expectingWebhookUpdate: true,
           }));
         },
         abortController,
