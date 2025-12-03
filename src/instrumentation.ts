@@ -6,9 +6,6 @@ import * as Sentry from '@sentry/nextjs';
  */
 function validateEnvironmentVariables() {
   const sentryEnabled = process.env.SENTRY_ENABLED !== 'false';
-  const cloudflareEnabled = process.env.CLOUDFLARE_ENABLED !== 'false';
-  const ghostEnabled = process.env.GHOST_ADMIN_API_KEY_ENABLED !== 'false';
-  const slackEnabled = process.env.SLACK_WEBHOOK_URL_ENABLED !== 'false';
 
   const requiredEnvVars = [
     // Database
@@ -84,18 +81,6 @@ function validateEnvironmentVariables() {
     // Conditionally required based on feature flags
     ...(sentryEnabled
       ? [{ key: 'SENTRY_AUTH_TOKEN', description: 'Sentry authentication token' }]
-      : []),
-    ...(cloudflareEnabled
-      ? [
-          { key: 'CLOUDFLARE_EMAIL', description: 'Cloudflare email' },
-          { key: 'CLOUDFLARE_API_KEY', description: 'Cloudflare API key' },
-        ]
-      : []),
-    ...(ghostEnabled
-      ? [{ key: 'GHOST_ADMIN_API_KEY', description: 'Ghost CMS admin API key' }]
-      : []),
-    ...(slackEnabled
-      ? [{ key: 'SLACK_WEBHOOK_URL', description: 'Slack webhook URL for notifications' }]
       : []),
   ];
 
