@@ -65,3 +65,6 @@ projects/*/
 
 # kosuke-cli package directory (not src/lib/kosuke-cli)
 /kosuke-cli/
+
+# VSCode workspace file (personal preference)
+*.code-workspace

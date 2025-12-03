@@ -14,6 +14,9 @@ up:
     @echo "Starting up all containers..."
     @docker compose -f docker-compose.local.yml up -d --remove-orphans
 
+logs *container:
+    @docker compose -f docker-compose.local.yml logs -f {{container}}
+
 down *args:
     @echo "Stopping all containers..."
     @docker compose -f docker-compose.local.yml down {{args}}
