@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import type { AssistantBlock, ChatMessageProps, ContentBlock, ErrorType } from '@/lib/types';
 import { getFileName, processMessageContent } from '@/lib/utils/message-content';
 import AssistantResponse from './assistant-response';
+import BuildMessage from './build-message';
 import ChatMessageAttachments from './chat-message-attachments';
 import { MessageRevertButton } from './message-revert-button';
 
@@ -34,6 +35,7 @@ export default function ChatMessage({
   sessionId,
   metadata,
   attachments,
+  onBuildActiveChange,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
@@ -106,6 +108,21 @@ export default function ChatMessage({
   // Check if this is an assistant message with blocks
   const hasBlocks = !isUser && !isSystem && blocks && blocks.length > 0;
   const contentBlocks = hasBlocks ? convertBlocksToContentBlocks(blocks) : null;
+
+  // Handle build messages - render BuildMessage component
+  const buildJobId = metadata?.buildJobId as string | undefined;
+  if (buildJobId && projectId && sessionId) {
+    return (
+      <BuildMessage
+        buildJobId={buildJobId}
+        projectId={projectId}
+        sessionId={sessionId}
+        timestamp={new Date(timestamp)}
+        className={className}
+        onActiveChange={onBuildActiveChange}
+      />
+    );
+  }
 
   // Handle revert system messages with special styling
   if (isRevertMessage) {

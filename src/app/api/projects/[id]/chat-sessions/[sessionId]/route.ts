@@ -429,11 +429,13 @@ export async function POST(
             const dbUrl = databaseService.getDatabaseUrl();
 
             const kosukeAgent = await KosukeAgent.create({
-            orgId: project.orgId || projectId, // Use projectId as fallback if no org
+              orgId: project.orgId || projectId, // Use projectId as fallback if no org
               projectId,
               sessionId: chatSession.sessionId,
               cwd: sm.getSessionPath(projectId, chatSession.sessionId),
               dbUrl,
+              userId,
+              isImported: project.isImported,
               enableReview: true,
               enableTest: false, // Can be configured later
             });

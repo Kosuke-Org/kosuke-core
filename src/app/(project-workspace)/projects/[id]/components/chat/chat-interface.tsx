@@ -39,6 +39,9 @@ export default function ChatInterface({
     imageUrl?: string;
   } | null>(null);
 
+  // Track if build is in progress
+  const [isBuildActive, setIsBuildActive] = useState(false);
+
   // Always call hooks at the top level, even if sessionId is not available yet
   const sendMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
   const messagesQuery = useChatSessionMessages(projectId, sessionId || '');
@@ -224,6 +227,7 @@ export default function ChatInterface({
                   sessionId={sessionId}
                   metadata={message.metadata}
                   attachments={message.attachments}
+                  onBuildActiveChange={setIsBuildActive}
                 />
               ))}
 
@@ -274,6 +278,7 @@ export default function ChatInterface({
                   </div>
                 </div>
               )}
+
             </>
           )}
 
@@ -323,10 +328,10 @@ export default function ChatInterface({
       <div className="px-4 pb-0 relative">
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isSending || isRegenerating}
+          isLoading={isSending || isRegenerating || isBuildActive}
           isStreaming={isStreaming}
           onStop={cancelStream}
-          placeholder="Type your message..."
+          placeholder={isBuildActive ? "Build in progress..." : "Type your message..."}
           data-testid="chat-input"
           className="chat-input"
         />

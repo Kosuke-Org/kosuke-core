@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
@@ -115,6 +116,81 @@ export const messageAttachments = pgTable('message_attachments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+/**
+ * Build status enum
+ */
+export const buildStatusEnum = pgEnum('build_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
+
+/**
+ * Ticket structure (replicated from tickets.json)
+ */
+export interface TicketData {
+  id: string;
+  title: string;
+  description: string;
+  type?: string;
+  category?: string;
+  estimatedEffort: number;
+  status: 'Todo' | 'InProgress' | 'Done' | 'Error';
+  error?: string;
+}
+
+/**
+ * Build jobs - tracks build execution per session
+ * Replicates tickets.json for observability
+ */
+export const buildJobs = pgTable(
+  'build_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chatSessionId: uuid('chat_session_id')
+      .references(() => chatSessions.id, { onDelete: 'cascade' })
+      .notNull(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: buildStatusEnum('status').notNull().default('pending'),
+
+    // Tickets - replicated from tickets.json for observability
+    tickets: jsonb('tickets').$type<TicketData[]>(),
+
+    // Progress (derived from tickets, cached for quick access)
+    totalTickets: integer('total_tickets').notNull().default(0),
+    completedTickets: integer('completed_tickets').notNull().default(0),
+    failedTickets: integer('failed_tickets').notNull().default(0),
+    currentTicketId: varchar('current_ticket_id', { length: 100 }),
+
+    // Cost
+    totalCost: real('total_cost').default(0),
+
+    // Error
+    errorMessage: text('error_message'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+
+    // BullMQ reference
+    bullJobId: varchar('bull_job_id', { length: 100 }),
+  },
+  table => ({
+    sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),
+    statusIdx: index('idx_build_jobs_status').on(table.status),
+  })
+);
+
+export type BuildJob = typeof buildJobs.$inferSelect;
+export type NewBuildJob = typeof buildJobs.$inferInsert;
+
 export const diffs = pgTable('diffs', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id')
@@ -211,6 +287,18 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
     references: [projects.id],
   }),
   messages: many(chatMessages),
+  buildJobs: many(buildJobs),
+}));
+
+export const buildJobsRelations = relations(buildJobs, ({ one }) => ({
+  chatSession: one(chatSessions, {
+    fields: [buildJobs.chatSessionId],
+    references: [chatSessions.id],
+  }),
+  project: one(projects, {
+    fields: [buildJobs.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => ({

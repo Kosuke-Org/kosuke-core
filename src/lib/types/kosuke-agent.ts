@@ -15,6 +15,10 @@ export interface KosukeAgentConfig {
   cwd: string;
   /** Database URL for migrations (required) */
   dbUrl: string;
+  /** User ID (Clerk) - needed to get GitHub token for imported repos */
+  userId: string;
+  /** Whether the project was imported (vs created in Kosuke) */
+  isImported: boolean;
   /** Enable code review after implementation (default: true) */
   enableReview?: boolean;
   /** Enable testing for frontend tickets (default: false) */

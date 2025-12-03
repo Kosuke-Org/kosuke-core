@@ -1,8 +1,6 @@
 import type { AssistantBlock, StreamEvent } from '@/lib/types';
 import {
-  BuildEventName,
   PlanEventName,
-  type BuildStreamEventType,
   type BuildTokenUsage,
   type PlanStreamEventType,
   type Ticket,
@@ -128,62 +126,6 @@ export class KosukeEventProcessor {
   }
 
   /**
-   * Process a build progress event and yield client events
-   */
-  async *processBuildEvent(event: BuildStreamEventType): AsyncGenerator<StreamEvent> {
-    switch (event.type) {
-      case BuildEventName.TICKET_START:
-        yield* this.handleTextDelta(
-          `\n\n🔧 **Processing ticket ${event.ticketIndex + 1}/${event.totalTickets}:** ${event.ticket.title}\n`
-        );
-        break;
-
-      case BuildEventName.TICKET_COMPLETE:
-        const status = event.success ? '✅' : '❌';
-        const statusText = event.success
-          ? 'completed'
-          : `failed: ${event.error || 'Unknown error'}`;
-        yield* this.handleTextDelta(`${status} Ticket ${event.ticket.id} ${statusText}\n`);
-
-        // Accumulate tokens
-        if (event.tokensUsed) {
-          this.tokensUsed.input += event.tokensUsed.input;
-          this.tokensUsed.output += event.tokensUsed.output;
-          this.tokensUsed.cacheCreation += event.tokensUsed.cacheCreation;
-          this.tokensUsed.cacheRead += event.tokensUsed.cacheRead;
-        }
-        this.totalCost += event.cost || 0;
-        break;
-
-      case BuildEventName.STATUS:
-        yield* this.handleTextDelta(`ℹ️ ${event.message}\n`);
-        break;
-
-      case BuildEventName.BUILD_COMPLETE:
-        const summary = this.formatBuildSummary(
-          event.successCount,
-          event.failedCount,
-          event.totalTickets,
-          event.totalCost
-        );
-        yield* this.handleTextDelta(summary);
-        // Update totals
-        this.tokensUsed = event.totalTokensUsed;
-        this.totalCost = event.totalCost;
-        // Close content block
-        yield { type: 'content_block_stop', index: 0 };
-        break;
-
-      case BuildEventName.ERROR:
-        yield {
-          type: 'error',
-          message: event.message,
-        };
-        break;
-    }
-  }
-
-  /**
    * Handle text delta - emit event and accumulate
    */
   private async *handleTextDelta(text: string): AsyncGenerator<StreamEvent> {
@@ -210,51 +152,13 @@ export class KosukeEventProcessor {
       return '\n\n**No tickets generated.**\n';
     }
 
-    const lines: string[] = ['\n\n## 📋 Generated Tickets\n'];
+    const lines: string[] = [`\n\n📋 **${tickets.length} tickets:**\n`];
 
-    // Group by type
-    const byType = tickets.reduce(
-      (acc, ticket) => {
-        const type = ticket.type || 'other';
-        if (!acc[type]) acc[type] = [];
-        acc[type].push(ticket);
-        return acc;
-      },
-      {} as Record<string, Ticket[]>
-    );
-
-    const typeOrder = ['schema', 'engine', 'backend', 'frontend', 'test'];
-
-    for (const type of typeOrder) {
-      const typeTickets = byType[type];
-      if (!typeTickets || typeTickets.length === 0) continue;
-
-      lines.push(`\n### ${type.charAt(0).toUpperCase() + type.slice(1)}`);
-      for (const ticket of typeTickets) {
-        const effort = '🔹'.repeat(Math.min(ticket.estimatedEffort, 5));
-        lines.push(`- **${ticket.id}**: ${ticket.title} ${effort}`);
-      }
+    for (const ticket of tickets) {
+      lines.push(`- ${ticket.id}: ${ticket.title}`);
     }
 
-    lines.push(`\n**Total: ${tickets.length} tickets**\n`);
-    return lines.join('\n');
-  }
-
-  /**
-   * Format build summary
-   */
-  private formatBuildSummary(success: number, failed: number, total: number, cost: number): string {
-    const lines: string[] = ['\n\n## 🏁 Build Complete\n'];
-
-    if (failed === 0) {
-      lines.push(`✅ **All ${total} tickets completed successfully!**`);
-    } else {
-      lines.push(`⚠️ **${success}/${total} tickets completed** (${failed} failed)`);
-    }
-
-    lines.push(`\n💰 **Cost:** $${cost.toFixed(4)}`);
-
-    return lines.join('\n');
+    return lines.join('\n') + '\n';
   }
 
   /**

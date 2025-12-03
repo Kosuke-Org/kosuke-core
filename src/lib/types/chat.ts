@@ -89,6 +89,7 @@ export interface ChatMessageProps {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
   }; // NEW: System message metadata
+  onBuildActiveChange?: (isActive: boolean) => void; // Callback when build status changes
 }
 
 export interface ChatInputProps {

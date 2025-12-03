@@ -1,16 +1,12 @@
 import { db } from '@/lib/db/drizzle';
-import { chatMessages, chatSessions } from '@/lib/db/schema';
+import { buildJobs, chatMessages, chatSessions, type TicketData } from '@/lib/db/schema';
+import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { enqueueBuild, hasActiveBuild } from '@/lib/queue';
 import type { StreamEvent } from '@/lib/types/agent';
 import type { KosukeAgentConfig } from '@/lib/types/kosuke-agent';
 import type Anthropic from '@anthropic-ai/sdk';
-import {
-  BuildEventName,
-  PlanEventName,
-  type MessageAttachmentPayload,
-  type Ticket,
-} from '@kosuke-ai/cli';
+import { PlanEventName, type MessageAttachmentPayload, type Ticket } from '@kosuke-ai/cli';
 import { and, asc, eq } from 'drizzle-orm';
-import { runBuild } from './build-service';
 import { KosukeEventProcessor } from './event-processor';
 import { generateTicketsPath, runPlan } from './plan-service';
 
@@ -22,13 +18,15 @@ interface KosukeAgentState {
 
 /**
  * Kosuke Agent
- * Orchestrates the plan→build workflow with streaming support
+ * Orchestrates the plan→build workflow
+ * Plan phase streams, build phase enqueues background job
  */
 export class KosukeAgent {
   private config: KosukeAgentConfig;
   private sessionPath: string;
   private eventProcessor: KosukeEventProcessor;
   private state: KosukeAgentState;
+  private chatSessionDbId: string | null = null;
 
   private constructor(config: KosukeAgentConfig, sessionPath: string) {
     this.config = config;
@@ -59,9 +57,9 @@ export class KosukeAgent {
    * Run the agent with a user message
    *
    * This handles the full plan→build workflow:
-   * 1. Plan phase: Generate tickets from user prompt
+   * 1. Plan phase: Generate tickets from user prompt (streaming)
    * 2. Handle clarifications if needed
-   * 3. Build phase: Process tickets sequentially
+   * 3. Build phase: Enqueue background job (returns immediately)
    *
    * @param message - User message (prompt for planning, or answer for clarification)
    * @param assistantMessageId - ID of the assistant message to update
@@ -105,7 +103,7 @@ export class KosukeAgent {
       // === BUILD PHASE ===
       if (this.state.tickets.length > 0) {
         console.log(`🔨 Starting build phase with ${this.state.tickets.length} tickets...`);
-        yield* this.runBuildPhase();
+        yield* this.enqueueBuildJob();
       } else {
         console.log(`⚠️ No tickets generated, skipping build phase`);
         yield* this.emitText('\n\n⚠️ No tickets were generated. Please provide more details.\n');
@@ -178,26 +176,126 @@ export class KosukeAgent {
   }
 
   /**
-   * Run the build phase
+   * Enqueue build job - returns immediately
    */
-  private async *runBuildPhase(): AsyncGenerator<StreamEvent> {
-    const buildStream = runBuild(this.state.tickets, {
-      cwd: this.sessionPath,
+  private async *enqueueBuildJob(): AsyncGenerator<StreamEvent> {
+    if (!this.state.ticketsPath) {
+      yield* this.emitText('\n\n❌ No tickets path set\n');
+      yield { type: 'content_block_stop', index: 0 };
+      return;
+    }
+
+    // Get chat session DB ID
+    const chatSessionId = await this.getChatSessionDbId();
+    if (!chatSessionId) {
+      yield* this.emitText('\n\n❌ Chat session not found\n');
+      yield { type: 'content_block_stop', index: 0 };
+      return;
+    }
+
+    // Check for existing active build
+    const hasActive = await hasActiveBuild(chatSessionId);
+    if (hasActive) {
+      yield* this.emitText('\n\n⚠️ A build is already in progress for this session.\n');
+      yield { type: 'content_block_stop', index: 0 };
+      return;
+    }
+
+    // Convert tickets to TicketData format for DB
+    const ticketData: TicketData[] = this.state.tickets.map(t => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      type: t.type,
+      category: t.category,
+      estimatedEffort: t.estimatedEffort,
+      status: t.status as TicketData['status'],
+      error: t.error,
+    }));
+
+    // Get GitHub token based on whether project is imported or created
+    let githubToken: string;
+    if (this.config.isImported) {
+      // Imported repos use the user's OAuth token
+      const userToken = await getUserGitHubToken(this.config.userId);
+      if (!userToken) {
+        yield* this.emitText(
+          '\n\n❌ GitHub not connected. Please reconnect your GitHub account.\n'
+        );
+        yield { type: 'content_block_stop', index: 0 };
+        return;
+      }
+      githubToken = userToken;
+    } else {
+      // Created repos use the Kosuke GitHub App token
+      githubToken = await getKosukeGitHubToken();
+    }
+
+    // Create build job record in DB
+    const [buildJob] = await db
+      .insert(buildJobs)
+      .values({
+        chatSessionId,
+        projectId: this.config.projectId,
+        status: 'pending',
+        tickets: ticketData,
+        totalTickets: ticketData.filter(t => t.status === 'Todo' || t.status === 'Error').length,
+      })
+      .returning();
+
+    // Enqueue the build job
+    const bullJobId = await enqueueBuild({
+      buildJobId: buildJob.id,
+      chatSessionId,
+      projectId: this.config.projectId,
+      sessionPath: this.sessionPath,
+      ticketsPath: this.state.ticketsPath,
+      tickets: ticketData,
       dbUrl: this.config.dbUrl,
-      enableReview: this.config.enableReview,
-      enableTest: this.config.enableTest,
+      githubToken,
+      enableReview: this.config.enableReview ?? true,
+      enableTest: this.config.enableTest ?? false,
       testUrl: this.config.testUrl,
     });
 
-    for await (const event of buildStream) {
-      for await (const clientEvent of this.eventProcessor.processBuildEvent(event)) {
-        yield clientEvent;
-      }
+    // Update build job with BullMQ job ID
+    await db.update(buildJobs).set({ bullJobId }).where(eq(buildJobs.id, buildJob.id));
 
-      if (event.type === BuildEventName.BUILD_COMPLETE) {
-        this.state.phase = 'complete';
-      }
-    }
+    console.log(`[BUILD] 📋 Build job ${buildJob.id} enqueued (BullMQ: ${bullJobId})`);
+
+    // Create a build message in the chat history
+    // This message will be rendered as a BuildMessage component
+    await db.insert(chatMessages).values({
+      projectId: this.config.projectId,
+      chatSessionId,
+      role: 'assistant',
+      content: null, // Content is rendered by BuildMessage component
+      metadata: { buildJobId: buildJob.id },
+    });
+
+    // Emit notification to client (will be replaced by the build message)
+    yield* this.emitText('\n\n🔨 Build started - processing tickets...\n');
+    yield { type: 'content_block_stop', index: 0 };
+
+    this.state.phase = 'building';
+  }
+
+  /**
+   * Get the database ID for the chat session
+   */
+  private async getChatSessionDbId(): Promise<string | null> {
+    if (this.chatSessionDbId) return this.chatSessionDbId;
+
+    const session = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(eq(chatSessions.sessionId, this.config.sessionId))
+      .limit(1);
+
+    if (session.length === 0) return null;
+
+    this.chatSessionDbId = session[0].id;
+    return this.chatSessionDbId;
   }
 
   /**
@@ -215,6 +313,8 @@ export class KosukeAgent {
     if (session.length === 0) {
       return [];
     }
+
+    this.chatSessionDbId = session[0].id;
 
     // Fetch all messages for this session, ordered by creation time
     const messages = await db
