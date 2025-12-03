@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# Fix docker socket permissions if running as root and socket exists
+# Docker Desktop on Mac mounts socket as root:root, need to make it accessible
+if [ "$(id -u)" = "0" ] && [ -S "/var/run/docker.sock" ]; then
+  echo "🔧 Fixing docker socket permissions..."
+  chmod 666 /var/run/docker.sock
+fi
+
 echo "🔧 Checking kosuke-cli dependencies..."
 
 # Check if kosuke-cli has a package.json and needs dependencies installed
@@ -36,5 +43,10 @@ fi
 
 echo "🚀 Starting application..."
 
-# Execute the main command
-exec "$@"
+# If running as root, drop to node user for the main process
+# Claude Code SDK doesn't allow --dangerously-skip-permissions as root
+if [ "$(id -u)" = "0" ]; then
+  exec gosu node "$@"
+else
+  exec "$@"
+fi

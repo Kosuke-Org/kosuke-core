@@ -17,6 +17,8 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 # Stage 2: Runtime with Node.js only
 FROM node:22.20.0-slim
 
+ARG DOCKER_GID=988
+
 WORKDIR /app
 
 # Install git and CA certificates for repository operations
@@ -29,21 +31,33 @@ RUN apt-get update && \
 # Install Claude Code CLI globally (required by @anthropic-ai/claude-agent-sdk)
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create projects directory
-RUN mkdir projects
+# Setup node user (uid 1000) from base image with docker group
+# Entrypoint runs as root, then drops to node user via gosu
+RUN (getent group ${DOCKER_GID} || groupadd --gid ${DOCKER_GID} docker) && \
+    usermod -aG ${DOCKER_GID} node && \
+    mkdir -p /home/node/.claude projects .next && \
+    chown -R node:node /home/node /app
 
-# Copy dependencies from deps stage with proper ownership
+# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/bun.lock ./bun.lock
 
+# Install gosu for dropping privileges in entrypoint
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gosu && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy entrypoint script for installing kosuke-cli dependencies
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && \
+    chown -R node:node /app
 
 # Development environment
+# Note: Entrypoint runs as root to fix docker socket, then drops to node user
 ENV NODE_ENV=development
 ENV HOSTNAME=0.0.0.0
+ENV HOME=/home/node
 
 EXPOSE 3000
 
