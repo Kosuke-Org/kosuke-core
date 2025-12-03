@@ -61,7 +61,7 @@ services:
       - kosuke_network
     labels:
       - 'traefik.enable=true'
-      - 'traefik.http.routers.main.rule=Host(`${MAIN_DOMAIN}`) || Host(`www.${MAIN_DOMAIN}`)'
+      - 'traefik.http.routers.main.rule=Host(`app.${MAIN_DOMAIN}`) || Host(`www.app.${MAIN_DOMAIN}`)'
       - 'traefik.http.routers.main.tls.certresolver=letsencrypt'
       - 'traefik.http.services.main.loadbalancer.server.port=3000'
       # Request wildcard certificate for preview domain
