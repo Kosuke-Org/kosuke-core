@@ -14,7 +14,7 @@ const inter = Inter({
   subsets: ['latin'],
 });
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kosuke.ai';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.kosuke.ai';
 const ogImage = `${baseUrl}/opengraph-image.jpg`;
 const ogImageSquare = `${baseUrl}/opengraph-image-square.jpg`;
 
@@ -116,15 +116,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
               data-cbid="1d49650b-72ce-410d-b236-90f662688b3d"
               data-blockingmode="auto"
               strategy="beforeInteractive"
-            />
-          )}
-          {process.env.NEXT_PUBLIC_PLAUSIBLE_ENABLED !== 'false' && (
-            <Script
-              id="plausible"
-              data-domain="kosuke.ai"
-              data-cookiebot-accept="marketing"
-              src="https://plausible.io/js/script.js"
-              strategy="afterInteractive"
             />
           )}
           <div id="clerk-captcha" />

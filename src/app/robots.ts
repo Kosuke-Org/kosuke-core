@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kosuke.ai';
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.kosuke.ai';
 
 export default function robots(): MetadataRoute.Robots {
   // Set NEXT_PUBLIC_ENABLE_INDEXING=true in production environment only
