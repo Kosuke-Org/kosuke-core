@@ -3,23 +3,11 @@ import { clerkMiddleware, ClerkMiddlewareAuth, createRouteMatcher } from '@clerk
 import { NextRequest, NextResponse } from 'next/server';
 
 const isPublicRoute = createRouteMatcher([
-  '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/home',
   '/terms',
   '/privacy',
   '/cookies',
-  '/blog',
-  '/blog/:path*',
-  '/customers',
-  '/pricing',
-  '/customers/:path*',
-  '/solutions/kosuke-platform',
-  '/solutions/ship-with-engineers',
-  '/solutions/enabling-collaboration',
-  '/solutions/on-premise',
-  '/solutions/startup-program',
   // Sentry monitoring tunnel (must be public for error reporting)
   '/monitoring',
   '/monitoring(.*)',
@@ -49,28 +37,43 @@ export const baseMiddleware = async (auth: ClerkMiddlewareAuth, req: NextRequest
 
   const { userId, redirectToSignIn } = await auth();
 
-  if (!userId && !isPublicRoute(req)) return redirectToSignIn({ returnBackUrl: req.url });
-
-  if (userId) {
-    // Check if user has completed onboarding
-    const hasCompletedOnboarding = await clerkService.hasCompletedOnboarding(userId);
-
-    // If onboarding not completed and not on onboarding page, redirect to onboarding
-    if (!hasCompletedOnboarding && !isOnboardingRoute(req)) {
-      return NextResponse.redirect(new URL('/onboarding', req.url));
+  // Unauthenticated users: redirect root to sign-in, allow public routes
+  if (!userId) {
+    if (isRootRoute(req)) {
+      return NextResponse.redirect(new URL('/sign-in', req.url));
     }
-
-    // If onboarding completed and on onboarding page, redirect to projects
-    if (hasCompletedOnboarding && isOnboardingRoute(req)) {
-      return NextResponse.redirect(new URL('/projects', req.url));
+    if (!isPublicRoute(req)) {
+      return redirectToSignIn({ returnBackUrl: req.url });
     }
-
-    if (isProtectedRoute(req)) return NextResponse.next();
-    if (isPublicRoute(req) && !isRootRoute(req)) return NextResponse.next();
-    return NextResponse.redirect(new URL(`/projects`, req.url));
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  // Authenticated users
+  // Check if user has completed onboarding
+  const hasCompletedOnboarding = await clerkService.hasCompletedOnboarding(userId);
+
+  // If onboarding not completed and not on onboarding page, redirect to onboarding
+  if (!hasCompletedOnboarding && !isOnboardingRoute(req)) {
+    return NextResponse.redirect(new URL('/onboarding', req.url));
+  }
+
+  // If onboarding completed and on onboarding page, redirect to projects
+  if (hasCompletedOnboarding && isOnboardingRoute(req)) {
+    return NextResponse.redirect(new URL('/projects', req.url));
+  }
+
+  // Redirect root to projects for authenticated users
+  if (isRootRoute(req)) {
+    return NextResponse.redirect(new URL('/projects', req.url));
+  }
+
+  // Allow protected and public routes
+  if (isProtectedRoute(req) || isPublicRoute(req)) {
+    return NextResponse.next();
+  }
+
+  // Redirect unknown routes to projects
+  return NextResponse.redirect(new URL('/projects', req.url));
 };
 
 export default clerkMiddleware(baseMiddleware);

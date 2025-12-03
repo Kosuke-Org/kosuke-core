@@ -15,12 +15,13 @@ export default function robots(): MetadataRoute.Robots {
     };
   }
 
+  // Only allow legal pages to be indexed
   return {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
-        disallow: ['/api/', '/projects/', '/settings/', '/sign-in/', '/sign-up/', '/sso-callback/'],
+        allow: ['/terms', '/privacy', '/cookies'],
+        disallow: '/',
       },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,

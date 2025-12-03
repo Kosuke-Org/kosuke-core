@@ -3,7 +3,6 @@
 import { useClerk } from '@clerk/nextjs';
 import {
   ArrowLeft,
-  ChevronDown,
   CircleIcon,
   Code,
   Database,
@@ -11,7 +10,6 @@ import {
   GitPullRequest,
   LayoutDashboard,
   LogOut,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -23,7 +21,6 @@ import { useState } from 'react';
 
 import { useUser } from '@/hooks/use-user';
 
-import { PrivateAlphaModal } from '@/app/(logged-out)/home/components/private-alpha-modal';
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -34,20 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
 type NavbarProps = {
   variant?: 'standard' | 'project';
   hideSignIn?: boolean;
-  showNavigation?: boolean; // NEW: Show navigation items (Customers, Solutions, Blog, etc.)
   projectProps?: {
     projectName: string;
     currentView: 'preview' | 'code' | 'branding' | 'settings' | 'database';
@@ -65,43 +54,24 @@ type NavbarProps = {
   className?: string;
 };
 
-const solutions = [
-  {
-    title: 'Kosuke Platform',
-    href: '/solutions/kosuke-platform',
-  },
-  {
-    title: 'Kosuke Engineers',
-    href: '/solutions/ship-with-engineers',
-  },
-  {
-    title: 'Kosuke for Teams',
-    href: '/solutions/enabling-collaboration',
-  },
-];
-
 export default function Navbar({
   variant = 'standard',
   hideSignIn = false,
-  showNavigation = false,
   projectProps,
   className,
 }: NavbarProps) {
   const { clerkUser, user, isLoaded, isSignedIn, imageUrl, displayName, initials } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [solutionsOpen, setSolutionsOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await signOut({ redirectUrl: '/' });
+      await signOut({ redirectUrl: '/sign-in' });
     } catch (error) {
       console.error('Error signing out:', error);
       // Fallback redirect if signOut fails
-      router.push('/');
+      router.push('/sign-in');
       router.refresh();
     }
   };
@@ -173,202 +143,36 @@ export default function Navbar({
   // Standard navbar for most pages
   if (variant === 'standard') {
     return (
-      <>
-        <div className="w-full border-b border-border relative z-50">
-          <header className={cn('bg-background w-full h-14', className)}>
-            <div className="w-full h-full px-6 sm:px-8 md:px-16 lg:px-24 flex justify-between items-center max-w-screen-2xl mx-auto">
-              <Link
-                href="/"
-                className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                <Image
-                  src="/logo-dark.svg"
-                  alt="Kosuke"
-                  width={24}
-                  height={24}
-                  className="block dark:hidden"
-                  priority
-                />
-                <Image
-                  src="/logo.svg"
-                  alt="Kosuke"
-                  width={24}
-                  height={24}
-                  className="hidden dark:block"
-                  priority
-                />
-                <span className="ml-2 text-xl text-foreground">Kosuke</span>
-              </Link>
+      <div className="w-full border-b border-border relative z-50">
+        <header className={cn('bg-background w-full h-14', className)}>
+          <div className="w-full h-full px-6 sm:px-8 md:px-16 lg:px-24 flex justify-between items-center max-w-screen-2xl mx-auto">
+            <Link
+              href="/"
+              className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <Image
+                src="/logo-dark.svg"
+                alt="Kosuke"
+                width={24}
+                height={24}
+                className="block dark:hidden"
+                priority
+              />
+              <Image
+                src="/logo.svg"
+                alt="Kosuke"
+                width={24}
+                height={24}
+                className="hidden dark:block"
+                priority
+              />
+              <span className="ml-2 text-xl text-foreground">Kosuke</span>
+            </Link>
 
-              {/* Desktop Navigation */}
-              {showNavigation && (
-                <div className="hidden min-[900px]:flex items-center gap-2">
-                  {/* Solutions Dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        Solutions
-                        <ChevronDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                      {solutions.map(solution => (
-                        <DropdownMenuItem key={solution.href} asChild>
-                          <Link href={solution.href} className="cursor-pointer">
-                            {solution.title}
-                          </Link>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <Link href="/pricing">
-                    <Button variant="ghost" size="sm">
-                      Pricing
-                    </Button>
-                  </Link>
-
-                  <Link href="/blog">
-                    <Button variant="ghost" size="sm">
-                      Blog
-                    </Button>
-                  </Link>
-
-                  <a
-                    href="https://links.kosuke.ai/contact"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button variant="ghost" size="sm">
-                      Contact Us
-                    </Button>
-                  </a>
-
-                  {!isSignedIn ? (
-                    <Button size="sm" onClick={() => setModalOpen(true)}>
-                      Get Started
-                    </Button>
-                  ) : (
-                    renderUserSection()
-                  )}
-                </div>
-              )}
-
-              {/* Mobile Menu Button */}
-              {showNavigation && (
-                <div className="min-[900px]:hidden">
-                  <Sheet
-                    open={mobileMenuOpen}
-                    onOpenChange={open => {
-                      setMobileMenuOpen(open);
-                      if (!open) setSolutionsOpen(false); // Reset accordion when closing
-                    }}
-                  >
-                    <SheetTrigger asChild>
-                      <Button variant="ghost" size="icon" aria-label="Open navigation menu">
-                        <Menu className="h-5 w-5" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent side="right" className="w-full sm:w-[400px] p-0">
-                      <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-                      <SheetDescription className="sr-only">
-                        Access navigation links and get started with Kosuke
-                      </SheetDescription>
-                      <div className="flex flex-col h-full px-6 pt-20 pb-8">
-                        <nav className="flex flex-col gap-8">
-                          {/* Solutions Section */}
-                          <div className="flex flex-col gap-3">
-                            <button
-                              onClick={() => setSolutionsOpen(!solutionsOpen)}
-                              className="flex items-center justify-between text-2xl font-medium tracking-tight text-foreground transition-colors hover:text-muted-foreground text-left"
-                            >
-                              Solutions
-                              <ChevronDown
-                                className={cn(
-                                  'h-5 w-5 transition-transform duration-200',
-                                  solutionsOpen && 'rotate-180'
-                                )}
-                              />
-                            </button>
-                            {solutionsOpen && (
-                              <div className="flex flex-col gap-2 pl-4 border-l border-border">
-                                {solutions.map(solution => (
-                                  <Link
-                                    key={solution.href}
-                                    href={solution.href}
-                                    onClick={() => {
-                                      setSolutionsOpen(false);
-                                      setMobileMenuOpen(false);
-                                    }}
-                                    className="text-base font-normal text-muted-foreground transition-colors hover:text-foreground"
-                                  >
-                                    {solution.title}
-                                  </Link>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <Link
-                            href="/pricing"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="text-2xl font-medium tracking-tight transition-colors hover:text-muted-foreground"
-                          >
-                            Pricing
-                          </Link>
-
-                          <Link
-                            href="/blog"
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="text-2xl font-medium tracking-tight transition-colors hover:text-muted-foreground"
-                          >
-                            Blog
-                          </Link>
-
-                          <a
-                            href="https://links.kosuke.ai/contact"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-2xl font-medium tracking-tight transition-colors hover:text-muted-foreground"
-                          >
-                            Contact Us
-                          </a>
-                        </nav>
-
-                        {/* Bottom CTA */}
-                        <div className="mt-auto pt-8">
-                          {!isSignedIn ? (
-                            <Button
-                              className="w-full"
-                              size="lg"
-                              onClick={() => {
-                                setMobileMenuOpen(false);
-                                setModalOpen(true);
-                              }}
-                            >
-                              Get Started
-                            </Button>
-                          ) : (
-                            <div onClick={() => setMobileMenuOpen(false)}>
-                              {renderUserSection()}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                </div>
-              )}
-
-              {/* User section (when not showing navigation) */}
-              {!showNavigation && renderUserSection()}
-            </div>
-          </header>
-        </div>
-
-        {/* Private Alpha Modal */}
-        {showNavigation && <PrivateAlphaModal open={modalOpen} onOpenChange={setModalOpen} />}
-      </>
+            {renderUserSection()}
+          </div>
+        </header>
+      </div>
     );
   }
 
