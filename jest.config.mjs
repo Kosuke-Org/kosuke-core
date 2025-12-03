@@ -13,7 +13,7 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
-  testPathIgnorePatterns: ['<rootDir>/projects/', '<rootDir>/.next/'],
+  testPathIgnorePatterns: ['<rootDir>/projects/', '<rootDir>/.next/', '<rootDir>/kosuke-cli/'],
   transformIgnorePatterns: ['node_modules/(?!(@clerk)/)'],
   collectCoverageFrom: [
     'src/app/api/**/*.ts',

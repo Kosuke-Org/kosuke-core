@@ -54,6 +54,10 @@ services:
       - /app/.next
       - ./projects:/app/projects:cached
       - /var/run/docker.sock:/var/run/docker.sock
+      # Mount local kosuke-cli for development
+      - ./kosuke-cli:/app/node_modules/@kosuke-ai/cli:cached
+      # Volume for kosuke-cli dependencies (installed via entrypoint)
+      - kosuke_cli:/app/node_modules/@kosuke-ai/cli/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +83,10 @@ services:
       - /app/.next
       - ./projects:/app/projects:cached
       - /var/run/docker.sock:/var/run/docker.sock
+      # Mount local kosuke-cli for development
+      - ./kosuke-cli:/app/node_modules/@kosuke-ai/cli:cached
+      # Volume for kosuke-cli dependencies (installed via entrypoint)
+      - kosuke_cli:/app/node_modules/@kosuke-ai/cli/node_modules
     depends_on:
       redis:
         condition: service_healthy

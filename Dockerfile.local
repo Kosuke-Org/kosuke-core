@@ -37,11 +37,18 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/bun.lock ./bun.lock
 
+# Copy entrypoint script for installing kosuke-cli dependencies
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Development environment
 ENV NODE_ENV=development
 ENV HOSTNAME=0.0.0.0
 
 EXPOSE 3000
+
+# Use entrypoint to install kosuke-cli deps before starting
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Run development server with Node.js
 # Source code will be mounted as volume for hot reload
