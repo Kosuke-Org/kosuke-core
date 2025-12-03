@@ -9,59 +9,11 @@ You are an expert senior software engineer specializing in the Kosuke Template t
 **Core Stack**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, Shadcn UI
 **Authentication**: Clerk with webhook integration
 **Database**: PostgreSQL with Drizzle ORM
-**Billing**: Polar billing with subscription management
-**Storage**: Vercel Blob for file uploads
+**Storage**: Digital Ocean Spaces (S3-compatible) for file uploads
 **Email**: Resend for transactional emails
 **Monitoring**: Sentry for error tracking and performance
-**Testing**: Jest with React Testing Library
 
 You are thoughtful, precise, and focus on delivering high-quality, maintainable solutions that integrate seamlessly with this tech stack.
-
-### Project Structure & Kosuke Template Architecture
-
-- `./app`: Next.js 15 App Router pages and layouts
-  - `./app/(logged-in)`: Protected routes for authenticated users
-  - `./app/(logged-out)`: Public routes for unauthenticated users
-  - `./app/api`: API routes (billing webhooks, user management, cron jobs)
-- `./components`: Reusable UI components
-  - `./components/ui`: Shadcn UI components (pre-installed, don't reinstall)
-- `./lib`: Core utilities and configurations
-  - `./lib/db`: Drizzle ORM schema, migrations, and database utilities
-  - `./lib/auth`: Clerk authentication utilities
-  - `./lib/billing`: Polar billing integration
-  - `./lib/email`: Resend email templates and utilities
-  - `./lib/storage`: Vercel Blob storage utilities
-- `./public`: Static assets
-- `./cli`: Interactive setup guide for project configuration
-
-### Essential Commands & Database Operations
-
-```bash
-# Database Setup & Migrations
-bun run db:generate     # Generate Drizzle migrations from schema changes
-bun run db:migrate      # Apply pending migrations to database
-bun run db:migrate:prod # Apply migrations in production (verbose)
-bun run db:push         # Push schema changes directly (dev only)
-bun run db:studio       # Open Drizzle Studio for database inspection
-
-# Development
-bun run dev             # Start development server with hot reload
-docker compose up -d    # Start PostgreSQL database locally
-
-# Testing
-bun run test                # Run Jest test suite
-bun run test:watch      # Run tests in watch mode
-bun run test:coverage   # Generate test coverage report
-
-# Code Quality
-bun run lint            # Run ESLint
-bun run format          # Format code with Prettier
-bun run format:check    # Check code formatting
-
-# Shadcn UI Management
-bun run shadcn:update   # Update all shadcn components
-bun run shadcn:check    # Check for available component updates
-```
 
 ## Code Quality Checks
 
@@ -81,37 +33,45 @@ bun run build      # Must build successfully
 
 These checks run in pre-commit hooks and CI/CD. Fix all issues before marking work complete.
 
-### Database & Drizzle ORM Best Practices
+## Database & Drizzle ORM Best Practices
 
-- **Schema Management**: Always use Drizzle schema definitions in `./lib/db/schema.ts`
+- **Schema Management**: Always use Drizzle schema definitions in `./src/lib/db/schema.ts`
 - **Migrations**: Generate migrations with `bun run db:generate` after schema changes
 - **Type Safety**: Use `createInsertSchema` and `createSelectSchema` from drizzle-zod
+- **Enums**: Use `pgEnum` for enum types - provides type safety AND database-level validation
+- **Type Inference**: Export inferred types from schema enums for automatic type sync
 - **Relations**: Define proper relations for complex queries
 - **Connection**: Use the configured database instance from `./lib/db/drizzle.ts`
 - **Environment**: PostgreSQL runs on port 54321 locally via Docker Compose
+- **Avoid JSONB Fields**: NEVER use JSONB fields unless absolutely necessary. Prefer proper relational design with dedicated columns and foreign keys. JSONB should only be used for truly dynamic, unstructured data that cannot be modeled with proper schema. This maintains type safety, query performance, and database integrity.
 
 ```typescript
-// Example schema pattern
+// Example schema pattern with enum
+import { pgTable, serial, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+
+// Define enum at database level
+export const statusEnum = pgEnum('status', ['pending', 'active', 'completed']);
 export const tableName = pgTable('table_name', {
   id: serial('id').primaryKey(),
   clerkUserId: text('clerk_user_id').notNull(), // Always reference Clerk users
+  status: statusEnum('status').notNull().default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+// Export inferred type - automatically syncs with enum values
+export type Status = (typeof statusEnum.enumValues)[number];
 
 // Example query pattern
 import { db } from '@/lib/db/drizzle';
 const result = await db.select().from(tableName).where(eq(tableName.clerkUserId, userId));
 ```
 
-### Clerk Authentication Integration
+## Clerk Authentication Integration
 
 - **User Management**: All user references use `clerkUserId` (string)
 - **Auth Patterns**: Use `auth()` from `@clerk/nextjs` in Server Components
 - **Client Auth**: Use `useUser()` hook in Client Components
-- **Webhooks**: User sync handled via `/api/clerk/webhook` endpoint
 - **Protected Routes**: Use Clerk's middleware for route protection
-- **Database Sync**: Users synced to local database for complex queries
 
 ```typescript
 // Server Component auth pattern
@@ -124,23 +84,7 @@ import { useUser } from '@clerk/nextjs';
 const { user, isLoaded } = useUser();
 ```
 
-### Polar Billing Integration
-
-- **Products**: Configure PRO and BUSINESS tier product IDs in environment
-- **Subscriptions**: Synced via webhooks to `userSubscriptions` table
-- **Checkout**: Use Polar SDK for subscription management
-- **Tiers**: 'free', 'pro', 'business' - stored in database
-- **Webhooks**: Handle subscription changes via `/api/billing/webhook`
-- **Cron Sync**: Automated subscription sync every 6 hours
-
-```typescript
-// Subscription check pattern
-import { getUserSubscription } from '@/lib/billing';
-const subscription = await getUserSubscription(userId);
-const isPro = subscription?.tier === 'pro' || subscription?.tier === 'business';
-```
-
-### Component Architecture & UI Guidelines
+## Component Architecture & UI Guidelines
 
 - **Shadcn Components**: Use pre-installed components from `./components/ui`
   - ALWAYS check https://ui.shadcn.com/docs/components before building custom UI
@@ -152,26 +96,31 @@ const isPro = subscription?.tier === 'pro' || subscription?.tier === 'business';
 - **Loading States**: Use Shadcn skeleton components for loading
 - **Error Handling**: Implement proper error boundaries
 - **Navigation**: Use Next.js `Link` component for navigation, NOT buttons with onClick
+- **Component Colocation**: Module-specific components should be colocated within their feature directory
+  - Place components inside `src/app/(logged-in)/[module]/components/` for feature modules
+  - Example: `src/app/(logged-in)/tasks/components/task-item.tsx`
+  - Only use `./components/` for truly global, reusable components shared across multiple modules
+  - This improves code organization, discoverability, and maintains clear feature boundaries
 
-### Navigation: Links vs Buttons - MANDATORY
+## Navigation: Links vs Buttons - MANDATORY
 
 **Use semantic HTML for navigation. If it navigates, it should be a link, not a button.**
 
-#### **✅ WHEN TO USE Links (Next.js Link component)**
+### ✅ WHEN TO USE Links (Next.js Link component)
 
 - **Page navigation** - Navigating to internal routes
 - **External URLs** - Links to external websites
 - **Anchor navigation** - Jump to sections on the page
 - **Any action that changes the URL** - Even if styled as a button
 
-#### **✅ WHEN TO USE Buttons**
+### ✅ WHEN TO USE Buttons
 
 - **Form submissions** - Submitting data to server
 - **Data mutations** - Creating, updating, deleting data
 - **Modal/dialog triggers** - Opening/closing UI elements (no URL change)
 - **Client-side actions** - Sorting, filtering, toggling without navigation
 
-#### **🔧 Implementation Patterns**
+### 🔧 Implementation Patterns
 
 **✅ CORRECT - Link styled as button for navigation:**
 
@@ -226,7 +175,7 @@ import { Github } from 'lucide-react';
 </Button>
 ```
 
-#### **🏗️ Best Practices**
+### 🏗️ Best Practices
 
 **Accessibility Benefits:**
 
@@ -270,7 +219,7 @@ import { Github } from 'lucide-react';
 <Link href="/posts?sort=date" shallow>Sort by Date</Link>
 ```
 
-#### **Decision Tree**
+### Decision Tree
 
 **Does this element change the URL or navigate to a different page?**
 
@@ -286,11 +235,11 @@ import { Github } from 'lucide-react';
 - "Open Modal" (no navigation) → `Button`
 - "Next Page" (pagination) → `Link`
 
-### Loading States & Skeleton Components - MANDATORY
+## Loading States & Skeleton Components - MANDATORY
 
 **ALWAYS use Skeleton components for page-level loading states. NEVER use simple "Loading..." text for page content.**
 
-#### **✅ WHEN TO USE Skeleton Components**
+### ✅ WHEN TO USE Skeleton Components
 
 - **Page-level loading** - When entire page or major sections are loading
 - **Data fetching states** - While waiting for API responses
@@ -298,44 +247,61 @@ import { Github } from 'lucide-react';
 - **Component mount states** - When components are being prepared
 - **List/grid loading** - When loading multiple items
 
-#### **✅ WHEN TO USE Loading Text (with spinners)**
+### ✅ WHEN TO USE Loading Text (with spinners)
 
 - **Button states** - "Uploading...", "Processing...", "Saving..."
 - **Form submissions** - Short-lived action feedback
 - **File operations** - Upload/download progress indicators
 - **Modal actions** - Quick operations within modals
 
-#### **🔧 Implementation Patterns**
+### 🔧 Implementation Patterns
 
-**✅ CORRECT - Page-level skeleton:**
+**✅ CORRECT - Page-level skeleton (colocated):**
 
 ```typescript
-// Create dedicated skeleton component for each page
-function PageSkeleton() {
+// app/(logged-in)/tasks/page.tsx
+'use client';
+
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardHeader } from '@/components/ui/card';
+
+// Skeleton components colocated with the page
+function TaskSkeleton() {
+  return (
+    <Card className="py-3">
+      <CardHeader className="flex flex-row items-center gap-4 px-6 py-0">
+        <Skeleton className="h-5 w-5 rounded" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
+
+function TasksPageSkeleton() {
   return (
     <div className="space-y-6">
-      <div>
-        <Skeleton className="h-6 w-48 mb-2" />
-        <Skeleton className="h-4 w-72" />
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-96" />
       </div>
-      <div className="rounded-lg border p-6 space-y-4">
-        <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-4 w-full" />
-        <div className="flex gap-2">
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-20" />
-        </div>
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <TaskSkeleton key={i} />
+        ))}
       </div>
     </div>
   );
 }
 
-// Use in component
-export default function MyPage() {
+// Main page component
+export default function TasksPage() {
   const { data, isLoading } = useQuery({ /* ... */ });
 
   if (isLoading) {
-    return <PageSkeleton />;
+    return <TasksPageSkeleton />;
   }
 
   return <div>{/* actual content */}</div>;
@@ -371,14 +337,20 @@ if (isLoading) {
 }
 ```
 
-#### **🏗️ Skeleton Best Practices**
+### 🏗️ Skeleton Best Practices
 
-**Component Structure:**
+**Component Structure & Organization:**
 
+- **Colocate skeleton components** with their corresponding pages/components
+  - Page skeletons: Define within the page file (e.g., `TasksPageSkeleton` in `tasks/page.tsx`)
+  - Component skeletons: Define within the component file or near usage
+  - NEVER create separate skeleton files (e.g., no `task-skeleton.tsx`)
+- **Generic reusable skeletons**: Only in `@/components/skeletons.tsx` for truly global patterns
+  - Examples: `CardSkeleton`, `FormSkeleton`, `UserSkeleton`, `TableRowSkeleton`
+  - Use these as building blocks, but prefer page-specific skeleton composition
 - Create dedicated `{PageName}Skeleton` components for each page
 - Use realistic proportions that match actual content layout
 - Include proper spacing and hierarchy with skeleton elements
-- Use `@/components/skeletons` for reusable skeleton patterns
 
 **Design Guidelines:**
 
@@ -387,6 +359,7 @@ if (isLoading) {
 - Include rounded corners for profile images (`rounded-full`)
 - Use proper grid layouts for card-based content
 - Animate skeletons with Shadcn's built-in pulse animation
+- Match skeleton padding/spacing to actual component styles
 
 **Loading Hierarchy:**
 
@@ -416,7 +389,7 @@ return <PageContent data={data} />;
 - Test skeleton appearance in both light and dark themes
 - Match skeleton spacing to actual content spacing
 
-### State Management & Data Fetching
+## State Management & Data Fetching
 
 - **Global State**: Use Zustand for complex state management
 - **Server State**: Use TanStack Query for API calls and caching
@@ -424,11 +397,11 @@ return <PageContent data={data} />;
 - **Local State**: useState for component-specific state
 - **Persistence**: Use Zustand persist middleware when needed
 
-### TanStack Query Usage Guidelines - MANDATORY
+## TanStack Query Usage Guidelines - MANDATORY
 
 **Use TanStack Query for ALL server-side data operations when appropriate.**
 
-#### **✅ WHEN TO USE TanStack Query**
+### ✅ WHEN TO USE TanStack Query
 
 - **API data fetching** - GET requests to your backend
 - **Server mutations** - POST/PUT/DELETE operations
@@ -436,7 +409,7 @@ return <PageContent data={data} />;
 - **Background data synchronization**
 - **Real-time data that needs caching**
 
-#### **❌ WHEN NOT TO USE TanStack Query**
+### ❌ WHEN NOT TO USE TanStack Query
 
 - **Browser APIs** - window resize, localStorage, geolocation
 - **React Context** - state management, theme providers
@@ -444,7 +417,7 @@ return <PageContent data={data} />;
 - **Client-side only operations** - navigation, local calculations
 - **Third-party SDK calls** - Clerk auth actions (unless they involve your API)
 
-#### **💾 Global Query Caching & Persistence**
+### 💾 Global Query Caching & Persistence
 
 **All queries automatically persist to localStorage.** Page refreshes load cached data instantly (5-min staleTime, 24-hour cache). No manual setup needed.
 
@@ -479,6 +452,7 @@ const { data } = useQuery({
 - Sensitive data (passwords, tokens, API keys)
 - Real-time data (notifications, live counts)
 - Temporary search/filter results
+Configured globally in `src/app/providers.tsx` with `PersistQueryClientProvider`.
 
 **staleTime vs gcTime:**
 
@@ -487,7 +461,7 @@ const { data } = useQuery({
 
 Example: `staleTime: 5 min, gcTime: 24h` → refetch every 5 min, keep in localStorage 24 hours
 
-#### **🔧 Implementation Patterns**
+### 🔧 Implementation Patterns
 
 **✅ CORRECT - Data Fetching with useQuery:**
 
@@ -567,7 +541,7 @@ useEffect(() => {
 }, []);
 ```
 
-#### **🏗️ Best Practices**
+### 🏗️ Best Practices
 
 **Query Keys:**
 
@@ -811,45 +785,7 @@ export const usedFunction = () => {}; // Keep
 // Ignore "unlisted dependencies" warnings
 ```
 
-### File Upload & Storage (Vercel Blob)
-
-- **Configuration**: Use `./lib/storage.ts` utilities
-- **Image Patterns**: Support for profile images, document uploads
-- **Validation**: Implement proper file type and size validation
-- **Cleanup**: Handle file deletion when records are removed
-
-### Email Integration (Resend)
-
-- **Templates**: Create email templates in `./lib/email`
-- **Transactional**: Welcome emails, billing notifications
-- **Configuration**: Use environment variables for branding
-- **Error Handling**: Proper fallbacks for email delivery
-
-### Error Monitoring (Sentry)
-
-- **Integration**: Auto-configured with Next.js
-- **Performance**: Track Web Vitals and API performance
-- **Error Boundaries**: Implement proper error boundaries
-- **User Context**: Associate errors with user sessions
-
-### Environment Configuration
-
-- **Required Variables**: See `.env.example` for complete list
-- **Local Setup**: Use Docker Compose for PostgreSQL
-- **Production**: Vercel deployment with proper environment variables
-- **Security**: Use `CRON_SECRET` for API route protection
-
-### Code Style and Structure
-
-- Write concise, technical TypeScript code with accurate examples
-- Use functional and declarative programming patterns; avoid classes
-- Prefer iteration and modularization over code duplication
-- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
-- Structure files: exported component, subcomponents, helpers, static content, types
-- Always reference Clerk users via `clerkUserId` in database operations
-- Use proper error handling for all external API calls (Clerk, Polar, Resend)
-
-### TypeScript and Type Safety Guidelines
+## TypeScript and Type Safety Guidelines
 
 - Never use the `any` type - it defeats TypeScript's type checking
 - For unknown data structures, use:
@@ -865,59 +801,71 @@ export const usedFunction = () => {}; // Keep
   - Leverage `InferSelectModel` and `InferInsertModel` types
   - Create proper Zod schemas for validation
 
-### Type Management and Organization
+## Type Management and Organization
 
-- **Centralized Types**: All shared types are organized by domain and functionality
-  - `lib/types/user.ts` - User-related types extending schema types
-  - `lib/types/billing.ts` - Billing and subscription types extending schema types
-  - `lib/types/index.ts` - Re-exports all domain types for easy importing
-  - `lib/api/` - API infrastructure types and utilities (errors, responses, etc.)
-- **Type Hierarchy**: Always extend existing schema types rather than creating duplicate interfaces
-  - Use `import type { User } from '@/lib/db/schema'` as base types
-  - Create variants for different use cases (e.g., `UserWithSubscription`, `UserProfile`)
-  - Prefer `Pick<>`, `Omit<>`, and intersection types over full redefinition
-- **Import Patterns**:
-  - Use `import type { TypeName } from '@/lib/types'` for domain types (user, billing)
-  - Use `import type { TypeName } from '@/lib/api'` for API infrastructure types
-  - Import directly from schema only when using base types without extensions
-  - Never duplicate type definitions across files
-- **Type Naming**: Follow consistent naming conventions
-  - Base types: `User`, `UserSubscription`, `Notification` (match schema exports)
-  - Extended types: `UserWithSubscription`, `UserProfile`, `NotificationWithUser`
-  - List types: `UserListItem`, `SubscriptionSummary`
-  - Operation types: `CreateUserData`, `UpdateSubscriptionData`
-  - Statistics: `UserStats`, `BillingStats`, `SubscriptionMetrics`
-- **Component Props**: Define component-specific prop interfaces inline
-  - Shadcn UI components already provide comprehensive typed interfaces
-  - Create component-specific interfaces only when needed (e.g., `TechCardProps`)
-  - Avoid over-abstracting UI component types unless there's clear reuse
+### Type Creation Philosophy (MANDATORY)
 
-### Centralized Type Organization Rules - MANDATORY
+- **ONLY create types that are ACTUALLY USED** - Never create types "just in case" or for completeness
+- **Verify usage before creation** - Before defining any type, ensure it has at least one concrete usage
+- **Remove unused types immediately** - If a type becomes unused, delete it rather than keeping it around
+- **Prefer inference over manual definition** - Always try to infer types from existing sources first
+
+### Type Inference Priority (MANDATORY)
+
+1. **Database Schema Types** - Import from `@/lib/db/schema` (includes pgEnum types)
+2. **Domain Extension Types** - Only define in `lib/types/` when extending base types AND actively used
+3. **Infrastructure Types** - API utilities, errors, and configurations in `lib/api/`
+
+
+### Type Naming Conventions
+
+- Base types: `User`, `UserSubscription`, `Task` (match schema exports)
+- Enum types: `TaskPriority`, `SubscriptionTier` (inferred from pgEnum)
+- Extended types: `UserWithSubscription`, `UserProfile`, `TaskWithUser`
+- List types: Infer from router output `RouterOutput['tasks']['list'][number]`
+- Input types: Infer from router input `RouterInput['tasks']['create']`
+- Statistics: `UserStats`, `BillingStats` (computed aggregations)
+
+
+## Centralized Type Organization Rules - MANDATORY
 
 **NEVER define types inside hooks, components, or utility functions. ALL types must be centralized.**
 
-- **Domain Types**: Business logic types go in `lib/types/`
-  - User-related: authentication, profiles, preferences
-  - Billing-related: subscriptions, payments, tiers
-  - Application-specific: features, settings, analytics
+### Domain Types
 
-- **Infrastructure Types**: Technical types go in `lib/api/`
-  - API responses, errors, pagination
-  - Async operation configurations
-  - Form handling configurations
-  - Generic utility types
+Business logic types go in `lib/types/`:
 
-**✅ CORRECT - Centralized types:**
+- User-related: authentication, profiles, preferences
+- Billing-related: subscriptions, payments, tiers
+- Application-specific: features, settings, analytics
+
+### Infrastructure Types
+
+Technical types go in `lib/api/`:
+
+- API responses, errors, pagination
+- Async operation configurations
+- Form handling configurations
+- Generic utility types
+
+### ✅ CORRECT - Type inference and centralization
 
 ```typescript
-// lib/types/user.ts
+// lib/db/schema.ts - Define enum at database level
+export const taskPriorityEnum = pgEnum('task_priority', ['low', 'medium', 'high']);
+export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
+
+// lib/types/task.ts - Minimal re-exports only
+export type { Task, TaskPriority } from '@/lib/db/schema';
+
+// lib/types/user.ts - Domain extensions (not in schema/router)
 export interface NotificationSettings {
   emailNotifications: boolean;
   marketingEmails: boolean;
   securityAlerts: boolean;
 }
 
-// lib/api/index.ts
+// lib/api/index.ts - Infrastructure types
 export interface AsyncOperationOptions {
   successMessage?: string;
   errorMessage?: string;
@@ -925,14 +873,23 @@ export interface AsyncOperationOptions {
   onError?: (error: Error) => void;
 }
 
-// hooks/use-notification-settings.ts
-import { useQuery, useMutation } from '@tanstack/react-query';
-import type { NotificationSettings } from '@/lib/types';
 ```
 
-**❌ WRONG - Inline types:**
+### ❌ WRONG - Manual type definitions
 
 ```typescript
+// ❌ NO! Don't manually define types that can be inferred
+// hooks/use-tasks.ts
+interface CreateTaskInput {
+  // This duplicates the tRPC router input definition!
+  title: string;
+  description?: string;
+  priority: 'low' | 'medium' | 'high'; // Should use pgEnum from schema
+}
+
+// lib/types/task.ts
+export type TaskPriority = 'low' | 'medium' | 'high'; // ❌ NO! Infer from pgEnum
+
 // hooks/use-notification-settings.ts
 interface NotificationSettings {
   // ❌ NO! Move to lib/types/
@@ -948,34 +905,34 @@ interface AsyncOperationOptions {
 }
 ```
 
-**✅ Import Patterns:**
+### ✅ Import Patterns
 
 ```typescript
-// For domain types
-import type { UserProfile, NotificationSettings } from '@/lib/types';
+// For domain types (ALWAYS import from @/lib/types, even if just re-exports)
+import type { User, Task, TaskPriority, UserProfile, NotificationSettings } from '@/lib/types';
 
 // For infrastructure types
 import type { ApiResponse, AsyncOperationOptions } from '@/lib/api';
 
-// For database types
-import type { User } from '@/lib/db/schema';
+// ❌ WRONG - Don't import domain types directly from schema in application code
+import type { User, Task } from '@/lib/db/schema'; // NO! Use @/lib/types instead
+
+// ✅ OK - Only import from schema in database operations (tRPC routers, migrations)
+// lib/trpc/routers/tasks.ts
+import { tasks } from '@/lib/db/schema'; // OK in database queries
 ```
 
-**✅ Type Location Decision Tree:**
+## Code Style and Structure
 
-- **Is it domain-specific business logic?** → `lib/types/{domain}.ts`
-- **Is it API/infrastructure related?** → `lib/api/index.ts`
-- **Is it database entity?** → Already in `lib/db/schema.ts`
-- **Is it component-specific props?** → Define inline ONLY if truly unique to that component
+- Write concise, technical TypeScript code with accurate examples
+- Use functional and declarative programming patterns; avoid classes
+- Prefer iteration and modularization over code duplication
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
+- Structure files: exported component, subcomponents, helpers, static content, types
+- Always reference Clerk users via `clerkUserId` in database operations
+- Use proper error handling for all external API calls (Clerk, Stripe, Resend)
 
-**Enforcement:**
-
-- All hooks MUST import types from centralized locations
-- NO type definitions allowed in hooks, utilities, or components (except component props)
-- Use TanStack Query for data fetching where beneficial
-- Always export new types through `lib/types/index.ts` or `lib/api/index.ts`
-
-### Performance Optimization
+## Performance Optimization
 
 - Implement proper code splitting with Next.js dynamic imports
 - Use React.memo for expensive computations
@@ -985,330 +942,37 @@ import type { User } from '@/lib/db/schema';
 - Optimize images with Next.js Image component
 - Use Sentry performance monitoring
 
-### Testing Strategy
-
-- **Unit Tests**: Jest for utility functions and components
-- **Integration Tests**: Database operations and API routes
-- **Mocking**: Proper mocks for Clerk, Polar, Resend APIs
-- **Coverage**: Maintain good test coverage for critical paths
-- **E2E**: Consider Playwright for critical user flows
-
-### Security Best Practices
-
-- **Authentication**: Always verify user sessions via Clerk
-- **Authorization**: Check user permissions for data access
-- **API Security**: Validate webhooks with proper secrets
-- **Database**: Use parameterized queries (Drizzle handles this)
-- **Environment**: Never commit secrets, use environment variables
-
-### Deployment & Production
-
-- **Platform**: Vercel with automatic deployments
-- **Database**: Production PostgreSQL (Neon, Supabase, or similar)
-- **Environment**: Production environment variables properly configured
-- **Monitoring**: Sentry for error tracking and performance
-- **Cron Jobs**: Vercel Cron for subscription synchronization
-
-### Color Rules
+## Color Rules
 
 - Never use new colors, always use the ones defined in `./app/globals.css` file (following shadcn/ui theme)
 - Use CSS variables for consistent theming across light/dark modes
 
-### Design Guidelines
+## SEO Configuration
 
-| Criteria                       | 3                                                                                                                              | 4                                                                                                     | 5                                                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| UI/UX Design                   | Acceptable design with a basic layout; some minor usability issues may persist.                                                | Good design with clear visual hierarchy; most users find the experience intuitive.                    | Outstanding, user-centric UI/UX with an intuitive, attractive, and seamless interface that guides users effortlessly.                   |
-| Accessibility                  | Basic accessibility in place (e.g., alt text and acceptable contrast), though full compliance isn't achieved.                  | Mostly accessible; adheres to most accessibility standards with only minor issues.                    | Fully accessible design that meets or exceeds WCAG 2.1 AA standards, ensuring every user can navigate the app effortlessly.             |
-| Performance                    | Average load times; the app is usable but further optimizations could enhance user experience.                                 | Fast performance; most assets are optimized and pages load quickly on most connections.               | Exceptional performance with assets optimized to load in ~3 seconds or less, even on slower networks.                                   |
-| Responsiveness                 | Generally responsive; most components reflow correctly, though a few minor issues may appear on uncommon screen sizes.         | Highly responsive; the design adapts well to a variety of devices with very few issues.               | Completely responsive; the layout and content seamlessly adapt to any screen size, ensuring a consistent experience across all devices. |
-| Visual Consistency             | Moderately consistent; most design elements follow a common style guide with a few exceptions.                                 | Visually cohesive; nearly all UI elements align with a unified design language with minor deviations. | Total visual consistency; every component adheres to a unified design system, reinforcing the brand and improving user familiarity.     |
-| Navigation & Usability         | Acceptable navigation; users can complete tasks but may experience a brief learning curve.                                     | Well-structured navigation with clear menus and labels; users find it easy to locate content.         | Exceptional navigation; an intuitive and streamlined interface ensures that users can find information quickly and easily.              |
-| Mobile Optimization            | Mobile-friendly in most areas; the experience is acceptable though not fully polished for all mobile nuances.                  | Optimized for mobile; the design performs well on smartphones with only minor issues to address.      | Fully mobile-first; the app offers a smooth, fast, and engaging mobile experience with well-sized touch targets and rapid load times.   |
-| Code Quality & Maintainability | Reasonable code quality; standard practices are mostly followed but could benefit from improved organization or documentation. | Clean, well-commented code adhering to modern best practices; relatively easy to maintain and scale.  | Exemplary code quality; modular, semantic, and thoroughly documented code ensures excellent maintainability and scalability.            |
+**This is an authentication-first application with minimal public pages.**
 
-When building new components or updating existing ones, act as a world class designer.
-Your job is to take this prototype and turn it into a impeccably designed web application.
-This application should be in the top applications and should be a winner of an Apple design award.
-Use the Rubric guidelines as a guide. You should ship only components that have 5 in each category.
+**Sitemap** only includes legal pages in `app/sitemap.ts`.
 
-### Contributing Guidelines - MUST FOLLOW
 
-- Always use inline CSS with Tailwind and Shadcn UI
-- Use 'use client' directive for client-side components
-- Use Lucide React for icons (from lucide-react package). Do NOT use other UI libraries unless requested
-- Use stock photos from picsum.photos where appropriate, only valid URLs you know exist
-- Configure next.config.ts image remotePatterns to enable stock photos from picsum.photos
-- NEVER USE HARDCODED COLORS. Make sure to use the color tokens
-- Make sure to implement good responsive design
-- Avoid code duplication. Keep the codebase very clean and organized. Avoid having big files
-- Make sure that the code you write is consistent with the rest of the app in terms of UI/UX, code style, naming conventions, and formatting
-- Always run database migrations when schema changes are made
-- Test authentication flows and subscription management thoroughly
-- Implement proper error handling for all external service integrations
-- Don't commit the changes if not specified by the user.
-
-### SEO Best Practices - MANDATORY
-
-**All public-facing pages MUST have proper SEO configuration following these standards.**
-
-#### **Meta Tags & OpenGraph**
-
-**Required for Every Page:**
-
-```typescript
-export const metadata: Metadata = {
-  title: 'Page Title | Kosuke',
-  description: 'Clear, concise description (150-160 characters)',
-  alternates: {
-    canonical: `${baseUrl}/page-path`,
-  },
-};
-```
-
-**For Dynamic Content Pages (Blog Posts, Case Studies):**
-
-```typescript
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const content = await fetchContent(params.slug);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kosuke.ai';
-
-  return {
-    title: `${content.title} | Kosuke`,
-    description: content.excerpt || content.metaDescription,
-    alternates: {
-      canonical: `${baseUrl}/blog/${params.slug}`,
-    },
-    openGraph: {
-      title: content.title,
-      description: content.excerpt,
-      type: 'article',
-      publishedTime: content.publishedAt,
-      authors: content.author ? [content.author.name] : undefined,
-      images: content.featureImage ? [content.featureImage] : undefined,
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: content.title,
-      description: content.excerpt,
-      images: content.featureImage ? [content.featureImage] : undefined,
-    },
-  };
-}
-```
-
-#### **Structured Data (Schema.org)**
-
-**Blog Posts & Articles:**
-
-```typescript
-const articleStructuredData = {
-  '@context': 'https://schema.org',
-  '@type': 'BlogPosting',
-  headline: post.title,
-  description: post.excerpt,
-  image: post.featureImage,
-  datePublished: post.publishedAt,
-  author: {
-    '@type': 'Person',
-    name: post.author.name,
-  },
-  publisher: {
-    '@type': 'Organization',
-    name: 'Kosuke',
-    logo: {
-      '@type': 'ImageObject',
-      url: `${baseUrl}/logo.svg`,
-    },
-  },
-  mainEntityOfPage: {
-    '@type': 'WebPage',
-    '@id': `${baseUrl}/blog/${slug}`,
-  },
-};
-```
-
-**FAQ Pages:**
-
-```typescript
-// Export FAQ data from component
-export const faqItems = [
-  {
-    id: 'item-1',
-    question: 'Question text?',
-    answer: 'Answer text.',
-  },
-];
-
-// In page component
-const faqStructuredData = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: faqItems.map(item => ({
-    '@type': 'Question',
-    name: item.question,
-    acceptedAnswer: {
-      '@type': 'Answer',
-      text: item.answer,
-    },
-  })),
-};
-```
-
-**Add structured data to page:**
-
-```typescript
-<Script
-  id="unique-structured-data-id"
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify(structuredData),
-  }}
-/>
-```
-
-#### **Environment-Based SEO Configuration**
-
-**All SEO features must respect environment settings:**
-
-1. **robots.ts** - Already configured for environment-based blocking
-2. **Meta robots tags** - Configured in `layout.tsx`
-3. **Sitemap** - Uses `NEXT_PUBLIC_APP_URL` for environment detection
-
-**Never hardcode production URLs in SEO code:**
-
-```typescript
-// ❌ WRONG
-const url = 'https://kosuke.ai/page';
-
-// ✅ CORRECT
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kosuke.ai';
-const url = `${baseUrl}/page`;
-```
-
-#### **Content & SEO Synchronization - CRITICAL**
-
-**When updating page content, ALWAYS update corresponding SEO metadata:**
-
-```typescript
-// ❌ WRONG - Content and SEO don't match
-<h1>Complete Guide to AI Development in 2025</h1>
-export const metadata = {
-  title: 'Getting Started with AI | Kosuke',  // Outdated!
-  description: 'Learn the basics...',          // Doesn't match content!
-};
-
-// ✅ CORRECT - SEO reflects actual content
-<h1>Complete Guide to AI Development in 2025</h1>
-export const metadata = {
-  title: 'Complete Guide to AI Development in 2025 | Kosuke',
-  description: 'Master AI development in 2025 with our comprehensive guide covering latest tools, best practices, and real-world examples.',
-};
-```
-
-**Synchronization Checklist:**
-
-- ✅ **H1 heading** matches page **title** (minus brand suffix)
-- ✅ **Meta description** accurately summarizes page content
-- ✅ **OpenGraph title/description** reflect current content
-- ✅ **Structured data** uses up-to-date information
-- ✅ **Alt text** describes actual images used
-
-**When content changes:**
-
-1. Update page content (H1, copy, images)
-2. Update `metadata.title` to match new H1
-3. Update `metadata.description` to reflect new content
-4. Update OpenGraph/Twitter metadata if changed
-5. Update structured data if applicable
-6. Verify alt text still matches images
-
-#### **SEO Checklist for New Pages**
-
-When creating a new public page:
-
-1. ✅ **Meta Tags**: Title matching H1, accurate description, canonical URL
-2. ✅ **OpenGraph**: For dynamic content (blog, case studies)
-3. ✅ **Twitter Cards**: For pages with images
-4. ✅ **Structured Data**: If applicable (articles, FAQs, products)
-5. ✅ **Sitemap**: Add route to `sitemap.ts` if static
-6. ✅ **Image Alt Text**: All images must have descriptive alt text
-7. ✅ **Semantic HTML**: Use proper heading hierarchy (h1, h2, h3)
-8. ✅ **Mobile Optimization**: Responsive and fast loading
-9. ✅ **Content Sync**: Verify SEO metadata matches actual page content
-
-#### **What NOT to Index**
-
-The following are automatically blocked via `robots.ts`:
-
-- `/api/*` - API endpoints
-- `/projects/*` - User projects (private)
-- `/settings/*` - User settings (private)
-- `/sign-in/*` - Authentication pages
-- `/sign-up/*` - Authentication pages
-- `/sso-callback/*` - SSO callbacks
-
-**Never add `noindex` to public marketing pages.**
-
-#### **Sitemap Management**
-
-**Static routes** are already configured in `sitemap.ts`.
-
-**For new static pages**, add to sitemap:
-
-```typescript
-{
-  url: `${baseUrl}/new-page`,
-  changeFrequency: 'weekly',
-  priority: 0.8,
-}
-```
-
-**Dynamic routes** (blog, customers) are automatically included via pagination.
-
-#### **SEO Best Practices Summary**
-
-| Element          | Required           | Location            | Notes                    |
-| ---------------- | ------------------ | ------------------- | ------------------------ |
-| Title tag        | ✅ Always          | page metadata       | Include brand name       |
-| Meta description | ✅ Always          | page metadata       | 150-160 characters       |
-| Canonical URL    | ✅ Always          | page metadata       | Prevent duplicates       |
-| OpenGraph        | ✅ Dynamic content | page metadata       | Articles, case studies   |
-| Twitter Card     | ✅ Dynamic content | page metadata       | Content with images      |
-| Structured Data  | ⚠️ When applicable | Script tag in page  | Articles, FAQs           |
-| Alt text         | ✅ Always          | Image components    | Descriptive text         |
-| Semantic HTML    | ✅ Always          | Component structure | Proper heading hierarchy |
-
-#### **Testing SEO Implementation**
-
-Before deploying:
-
-1. **Meta tags**: View page source, verify all tags present
-2. **OpenGraph**: Use [OpenGraph Debugger](https://www.opengraph.xyz/)
-3. **Twitter Cards**: Use [Twitter Card Validator](https://cards-dev.twitter.com/validator)
-4. **Structured Data**: Use [Rich Results Test](https://search.google.com/test/rich-results)
-5. **Sitemap**: Visit `/sitemap.xml` and verify all pages listed
-6. **Robots**: Visit `/robots.txt` and verify blocking rules
-
-### GitHub Actions Workflow Notifications - MANDATORY
+## GitHub Actions Workflow Notifications - MANDATORY
 
 **When creating new GitHub Actions workflows, ALWAYS add Slack notifications for success and failure outcomes.**
 
-#### **✅ WHEN TO ADD Slack Notifications**
+### ✅ WHEN TO ADD Slack Notifications
 
 - **Custom workflows on main branch** - Any new workflow created for project-specific automation that runs on the main branch (e.g., `on-main.yml`)
 - **Deployment workflows** - Release, build, or deployment pipelines
 - **Automated operations** - Scheduled jobs, syncs, or maintenance tasks
 - **Release workflows** - Version updates, releases, or publishing
 
-#### **❌ WHEN NOT TO ADD Slack Notifications**
+### ❌ WHEN NOT TO ADD Slack Notifications
 
 - **CI workflows** - `ci.yml` and similar PR/commit checks (handled separately via GitHub Actions settings)
 - **Claude workflows** - `claude.yml` workflow (AI automation tool)
 - **PR/Review workflows** - Code quality checks running on every pull request (too noisy)
 - **Local development workflows** - Developer-only testing workflows
 
-#### **🔧 Implementation Pattern**
+### 🔧 Implementation Pattern
 
 **Always add both success and failure notifications at the end of critical jobs:**
 
@@ -1324,7 +988,7 @@ Before deploying:
     curl -X POST --data "{\"text\":\"❌ Workflow Name Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 ```
 
-#### **🏗️ Best Practices**
+### 🏗️ Best Practices
 
 **Include relevant information in success messages:**
 
@@ -1345,7 +1009,7 @@ Before deploying:
 - Don't notify on routine CI checks (too noisy)
 - Include direct link to GitHub Actions run: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`
 
-#### **🔑 Required Secrets**
+### 🔑 Required Secrets
 
 Use `SLACK_DEV_CHANNEL_WEBHOOK_URL` secret for notifications:
 
@@ -1355,13 +1019,9 @@ Use `SLACK_DEV_CHANNEL_WEBHOOK_URL` secret for notifications:
 
 **Rationale:** Ensures team visibility into custom automated workflows, enabling quick response to failures and tracking deployment progress without overwhelming with routine CI noise.
 
-### Quick Setup Checklist for New Features
+## Documentation Guidelines - MANDATORY
 
-1. **Database Changes**: Update schema → `bun run db:generate` → `bun run db:migrate`
-2. **Authentication**: Verify user sessions and permissions
-3. **Billing**: Check subscription tier if feature is gated
-4. **UI Components**: Use existing Shadcn components when possible
-5. **Error Handling**: Implement proper error boundaries and fallbacks
-6. **Testing**: Write tests for critical functionality
-7. **Type Safety**: Ensure proper TypeScript types throughout
-8. **SEO**: Add metadata, structured data, and update sitemap if needed
+- **NEVER proactively create documentation files** (\*.md) or README files
+- **NEVER create feature documentation** when implementing new features
+- Only create documentation files if **explicitly requested** by the user
+- Focus on implementing the feature code, not documenting it
