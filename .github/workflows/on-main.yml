@@ -122,7 +122,7 @@ jobs:
       - name: Notify Slack - Success
         if: success()
         run: |
-          curl -X POST --data '{"text":"✅ Kosuke Staging Deployed Successfully - https://stage.kosuke.ai"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data '{"text":"✅ Kosuke Staging Deployed Successfully - https://app.stage.kosuke.ai"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 
       - name: Notify Slack - Failure
         if: failure()

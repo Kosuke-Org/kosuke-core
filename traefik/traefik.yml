@@ -37,7 +37,6 @@ certificatesResolvers:
         resolvers:
           - '1.1.1.1:53'
           - '8.8.8.8:53'
-        # Supports both kosuke.ai and kosuke.app domains
 
 log:
   level: INFO

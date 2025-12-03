@@ -131,7 +131,7 @@ jobs:
       - name: Notify Slack - Success
         if: success()
         run: |
-          curl -X POST --data '{"text":"✅ Kosuke Production ${{ steps.version.outputs.VERSION }} Deployed Successfully - https://kosuke.ai"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data '{"text":"✅ Kosuke Production ${{ steps.version.outputs.VERSION }} Deployed Successfully - https://app.kosuke.ai"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 
       - name: Notify Slack - Failure
         if: failure()
