@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
 import type { PreviewStatus, UsePreviewPanelOptions, UsePreviewPanelReturn } from '@/lib/types';
-import { useStartPreview } from './use-preview-status';
+import { useStartPreview } from './use-start-preview';
 
 export function usePreviewPanel({
   projectId,
@@ -145,64 +145,24 @@ export function usePreviewPanel({
       // No git status in status/start flows
 
       try {
-        const sessionText = `session ${sessionId}`;
         console.log(
-          `[Preview Panel] Fetching preview URL for project ${projectId} ${sessionText}${forceStart ? ' (forcing refresh)' : ''}`
+          `[Preview Panel] Fetching preview URL for project ${projectId} session ${sessionId}${forceStart ? ' (forcing refresh)' : ''}`
         );
 
-        const url = `/api/projects/${projectId}/chat-sessions/${sessionId}/preview`;
-
-        const response = await fetch(url, {
-          method: 'GET',
-        });
-
-        if (!response.ok) {
-          // Attempt to start the preview once on initial failure to avoid double GETs elsewhere
-          if (response.status === 404 || response.status === 409 || response.status === 400) {
-            try {
-              console.log('[Preview Panel] Preview not ready, attempting to start...');
-              await startPreview();
-              // small delay before refetching status
-              await new Promise(r => setTimeout(r, 1000));
-              const retry = await fetch(url, { method: 'GET' });
-              if (!retry.ok) {
-                const data = await retry.json().catch(() => ({}));
-                throw new Error(data.error || `Failed to fetch preview: ${retry.statusText}`);
-              }
-              const retryData = await retry.json();
-              if (retryData.previewUrl || retryData.url) {
-                const readyUrl = retryData.previewUrl || retryData.url;
-                setPreviewUrl(readyUrl);
-                pollServerUntilReady();
-                return;
-              }
-              throw new Error('No preview URL returned after start');
-            } catch (startErr) {
-              console.error('[Preview Panel] Failed to auto-start preview:', startErr);
-            }
-          }
-
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || `Failed to fetch preview: ${response.statusText}`);
-        }
-
-        const data = await response.json();
+        // Use the hook - GET auto-starts preview if not running
+        const data = await startPreview();
         console.log(`[Preview Panel] Preview status response:`, data);
 
-        if (data.previewUrl || data.url) {
-          const readyUrl = data.previewUrl || data.url;
+        const readyUrl = data.previewUrl || data.url;
+        if (readyUrl) {
           console.log('[Preview Panel] Setting preview URL:', readyUrl);
           setPreviewUrl(readyUrl);
           if (data.is_responding && data.running) {
-            console.log(
-              '[Preview Panel] Preview is responding and running, polling server until ready'
-            );
+            console.log('[Preview Panel] Preview is responding and running');
             setStatus('ready');
             setProgress(100);
           } else {
-            console.log(
-              '[Preview Panel] Preview is not responding or not running, starting polling'
-            );
+            console.log('[Preview Panel] Preview starting, polling until ready');
             pollServerUntilReady();
           }
         } else {

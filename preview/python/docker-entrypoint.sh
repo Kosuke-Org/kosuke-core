@@ -3,7 +3,7 @@ set -e
 
 # Check if pyproject.toml exists (should exist from GitHub template)
 if [ ! -f "pyproject.toml" ]; then
-  echo "❌ No pyproject.toml found. Ensure your project is have a pyproject.toml file."
+  echo "❌ No pyproject.toml found. Ensure your project has a pyproject.toml file."
   exit 1
 fi
 
@@ -17,6 +17,13 @@ fi
 echo "Installing dependencies..."
 uv pip install --no-cache -r pyproject.toml
 
-# Execute the main command
-exec "$@"
-
+# Check mode: production (main branch) vs development (feature branches)
+if [ "$KOSUKE_MODE" = "production" ]; then
+  echo "🏭 Running in PRODUCTION mode"
+  # Start uvicorn WITHOUT --reload for production
+  exec uvicorn main:app --host 0.0.0.0 --port 8000
+else
+  echo "🛠️ Running in DEVELOPMENT mode"
+  # Execute the main command (default: uvicorn with --reload)
+  exec "$@"
+fi

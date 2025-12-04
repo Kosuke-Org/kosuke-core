@@ -9,6 +9,7 @@ import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
 import { createRepositoryFromTemplate } from '@/lib/github';
 import { getUserGitHubToken } from '@/lib/github/client';
+import { createGitHubWebhook } from '@/lib/github/webhooks';
 
 // GitHub needs time to initialize repos after creation
 const GITHUB_REPO_INIT_DELAY_MS = 10_000; // 10 seconds
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a transaction to ensure atomicity
-    const result_1 = await db.transaction(async (tx) => {
+    const createdProject = await db.transaction(async (tx) => {
       // First create the project
       const [project] = await tx
         .insert(projects)
@@ -272,7 +273,26 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return ApiResponseHandler.created({ project: result_1 });
+    // Create GitHub webhook for push events to main branch (non-blocking)
+    // This is done outside the transaction so webhook failures don't roll back project creation
+    try {
+      const webhookId = await createGitHubWebhook(createdProject);
+
+      if (webhookId) {
+        // Store webhook ID for cleanup on project deletion
+        await db
+          .update(projects)
+          .set({ githubWebhookId: webhookId })
+          .where(eq(projects.id, createdProject.id));
+
+        console.log(`✅ Webhook ${webhookId} created for project ${createdProject.id}`);
+      }
+    } catch (webhookError) {
+      // Log but don't fail - project was created successfully
+      console.error(`⚠️ Failed to create webhook for project ${createdProject.id}:`, webhookError);
+    }
+
+    return ApiResponseHandler.created({ project: createdProject });
   } catch (error) {
     console.error('Error creating project with GitHub integration:', error);
 

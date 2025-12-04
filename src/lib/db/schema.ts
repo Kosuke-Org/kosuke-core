@@ -34,6 +34,7 @@ export const projects = pgTable('projects', {
   autoCommit: boolean('auto_commit').default(true),
   lastGithubSync: timestamp('last_github_sync'),
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
+  githubWebhookId: integer('github_webhook_id'), // GitHub webhook ID for cleanup on project deletion
 });
 
 export const chatSessions = pgTable(
