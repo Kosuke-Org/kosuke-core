@@ -12,11 +12,7 @@ export default function OrganizationSettingsLayout({ children }: { children: Rea
   const params = useParams();
   const orgSlug = params.orgSlug as string;
 
-  const currentTab = pathname.endsWith('/members')
-    ? 'members'
-    : pathname.endsWith('/pipeline')
-      ? 'pipeline'
-      : 'general';
+  const currentTab = pathname.endsWith('/members') ? 'members' : 'general';
 
   const handleTabChange = (value: string) => {
     router.push(`/organizations/${orgSlug}/${value === 'general' ? '' : value}`);
