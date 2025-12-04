@@ -502,6 +502,10 @@ class PreviewService {
         storageEnvVars
       );
 
+      // Add KOSUKE_MODE based on sessionId (main = production, others = development)
+      const kosukeMode = sessionId === 'main' ? 'production' : 'development';
+      environment.push(`KOSUKE_MODE=${kosukeMode}`);
+
       // Start service (pass entrypoint route info if this is the entrypoint)
       const startServicePromise = this.startServiceContainer(
         projectId,
