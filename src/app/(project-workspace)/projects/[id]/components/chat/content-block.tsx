@@ -147,7 +147,7 @@ export default function ContentBlock({
                 </div>
                 <div className="truncate">
                   <div className="font-medium text-foreground truncate">
-                    {contentBlock.toolName?.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() || 'Tool'}
+                    {contentBlock.toolName?.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim().replace(/\b\w/g, c => c.toUpperCase()) || 'Tool'}
                   </div>
                 </div>
               </div>
