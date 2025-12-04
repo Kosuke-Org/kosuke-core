@@ -1,10 +1,13 @@
 import type { AssistantBlock, StreamEvent } from '@/lib/types';
-import {
-  PlanEventName,
-  type BuildTokenUsage,
-  type PlanStreamEventType,
-  type Ticket,
-} from '@kosuke-ai/cli';
+import { PlanEventName, type PlanStreamEventType, type Ticket } from '@kosuke-ai/cli';
+
+/** Token usage tracking */
+interface TokenUsage {
+  input: number;
+  output: number;
+  cacheCreation: number;
+  cacheRead: number;
+}
 
 /**
  * Kosuke Event Processor
@@ -17,7 +20,7 @@ export class KosukeEventProcessor {
   private pendingTools: Map<string, number> = new Map();
 
   // Token usage accumulation
-  private tokensUsed: BuildTokenUsage = {
+  private tokensUsed: TokenUsage = {
     input: 0,
     output: 0,
     cacheCreation: 0,
@@ -87,14 +90,6 @@ export class KosukeEventProcessor {
           tool_id: event.toolId,
           tool_result: event.result,
           is_error: event.isError,
-        };
-        break;
-
-      case PlanEventName.CLARIFICATION:
-        this.finalizeContent(); // Save content to allBlocks before closing
-        yield {
-          type: 'content_block_stop',
-          index: 0,
         };
         break;
 

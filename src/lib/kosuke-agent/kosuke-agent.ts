@@ -5,7 +5,7 @@ import { enqueueBuild, hasActiveBuild } from '@/lib/queue';
 import type { StreamEvent } from '@/lib/types/agent';
 import type { KosukeAgentConfig } from '@/lib/types/kosuke-agent';
 import type Anthropic from '@anthropic-ai/sdk';
-import { PlanEventName, type MessageAttachmentPayload, type Ticket } from '@kosuke-ai/cli';
+import { PlanEventName, type Ticket } from '@kosuke-ai/cli';
 import { and, asc, eq } from 'drizzle-orm';
 import { KosukeEventProcessor } from './event-processor';
 import { generateTicketsPath, runPlan } from './plan-service';
@@ -63,13 +63,8 @@ export class KosukeAgent {
    *
    * @param message - User message (prompt for planning, or answer for clarification)
    * @param assistantMessageId - ID of the assistant message to update
-   * @param attachments - Optional attachments (images, PDFs) for context in plan phase
    */
-  async *run(
-    message: string,
-    assistantMessageId: string,
-    attachments?: MessageAttachmentPayload[]
-  ): AsyncGenerator<StreamEvent> {
+  async *run(message: string, assistantMessageId: string): AsyncGenerator<StreamEvent> {
     console.log(`🚀 Starting Kosuke workflow for session ${this.config.sessionId}`);
     const startTime = Date.now();
 
@@ -90,7 +85,7 @@ export class KosukeAgent {
 
       // === PLAN PHASE ===
       console.log(`📋 Starting plan phase...`);
-      yield* this.runPlanPhase(message, attachments, conversationHistory);
+      yield* this.runPlanPhase(message, conversationHistory);
 
       if (this.isWaitingForClarification()) {
         console.log(`❓ Waiting for clarification...`);
@@ -132,7 +127,6 @@ export class KosukeAgent {
    */
   private async *runPlanPhase(
     prompt: string,
-    attachments?: MessageAttachmentPayload[],
     conversationHistory?: Anthropic.MessageParam[]
   ): AsyncGenerator<StreamEvent> {
     const ticketsPath = generateTicketsPath(this.sessionPath);
@@ -144,7 +138,6 @@ export class KosukeAgent {
         ticketsPath,
         noTest: !this.config.enableTest,
       },
-      attachments,
       conversationHistory
     );
 
@@ -154,14 +147,14 @@ export class KosukeAgent {
         yield clientEvent;
       }
 
-      // Check for clarification - break loop to end stream and wait for user response
-      if (event.type === PlanEventName.CLARIFICATION) {
-        this.state.phase = 'clarification';
-        break; // Exit loop - CLI is blocked waiting for sendAnswer, we'll resume with new request
-      }
-
       // Check for completion
       if (event.type === PlanEventName.COMPLETE) {
+        // Check if clarification is needed - stream ends and waits for user response
+        if (event.needsClarification) {
+          this.state.phase = 'clarification';
+          break; // Exit loop - user will send another message to continue
+        }
+
         this.state.tickets = this.eventProcessor.getTickets();
         this.state.ticketsPath = ticketsPath;
         this.state.phase = 'building';

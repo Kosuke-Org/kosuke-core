@@ -1,5 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import type { MessageAttachmentPayload, PlanStreamEventType } from '@kosuke-ai/cli';
+import type { PlanStreamEventType } from '@kosuke-ai/cli';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
@@ -17,14 +17,12 @@ interface PlanServiceConfig {
  *
  * @param prompt - The feature/bug description (or clarification answer)
  * @param config - Plan service configuration
- * @param attachments - Optional attachments (images, PDFs) for context
  * @param conversationHistory - Conversation history for resuming after clarification
  * @yields PlanStreamEventType
  */
 export async function* runPlan(
   prompt: string,
   config: PlanServiceConfig,
-  attachments?: MessageAttachmentPayload[],
   conversationHistory?: Anthropic.MessageParam[]
 ): AsyncGenerator<PlanStreamEventType> {
   try {
@@ -35,7 +33,6 @@ export async function* runPlan(
       directory: config.cwd,
       noTest: config.noTest ?? true,
       ticketsPath: config.ticketsPath,
-      attachments,
       // Type cast needed due to different @anthropic-ai/sdk versions between packages
       conversationHistory: conversationHistory as Parameters<
         typeof planCoreStreaming

@@ -1,4 +1,3 @@
-import type { MessageAttachmentPayload } from '@kosuke-ai/cli';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -6,12 +5,11 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { DatabaseService } from '@/lib/database/service';
 import { db } from '@/lib/db/drizzle';
-import { attachments, chatMessages, chatSessions, messageAttachments } from '@/lib/db/schema';
+import { chatMessages, chatSessions } from '@/lib/db/schema';
 import { deleteDir } from '@/lib/fs/operations';
 import { KosukeAgent } from '@/lib/kosuke-agent';
 import { getPreviewService } from '@/lib/previews';
 import { verifyProjectAccess } from '@/lib/projects';
-import { uploadFile } from '@/lib/storage';
 import { and, eq } from 'drizzle-orm';
 
 // Schema for updating a chat session
@@ -21,76 +19,20 @@ const updateChatSessionSchema = z.object({
   status: z.enum(['active', 'archived', 'completed']).optional(),
 });
 
-// Schema for sending a message - support both formats
+// Schema for sending a message
 const sendMessageSchema = z.union([
   z.object({
     message: z.object({
-      content: z.string()
+      content: z.string(),
     }),
   }),
   z.object({
     content: z.string(),
-  })
+  }),
 ]);
 
 // Error types to match the Agent error types
 type ErrorType = 'timeout' | 'parsing' | 'processing' | 'unknown';
-
-/**
- * Save an uploaded file (image or document) to storage
- * Uses public URLs instead of base64 encoding for Claude API
- */
-async function saveUploadedFile(file: File, projectId: string): Promise<MessageAttachmentPayload> {
-  // Create a prefix to organize files by project
-  const prefix = `attachments/project-${projectId}`;
-
-  try {
-    // Upload the file using the generic uploadFile function
-    const uploadResult = await uploadFile(file, prefix);
-
-    return {
-      upload: uploadResult,
-    } satisfies MessageAttachmentPayload;
-  } catch (error) {
-    console.error('Error uploading file to storage:', error);
-    throw new Error('Failed to upload file');
-  }
-}
-
-/**
- * Process a FormData request and extract the content and attachment
- */
-async function processFormDataRequest(req: NextRequest, projectId: string): Promise<{
-  content: string;
-  includeContext: boolean;
-  contextFiles: Array<{ name: string; content: string; }>;
-  attachments: MessageAttachmentPayload[];
-}> {
-  const formData = await req.formData();
-  const content = formData.get('content') as string || '';
-  const includeContext = formData.get('includeContext') === 'true';
-  const contextFilesStr = formData.get('contextFiles') as string || '[]';
-  const contextFiles = JSON.parse(contextFilesStr);
-
-  // Process all attachments (images and documents)
-  const attachments: MessageAttachmentPayload[] = [];
-  const attachmentCount = parseInt(formData.get('attachmentCount') as string || '0', 10);
-
-  for (let i = 0; i < attachmentCount; i++) {
-    const attachmentFile = formData.get(`attachment_${i}`) as File | null;
-    if (attachmentFile) {
-      const attachment = await saveUploadedFile(attachmentFile, projectId);
-      attachments.push(attachment);
-    }
-  }
-
-  return {
-    content,
-    includeContext,
-    contextFiles,
-    attachments,
-  };
-}
 
 /**
  * PUT /api/projects/[id]/chat-sessions/[sessionId]
@@ -119,12 +61,7 @@ export async function PUT(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -187,12 +124,7 @@ export async function DELETE(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -225,13 +157,11 @@ export async function DELETE(
       console.log(`Successfully deleted session directory: ${sessionPath}`);
     } catch (dirError) {
       console.error(`Error deleting session directory: ${sessionPath}`, dirError);
-      filesWarning = "Session deleted but some files could not be removed";
+      filesWarning = 'Session deleted but some files could not be removed';
     }
 
     // Step 3: Delete chat session from database (cascade will delete associated messages)
-    await db
-      .delete(chatSessions)
-      .where(eq(chatSessions.id, session.id));
+    await db.delete(chatSessions).where(eq(chatSessions.id, session.id));
 
     return NextResponse.json({
       success: true,
@@ -273,84 +203,48 @@ export async function POST(
     const [chatSession] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!chatSession) {
       return ApiErrorHandler.chatSessionNotFound();
     }
 
-    // Parse request body - support both JSON and FormData
-    const contentType = req.headers.get('content-type') || '';
-    let messageContent: string;
-    let includeContext = false;
-    let contextFiles: string[] = [];
-    let attachmentPayloads: MessageAttachmentPayload[] = [];
+    // Parse JSON request
+    const body = await req.json();
+    const parseResult = sendMessageSchema.safeParse(body);
 
-    if (contentType.includes('multipart/form-data')) {
-      // Process FormData request (for file uploads)
-      console.log('Processing multipart/form-data request');
-      const formData = await processFormDataRequest(req, projectId);
-      messageContent = formData.content;
-      includeContext = formData.includeContext;
-      contextFiles = formData.contextFiles.map(f => f.content);
-      attachmentPayloads = formData.attachments;
-
-      if (attachmentPayloads.length > 0) {
-        console.log(`⬆️ ${attachmentPayloads.length} file(s) uploaded`);
-        attachmentPayloads.forEach((attachment, index) => {
-          console.log(`⬆️ Attachment [${index + 1}] uploaded: ${attachment.upload.fileUrl}`);
-        });
-      }
-    } else {
-      // Process JSON request for text messages
-      console.log('Processing JSON request for streaming');
-      const body = await req.json();
-      console.log('Request body:', JSON.stringify(body));
-
-      const parseResult = sendMessageSchema.safeParse(body);
-
-      if (!parseResult.success) {
-        console.error('Invalid request format:', parseResult.error);
-        return ApiErrorHandler.validationError(parseResult.error);
-      }
-
-      // Extract content based on the format received
-      if ('message' in parseResult.data) {
-        // Format: { message: { content } }
-        messageContent = parseResult.data.message.content;
-      } else {
-        // Format: { content }
-        messageContent = parseResult.data.content;
-      }
-
-      // Extract options if present
-      if ('includeContext' in body) {
-        includeContext = body.includeContext || false;
-      }
-      if ('contextFiles' in body) {
-        contextFiles = body.contextFiles || [];
-      }
+    if (!parseResult.success) {
+      console.error('Invalid request format:', parseResult.error);
+      return ApiErrorHandler.validationError(parseResult.error);
     }
 
-    console.log(`📝 Received message content: "${messageContent.substring(0, 250)}${messageContent.length > 250 ? '...' : ''}"`);
+    // Extract content based on the format received
+    let messageContent: string;
+    if ('message' in parseResult.data) {
+      messageContent = parseResult.data.message.content;
+    } else {
+      messageContent = parseResult.data.content;
+    }
+
+    console.log(
+      `📝 Received message content: "${messageContent.substring(0, 250)}${messageContent.length > 250 ? '...' : ''}"`
+    );
 
     // Save user message immediately
-    const [userMessage] = await db.insert(chatMessages).values({
-      projectId,
-      chatSessionId: chatSession.id,
-      userId: userId,
-      content: messageContent,
-      role: 'user',
-      modelType: 'premium',
-      tokensInput: 0, // Token counting moved to webhook
-      tokensOutput: 0,
-      contextTokens: 0,
-    }).returning();
+    const [userMessage] = await db
+      .insert(chatMessages)
+      .values({
+        projectId,
+        chatSessionId: chatSession.id,
+        userId: userId,
+        content: messageContent,
+        role: 'user',
+        modelType: 'premium',
+        tokensInput: 0,
+        tokensOutput: 0,
+        contextTokens: 0,
+      })
+      .returning();
 
     console.log(`✅ User message saved with ID: ${userMessage.id}`);
 
@@ -360,45 +254,20 @@ export async function POST(
       .set({ lastActivityAt: new Date() })
       .where(eq(chatSessions.id, chatSession.id));
 
-    // Save all attachments if present
-    if (attachmentPayloads.length > 0) {
-      for (const attachmentPayload of attachmentPayloads) {
-        const { upload: uploadResult } = attachmentPayload;
-        const [attachment] = await db.insert(attachments).values({
-          projectId,
-          filename: uploadResult.filename,
-          storedFilename: uploadResult.storedFilename,
-          fileUrl: uploadResult.fileUrl,
-          fileType: uploadResult.fileType,
-          mediaType: uploadResult.mediaType,
-          fileSize: uploadResult.fileSize,
-        }).returning();
-
-        // Link attachment to message
-        await db.insert(messageAttachments).values({
-          messageId: userMessage.id,
-          attachmentId: attachment.id,
-        });
-
-        console.log(`✅ Attachment saved and linked to message: ${attachment.id}`);
-      }
-    }
-
     // Create assistant message placeholder for streaming
-    const [assistantMessage] = await db.insert(chatMessages).values({
-      projectId,
-      chatSessionId: chatSession.id,
-      userId: userId,
-      content: null, // Will be populated by webhook
-      role: 'assistant',
-      modelType: 'premium',
-    }).returning();
+    const [assistantMessage] = await db
+      .insert(chatMessages)
+      .values({
+        projectId,
+        chatSessionId: chatSession.id,
+        userId: userId,
+        content: null, // Will be populated by webhook
+        role: 'assistant',
+        modelType: 'premium',
+      })
+      .returning();
 
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
-
-    // Mark unused variables for future use
-    void includeContext;
-    void contextFiles;
 
     // Validate session directory exists
     const { sessionManager: sm } = await import('@/lib/sessions');
@@ -407,11 +276,12 @@ export async function POST(
     if (!sessionValid) {
       return new Response(
         JSON.stringify({
-          error: 'Session environment not found. Start a preview for this session first to initialize the environment.',
+          error:
+            'Session environment not found. Start a preview for this session first to initialize the environment.',
         }),
         {
           status: 404,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         }
       );
     }
@@ -422,32 +292,28 @@ export async function POST(
     const stream = new ReadableStream({
       async start(controller) {
         try {
-            console.log(`🚀 Starting Kosuke agent stream for session ${chatSession.sessionId}`);
+          console.log(`🚀 Starting Kosuke agent stream for session ${chatSession.sessionId}`);
 
-            // Get session database URL for migrations
-            const databaseService = new DatabaseService(projectId, chatSession.sessionId);
-            const dbUrl = databaseService.getDatabaseUrl();
+          // Get session database URL for migrations
+          const databaseService = new DatabaseService(projectId, chatSession.sessionId);
+          const dbUrl = databaseService.getDatabaseUrl();
 
-            const kosukeAgent = await KosukeAgent.create({
-              orgId: project.orgId || projectId, // Use projectId as fallback if no org
-              projectId,
-              sessionId: chatSession.sessionId,
-              cwd: sm.getSessionPath(projectId, chatSession.sessionId),
-              dbUrl,
-              userId,
-              isImported: project.isImported,
-              enableReview: true,
-              enableTest: false, // Can be configured later
-            });
+          const kosukeAgent = await KosukeAgent.create({
+            orgId: project.orgId || projectId, // Use projectId as fallback if no org
+            projectId,
+            sessionId: chatSession.sessionId,
+            cwd: sm.getSessionPath(projectId, chatSession.sessionId),
+            dbUrl,
+            userId,
+            isImported: project.isImported,
+            enableReview: true,
+            enableTest: false, // Can be configured later
+          });
 
-          // Stream events from Kosuke agent (with optional attachments for plan phase)
-          for await (const event of kosukeAgent.run(
-            messageContent,
-            assistantMessage.id,
-            attachmentPayloads.length > 0 ? attachmentPayloads : undefined
-          )) {
-              const data = JSON.stringify(event);
-              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+          // Stream events from Kosuke agent
+          for await (const event of kosukeAgent.run(messageContent, assistantMessage.id)) {
+            const data = JSON.stringify(event);
+            controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
           }
 
           // Send completion marker
@@ -472,11 +338,10 @@ export async function POST(
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'X-Assistant-Message-Id': assistantMessage.id.toString(),
       },
     });
-
   } catch (error) {
     console.error('Error in session chat endpoint:', error);
 
@@ -502,11 +367,11 @@ export async function POST(
       JSON.stringify({
         success: false,
         error: errorMessage,
-        errorType
+        errorType,
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       }
     );
   }

@@ -16,6 +16,8 @@ const knipConfig = {
     'src/hooks/use-mobile.ts',
     // Data migration scripts - run manually when needed
     'src/lib/db/scripts/**',
+    // Storage utilities - infrastructure for file uploads (currently unused, kept for future use)
+    'src/lib/storage.ts',
   ],
   ignoreDependencies: [
     // Used via dynamic imports (knip can't detect these)
@@ -24,7 +26,6 @@ const knipConfig = {
     '@radix-ui/*',
     'embla-carousel-react',
     'input-otp',
-    'react-resizable-panels',
     'vaul',
     'ts-node',
     // Dependencies used in configuration files or by frameworks
