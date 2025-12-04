@@ -8,6 +8,7 @@ import { chatSessions } from '@/lib/db/schema';
 import { getPreviewService } from '@/lib/previews';
 import { verifyProjectAccess } from '@/lib/projects';
 import { and, eq } from 'drizzle-orm';
+
 /**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/preview
  * Get the preview URL for a project session
@@ -18,7 +19,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string; sessionId: string }> }
 ) {
   try {
-    // Get the session
     const { userId } = await auth();
     if (!userId) {
       return ApiErrorHandler.unauthorized();
@@ -33,20 +33,20 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Look up the session (including "main" which is now stored in DB)
-      const [session] = await db
-        .select()
-        .from(chatSessions)
-        .where(
-          and(
-            eq(chatSessions.projectId, projectId),
-            eq(chatSessions.sessionId, sessionId)
-          )
-        );
+    // Look up the session
+    const [session] = await db
+      .select()
+      .from(chatSessions)
+      .where(
+        and(
+          eq(chatSessions.projectId, projectId),
+          eq(chatSessions.sessionId, sessionId)
+        )
+      );
 
-      if (!session) {
-        return ApiErrorHandler.chatSessionNotFound();
-      }
+    if (!session) {
+      return ApiErrorHandler.chatSessionNotFound();
+    }
 
     // Update lastActivityAt to track preview usage for cleanup job
     await db
@@ -60,117 +60,43 @@ export async function GET(
 
     // If container is not running, automatically start it
     if (!status.running && status.url === null) {
-      try {
-        console.log('Container is not running, starting preview...');
-        // Fetch user-defined environment variables for the project
-        const envVars = await getProjectEnvironmentVariables(projectId);
+      console.log('Container is not running, starting preview...');
 
-        // Start preview
-        const url = await previewService.startPreview(
-          projectId,
-          sessionId,
-          envVars,
-          userId
-        );
+      // Fetch user-defined environment variables for the project
+      const envVars = await getProjectEnvironmentVariables(projectId);
 
-        // Get updated status
-        const updatedStatus = await previewService.getPreviewStatus(projectId, sessionId);
+      // Start preview
+      const url = await previewService.startPreview(
+        projectId,
+        sessionId,
+        envVars,
+        userId
+      );
 
-        // Return the started container info
-        return NextResponse.json({
-          success: true,
-          url,
-          project_id: projectId,
-          session_id: sessionId,
-          running: updatedStatus.running,
-          is_responding: updatedStatus.is_responding,
-          previewUrl: url,
-        });
-      } catch (startError) {
-        return ApiErrorHandler.handle(startError);
-      }
+      // Get updated status
+      const updatedStatus = await previewService.getPreviewStatus(projectId, sessionId);
+
+      return NextResponse.json({
+        success: true,
+        url,
+        previewUrl: url,
+        project_id: projectId,
+        session_id: sessionId,
+        running: updatedStatus.running,
+        is_responding: updatedStatus.is_responding,
+        status: updatedStatus.is_responding ? 'running' : 'starting',
+      });
     }
 
     // Container is already running, return status
     return NextResponse.json({
       ...status,
-      previewUrl: status.url || null, // Map 'url' to 'previewUrl' for frontend compatibility
+      success: true,
+      previewUrl: status.url || null,
+      status: status.is_responding ? 'running' : 'starting',
     });
   } catch (error: unknown) {
     console.error('Error in preview GET:', error);
-    return ApiErrorHandler.handle(error);
-  }
-}
-
-/**
- * POST /api/projects/[id]/chat-sessions/[sessionId]/preview
- * Start a preview for a project session
- */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; sessionId: string }> }
-) {
-  try {
-    // Get the session
-    const { userId } = await auth();
-    if (!userId) {
-      return ApiErrorHandler.unauthorized();
-    }
-
-    const { id: projectId, sessionId } = await params;
-
-    // Verify user has access to project through organization membership
-    const { hasAccess, project } = await verifyProjectAccess(userId, projectId);
-
-    if (!hasAccess || !project) {
-      return ApiErrorHandler.projectNotFound();
-    }
-
-    // Look up the session (including "main" which is now stored in DB)
-      const [session] = await db
-        .select()
-        .from(chatSessions)
-        .where(
-          and(
-            eq(chatSessions.projectId, projectId),
-            eq(chatSessions.sessionId, sessionId)
-          )
-        );
-
-      if (!session) {
-        return ApiErrorHandler.chatSessionNotFound();
-      }
-
-    // Update lastActivityAt to track preview usage for cleanup job
-    await db
-      .update(chatSessions)
-      .set({ lastActivityAt: new Date() })
-      .where(eq(chatSessions.id, session.id));
-
-    // Fetch environment variables for the project
-    const envVars = await getProjectEnvironmentVariables(projectId);
-
-    // Start preview using singleton PreviewService instance
-    const previewService = getPreviewService();
-    const url = await previewService.startPreview(
-      projectId,
-      sessionId,
-      envVars,
-      userId
-    );
-
-    // Get status to check if responding
-    const status = await previewService.getPreviewStatus(projectId, sessionId);
-
-    // Transform result to match expected response format
-    return NextResponse.json({
-      success: true,
-      url: url || null,
-      status: status.is_responding ? 'running' : 'starting',
-      error: null,
-    });
-  } catch (error: unknown) {
-    console.error('Error in preview POST:', error);
     return ApiErrorHandler.handle(error);
   }
 }
