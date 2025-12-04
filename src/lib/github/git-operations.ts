@@ -463,4 +463,63 @@ export class GitOperations {
   private sanitizeUrlForLog(url: string): string {
     return url.replace(/oauth2:[^@]+@/, 'oauth2:***@').replace(/:[^:@]+@/, ':***@');
   }
+
+  /**
+   * Pull latest changes from remote for a specific branch
+   * Used by webhook handler to sync main branch after pushes
+   */
+  async pullChanges(sessionPath: string, branch: string, githubToken: string): Promise<boolean> {
+    try {
+      console.log(`📥 Pulling latest changes for branch ${branch} in ${sessionPath}`);
+
+      // Verify git repository exists
+      const gitPath = join(sessionPath, '.git');
+      if (!existsSync(gitPath)) {
+        console.error(`❌ No git repository found in ${sessionPath}`);
+        return false;
+      }
+
+      const git: SimpleGit = simpleGit(sessionPath);
+
+      // Get current branch
+      const status = await git.status();
+      const currentBranch = status.current;
+
+      // Ensure we're on the correct branch
+      if (currentBranch !== branch) {
+        console.log(`🔀 Switching from ${currentBranch} to ${branch}`);
+        await git.checkout(branch);
+      }
+
+      // Get remote URL and build authenticated URL
+      const remotes = await git.getRemotes(true);
+      const origin = remotes.find(r => r.name === 'origin');
+
+      if (!origin || !origin.refs.fetch) {
+        console.error(`❌ No origin remote found`);
+        return false;
+      }
+
+      const originalUrl = origin.refs.fetch;
+      const authenticatedUrl = this.buildAuthenticatedUrl(originalUrl, githubToken);
+
+      // Temporarily set authenticated URL
+      await git.remote(['set-url', 'origin', authenticatedUrl]);
+
+      try {
+        // Pull latest changes
+        console.log(`📥 Pulling from origin/${branch}...`);
+        await git.pull('origin', branch);
+        console.log(`✅ Successfully pulled latest changes`);
+      } finally {
+        // Always restore original URL
+        await git.remote(['set-url', 'origin', originalUrl]);
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`❌ Error pulling changes:`, error);
+      return false;
+    }
+  }
 }

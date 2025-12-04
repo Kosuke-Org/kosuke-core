@@ -70,6 +70,7 @@ const mockProject: Project = {
   autoCommit: null,
   lastGithubSync: null,
   defaultBranch: 'main',
+  githubWebhookId: null,
 };
 
 const mockProjects: Project[] = [mockProject];
