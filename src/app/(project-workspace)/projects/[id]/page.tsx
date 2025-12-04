@@ -293,7 +293,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </div>
               </div>
             </ResizablePanel>
-{!showSidebar && (
+            {!showSidebar && (
               <ResizableHandle
                 className="hidden md:flex bg-transparent hover:bg-transparent w-2 cursor-col-resize"
               />
