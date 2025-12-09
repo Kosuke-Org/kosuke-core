@@ -7,41 +7,26 @@ import * as Sentry from '@sentry/nextjs';
 import { hasStatisticsConsent, isCookiebotReady } from './cookiebot';
 
 /**
- * Get Sentry initialization configuration
- * Only includes replay integration when consent is given
+ * Sentry configuration with replay enabled (only used when consent exists)
  */
-function getSentryConfig(includeReplay: boolean) {
+function getSentryConfig() {
   return {
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || 'development',
-    integrations: includeReplay ? [Sentry.replayIntegration()] : [],
+    integrations: [Sentry.replayIntegration()],
     tracesSampleRate: 1,
-    replaysSessionSampleRate: includeReplay ? 0.1 : 0,
-    replaysOnErrorSampleRate: includeReplay ? 1.0 : 0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
     debug: false,
   };
 }
 
 /**
- * Initialize Sentry with consent-aware configuration
+ * Initialize Sentry with replay (only called when consent exists)
  */
 function initSentry() {
-  if (Sentry.getClient()) return; // Already initialized
-  Sentry.init(getSentryConfig(hasStatisticsConsent()));
-}
-
-/**
- * Enable replay by reinitializing Sentry with full replay config.
- */
-async function enableSentryReplay() {
-  const client = Sentry.getClient();
-  if (client) {
-    // Check if replay already exists
-    if (client.getIntegrationByName('Replay')) return;
-    // Close existing client to reinit with replay config
-    await Sentry.close();
-  }
-  Sentry.init(getSentryConfig(true));
+  if (Sentry.getClient()) return;
+  Sentry.init(getSentryConfig());
 }
 
 /**
@@ -69,11 +54,7 @@ export function setupSentryWithConsent() {
   // Listen for consent changes
   window.addEventListener('CookiebotOnAccept', () => {
     if (hasStatisticsConsent()) {
-      if (!Sentry.getClient()) {
-        initSentry();
-      } else {
-        enableSentryReplay();
-      }
+      initSentry();
     }
   });
 
