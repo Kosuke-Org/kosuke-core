@@ -31,20 +31,17 @@ function initSentry() {
 }
 
 /**
- * Add replay integration after consent is given
+ * Enable replay by reinitializing Sentry with full replay config.
  */
-function enableSentryReplay() {
+async function enableSentryReplay() {
   const client = Sentry.getClient();
-  if (!client) {
-    Sentry.init(getSentryConfig(true));
-    return;
+  if (client) {
+    // Check if replay already exists
+    if (client.getIntegrationByName('Replay')) return;
+    // Close existing client to reinit with replay config
+    await Sentry.close();
   }
-
-  // Add replay integration to existing client
-  const existingReplay = client.getIntegrationByName('Replay');
-  if (!existingReplay) {
-    client.addIntegration(Sentry.replayIntegration());
-  }
+  Sentry.init(getSentryConfig(true));
 }
 
 /**
@@ -58,6 +55,8 @@ export function setupSentryWithConsent() {
     if (hasStatisticsConsent()) {
       initSentry();
     }
+    // One-time event, clean up listener
+    window.removeEventListener('CookiebotOnLoad', handleCookiebotReady);
   };
 
   // Check if Cookiebot already loaded with response
