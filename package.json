@@ -29,12 +29,10 @@
     "workers:trigger-job": "npx tsx src/lib/queue/trigger.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.42",
     "@anthropic-ai/sdk": "^0.69.0",
     "@aws-sdk/client-s3": "^3.932.0",
     "@clerk/nextjs": "^6.35.1",
     "@docker/node-sdk": "^0.0.17",
-    "@hookform/resolvers": "^5.2.2",
     "@octokit/auth-app": "^8.1.2",
     "@octokit/rest": "^22.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -102,7 +100,6 @@
     "react": "19.2.0",
     "react-day-picker": "^9.11.1",
     "react-dom": "19.2.0",
-    "react-hook-form": "^7.65.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.4",
     "server-only": "^0.0.1",
@@ -110,7 +107,6 @@
     "simple-git": "^3.29.0",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.0",
-    "tiktoken": "^1.0.22",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vaul": "^1.1.2",

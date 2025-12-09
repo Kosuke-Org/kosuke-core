@@ -22,10 +22,3 @@ export * from './preview-urls';
 export * from './project';
 
 export type { EnhancedUser, UpdateProfileResponse, UserProfile, UseUserReturn } from './user';
-
-// Environment Variables
-export type {
-  CreateEnvironmentVariableData,
-  EnvironmentVariable,
-  UpdateEnvironmentVariableData,
-} from './environment';

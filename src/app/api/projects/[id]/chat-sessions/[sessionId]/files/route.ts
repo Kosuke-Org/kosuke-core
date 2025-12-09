@@ -9,15 +9,12 @@ import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { and, eq } from 'drizzle-orm';
 
 /**
- * GET /api/projects/[id]/files
- * Get files for a project (uses main session sandbox)
- *
- * NOTE: This endpoint now uses the main session sandbox.
- * For session-specific files, use /api/projects/[id]/chat-sessions/[sessionId]/files
+ * GET /api/projects/[id]/chat-sessions/[sessionId]/files
+ * Get files for a specific session via sandbox
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; sessionId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -25,7 +22,7 @@ export async function GET(
       return ApiErrorHandler.unauthorized();
     }
 
-    const { id: projectId } = await params;
+    const { id: projectId, sessionId } = await params;
 
     // Verify user has access to project through organization membership
     const { hasAccess } = await verifyProjectAccess(userId, projectId);
@@ -34,38 +31,32 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Get the main session
-    const [mainSession] = await db
+    // Verify session exists
+    const [session] = await db
       .select()
       .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, true)));
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
-    if (!mainSession) {
-      return NextResponse.json(
-        {
-          error: 'Main session not found',
-          message: 'Project does not have a main session',
-        },
-        { status: 404 }
-      );
+    if (!session) {
+      return ApiErrorHandler.chatSessionNotFound();
     }
 
     // Check if sandbox is running
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, mainSession.sessionId);
+    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
         {
-          error: 'Preview not running',
-          message: 'Start the main preview to view files',
+          error: 'Sandbox not running',
+          message: 'Start a preview for this session to view files',
         },
         { status: 404 }
       );
     }
 
     // Get files from sandbox
-    const client = new SandboxClient(projectId, mainSession.sessionId);
+    const client = new SandboxClient(projectId, sessionId);
 
     try {
       const files = await client.listFiles();
@@ -81,7 +72,9 @@ export async function GET(
       );
     }
   } catch (error) {
-    console.error('Error getting project files:', error);
+    console.error('Error getting session files:', error);
     return ApiErrorHandler.handle(error);
   }
 }
+
+

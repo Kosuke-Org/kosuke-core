@@ -1,32 +1,32 @@
 /**
  * CSS Operations
  * Handles CSS parsing and manipulation for color variables
+ * Uses SandboxClient for file operations in session context
  */
 
+import { SandboxClient } from '@/lib/sandbox';
 import type { CssVariable } from '@/lib/types/branding';
-import { existsSync } from 'fs';
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
 
 /**
- * Find globals.css file in session directory
+ * Find globals.css file in sandbox session
  * Checks common locations: app/, src/, styles/, app/global.css
  */
-async function findGlobalsCss(projectId: string, sessionId: string): Promise<string | null> {
-  const { sessionManager } = await import('@/lib/sessions');
-  const sessionPath = sessionManager.getSessionPath(projectId, sessionId);
-
+async function findGlobalsCss(client: SandboxClient): Promise<string | null> {
   // Common locations for globals.css
   const possiblePaths = [
-    join(sessionPath, 'app', 'globals.css'),
-    join(sessionPath, 'src', 'globals.css'),
-    join(sessionPath, 'styles', 'globals.css'),
-    join(sessionPath, 'app', 'global.css'),
+    'app/globals.css',
+    'src/globals.css',
+    'styles/globals.css',
+    'app/global.css',
   ];
 
   for (const path of possiblePaths) {
-    if (existsSync(path)) {
+    try {
+      // Try to read the file - if it succeeds, it exists
+      await client.readFile(path);
       return path;
+    } catch {
+      // File doesn't exist at this path, try next
     }
   }
 
@@ -41,12 +41,14 @@ export async function extractExistingColors(
   sessionId: string
 ): Promise<CssVariable[]> {
   try {
-    const globalsPath = await findGlobalsCss(projectId, sessionId);
+    const client = new SandboxClient(projectId, sessionId);
+    const globalsPath = await findGlobalsCss(client);
+
     if (!globalsPath) {
       return [];
     }
 
-    const cssContent = await readFile(globalsPath, 'utf-8');
+    const cssContent = await client.readFile(globalsPath);
     const colors: CssVariable[] = [];
 
     // Extract variables from :root block
@@ -268,8 +270,10 @@ export async function updateSingleColor(
   try {
     console.log(`🎨 Updating single color ${name} for project ${projectId}, session ${sessionId}`);
 
+    const client = new SandboxClient(projectId, sessionId);
+
     // Find globals.css
-    const globalsPath = await findGlobalsCss(projectId, sessionId);
+    const globalsPath = await findGlobalsCss(client);
     if (!globalsPath) {
       return {
         success: false,
@@ -277,10 +281,10 @@ export async function updateSingleColor(
       };
     }
 
-    console.log(`🔍 Found globals.css file in session ${sessionId}`);
+    console.log(`🔍 Found globals.css file at ${globalsPath} in session ${sessionId}`);
 
     // Read CSS content
-    let cssContent = await readFile(globalsPath, 'utf-8');
+    let cssContent = await client.readFile(globalsPath);
 
     // Validate the color value (supports OKLCH, HSL, RGB, HEX)
     validateColorFormat(value, name, mode);
@@ -319,7 +323,7 @@ export async function updateSingleColor(
     }
 
     // Write updated CSS back to file
-    await writeFile(globalsPath, cssContent, 'utf-8');
+    await client.writeFile(globalsPath, cssContent);
 
     console.log(`✅ Successfully updated color ${name} in session ${sessionId}`);
 
@@ -353,8 +357,10 @@ export async function applyColorPalette(
       `🎨 Applying ${colors.length} colors to project ${projectId}, session ${sessionId}`
     );
 
+    const client = new SandboxClient(projectId, sessionId);
+
     // Find globals.css
-    const globalsPath = await findGlobalsCss(projectId, sessionId);
+    const globalsPath = await findGlobalsCss(client);
     if (!globalsPath) {
       return {
         success: false,
@@ -364,7 +370,7 @@ export async function applyColorPalette(
     }
 
     // Read current CSS content
-    let cssContent = await readFile(globalsPath, 'utf-8');
+    let cssContent = await client.readFile(globalsPath);
 
     // Apply each color
     let appliedCount = 0;
@@ -384,7 +390,7 @@ export async function applyColorPalette(
     }
 
     // Write updated CSS back to file
-    await writeFile(globalsPath, cssContent, 'utf-8');
+    await client.writeFile(globalsPath, cssContent);
 
     console.log(`✅ Successfully applied ${appliedCount} colors to globals.css`);
 
@@ -411,20 +417,18 @@ export async function getSessionFonts(
   sessionId: string
 ): Promise<Array<{ name: string }>> {
   try {
-    const { sessionManager } = await import('@/lib/sessions');
-    const sessionPath = sessionManager.getSessionPath(projectId, sessionId);
+    const client = new SandboxClient(projectId, sessionId);
 
     // Look for layout.tsx file
-    const layoutPath = join(sessionPath, 'app', 'layout.tsx');
+    const layoutPath = 'app/layout.tsx';
 
-    // Check if layout file exists
-    if (!existsSync(layoutPath)) {
+    let layoutContent: string;
+    try {
+      layoutContent = await client.readFile(layoutPath);
+    } catch {
       console.warn(`⚠️ Layout file not found: ${layoutPath}`);
       return [];
     }
-
-    // Read layout file content
-    const layoutContent = await readFile(layoutPath, 'utf-8');
 
     // Parse fonts from layout content
     return parseFontsFromLayout(layoutContent);

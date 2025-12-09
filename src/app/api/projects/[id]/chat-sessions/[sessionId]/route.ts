@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { Agent } from '@/lib/agent';
-import { buildMessageParam, type MessageAttachmentPayload } from '@/lib/agent/message-builder';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { attachments, chatMessages, chatSessions, messageAttachments } from '@/lib/db/schema';
-import { deleteDir } from '@/lib/fs/operations';
 import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
-import { getPreviewService } from '@/lib/previews';
 import { verifyProjectAccess } from '@/lib/projects';
-import { uploadFile } from '@/lib/storage';
+import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import { uploadFile, UploadResult } from '@/lib/storage';
 import { and, eq } from 'drizzle-orm';
+
+export interface MessageAttachmentPayload {
+  upload: UploadResult;
+  // Note: base64Data is no longer needed - we use public URLs instead
+}
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -25,12 +27,12 @@ const updateChatSessionSchema = z.object({
 const sendMessageSchema = z.union([
   z.object({
     message: z.object({
-      content: z.string()
+      content: z.string(),
     }),
   }),
   z.object({
     content: z.string(),
-  })
+  }),
 ]);
 
 // Error types to match the Agent error types
@@ -60,21 +62,24 @@ async function saveUploadedFile(file: File, projectId: string): Promise<MessageA
 /**
  * Process a FormData request and extract the content and attachment
  */
-async function processFormDataRequest(req: NextRequest, projectId: string): Promise<{
+async function processFormDataRequest(
+  req: NextRequest,
+  projectId: string
+): Promise<{
   content: string;
   includeContext: boolean;
-  contextFiles: Array<{ name: string; content: string; }>;
+  contextFiles: Array<{ name: string; content: string }>;
   attachments: MessageAttachmentPayload[];
 }> {
   const formData = await req.formData();
-  const content = formData.get('content') as string || '';
+  const content = (formData.get('content') as string) || '';
   const includeContext = formData.get('includeContext') === 'true';
-  const contextFilesStr = formData.get('contextFiles') as string || '[]';
+  const contextFilesStr = (formData.get('contextFiles') as string) || '[]';
   const contextFiles = JSON.parse(contextFilesStr);
 
   // Process all attachments (images and documents)
   const attachments: MessageAttachmentPayload[] = [];
-  const attachmentCount = parseInt(formData.get('attachmentCount') as string || '0', 10);
+  const attachmentCount = parseInt((formData.get('attachmentCount') as string) || '0', 10);
 
   for (let i = 0; i < attachmentCount; i++) {
     const attachmentFile = formData.get(`attachment_${i}`) as File | null;
@@ -119,12 +124,7 @@ export async function PUT(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -162,7 +162,7 @@ export async function PUT(
 
 /**
  * DELETE /api/projects/[id]/chat-sessions/[sessionId]
- * Delete a chat session and associated messages
+ * Delete a chat session and associated sandbox
  */
 export async function DELETE(
   request: NextRequest,
@@ -187,12 +187,7 @@ export async function DELETE(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -203,40 +198,24 @@ export async function DELETE(
       return ApiErrorHandler.badRequest('Cannot delete default chat session');
     }
 
-    // Step 1: Destroy the preview container for this session (full removal since session is being deleted)
+    // Step 1: Destroy the sandbox container for this session
     try {
-      console.log(`Destroying preview for session ${sessionId} in project ${projectId}`);
-      const previewService = getPreviewService();
-      await previewService.stopPreview(projectId, sessionId, true);
-      console.log(`Preview destroyed successfully for session ${sessionId}`);
+      console.log(`Destroying sandbox for session ${sessionId} in project ${projectId}`);
+      const sandboxManager = getSandboxManager();
+      await sandboxManager.destroySandbox(projectId, sessionId);
+      console.log(`Sandbox destroyed successfully for session ${sessionId}`);
     } catch (containerError) {
       // Log but continue - we still want to delete the session even if container cleanup fails
-      console.error(`Error stopping preview container for session ${sessionId}:`, containerError);
+      console.error(`Error destroying sandbox for session ${sessionId}:`, containerError);
       console.log(`Continuing with session deletion despite container cleanup failure`);
     }
 
-    // Step 2: Delete session files after container is stopped
-    const { sessionManager } = await import('@/lib/sessions');
-    const sessionPath = sessionManager.getSessionPath(projectId, sessionId);
-    let filesWarning = null;
-
-    try {
-      await deleteDir(sessionPath);
-      console.log(`Successfully deleted session directory: ${sessionPath}`);
-    } catch (dirError) {
-      console.error(`Error deleting session directory: ${sessionPath}`, dirError);
-      filesWarning = "Session deleted but some files could not be removed";
-    }
-
-    // Step 3: Delete chat session from database (cascade will delete associated messages)
-    await db
-      .delete(chatSessions)
-      .where(eq(chatSessions.id, session.id));
+    // Step 2: Delete chat session from database (cascade will delete associated messages)
+    await db.delete(chatSessions).where(eq(chatSessions.id, session.id));
 
     return NextResponse.json({
       success: true,
       message: 'Chat session deleted successfully',
-      ...(filesWarning && { warning: filesWarning }),
     });
   } catch (error) {
     console.error('Error deleting chat session:', error);
@@ -246,7 +225,7 @@ export async function DELETE(
 
 /**
  * POST /api/projects/[id]/chat-sessions/[sessionId]
- * Send a message to a specific chat session
+ * Send a message to a specific chat session via sandbox agent
  */
 export async function POST(
   req: NextRequest,
@@ -273,12 +252,7 @@ export async function POST(
     const [chatSession] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!chatSession) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -337,20 +311,25 @@ export async function POST(
       }
     }
 
-    console.log(`📝 Received message content: "${messageContent.substring(0, 250)}${messageContent.length > 250 ? '...' : ''}"`);
+    console.log(
+      `📝 Received message content: "${messageContent.substring(0, 250)}${messageContent.length > 250 ? '...' : ''}"`
+    );
 
     // Save user message immediately
-    const [userMessage] = await db.insert(chatMessages).values({
-      projectId,
-      chatSessionId: chatSession.id,
-      userId: userId,
-      content: messageContent,
-      role: 'user',
-      modelType: 'premium',
-      tokensInput: 0, // Token counting moved to webhook
-      tokensOutput: 0,
-      contextTokens: 0,
-    }).returning();
+    const [userMessage] = await db
+      .insert(chatMessages)
+      .values({
+        projectId,
+        chatSessionId: chatSession.id,
+        userId: userId,
+        content: messageContent,
+        role: 'user',
+        modelType: 'premium',
+        tokensInput: 0, // Token counting moved to webhook
+        tokensOutput: 0,
+        contextTokens: 0,
+      })
+      .returning();
 
     console.log(`✅ User message saved with ID: ${userMessage.id}`);
 
@@ -364,15 +343,18 @@ export async function POST(
     if (attachmentPayloads.length > 0) {
       for (const attachmentPayload of attachmentPayloads) {
         const { upload: uploadResult } = attachmentPayload;
-        const [attachment] = await db.insert(attachments).values({
-          projectId,
-          filename: uploadResult.filename,
-          storedFilename: uploadResult.storedFilename,
-          fileUrl: uploadResult.fileUrl,
-          fileType: uploadResult.fileType,
-          mediaType: uploadResult.mediaType,
-          fileSize: uploadResult.fileSize,
-        }).returning();
+        const [attachment] = await db
+          .insert(attachments)
+          .values({
+            projectId,
+            filename: uploadResult.filename,
+            storedFilename: uploadResult.storedFilename,
+            fileUrl: uploadResult.fileUrl,
+            fileType: uploadResult.fileType,
+            mediaType: uploadResult.mediaType,
+            fileSize: uploadResult.fileSize,
+          })
+          .returning();
 
         // Link attachment to message
         await db.insert(messageAttachments).values({
@@ -385,14 +367,17 @@ export async function POST(
     }
 
     // Create assistant message placeholder for streaming
-    const [assistantMessage] = await db.insert(chatMessages).values({
-      projectId,
-      chatSessionId: chatSession.id,
-      userId: userId,
-      content: null, // Will be populated by webhook
-      role: 'assistant',
-      modelType: 'premium',
-    }).returning();
+    const [assistantMessage] = await db
+      .insert(chatMessages)
+      .values({
+        projectId,
+        chatSessionId: chatSession.id,
+        userId: userId,
+        content: null, // Will be populated by completion event
+        role: 'assistant',
+        modelType: 'premium',
+      })
+      .returning();
 
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
 
@@ -400,75 +385,89 @@ export async function POST(
     void includeContext;
     void contextFiles;
 
-    // Get GitHub token based on project ownership (optional for GitHub integration)
-    let githubToken: string | null = null;
+    // Get GitHub token based on project ownership
+    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
+    const isKosukeRepo = project.githubOwner === kosukeOrg;
 
-    try {
-      const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-      const isKosukeRepo = project.githubOwner === kosukeOrg;
+    const githubToken = isKosukeRepo
+      ? await getKosukeGitHubToken()
+      : await getUserGitHubToken(userId);
 
-      githubToken = isKosukeRepo
-        ? await getKosukeGitHubToken()
-        : await getUserGitHubToken(userId);
-
-      if (githubToken) {
-        console.log(`🔗 GitHub integration enabled for session: ${chatSession.sessionId}`);
-      } else {
-        console.log(`⚪ GitHub integration disabled: no token found`);
-      }
-    } catch (error) {
-      console.log(`⚠️ GitHub token retrieval failed: ${error}`);
-    }
-
-    // Validate session directory exists
-    const { sessionManager: sm } = await import('@/lib/sessions');
-    const sessionValid = await sm.validateSessionDirectory(projectId, chatSession.sessionId);
-
-    if (!sessionValid) {
+    if (!githubToken) {
       return new Response(
         JSON.stringify({
-          error: 'Session environment not found. Start a preview for this session first to initialize the environment.',
+          error: 'GitHub token not available. Please connect your GitHub account.',
         }),
         {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' }
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
         }
       );
     }
 
-    console.log(`✅ Session environment validated for session ${chatSession.sessionId}`);
+    console.log(`🔗 GitHub integration enabled for session: ${chatSession.sessionId}`);
 
-    // Initialize Agent with session configuration using factory method
-    const agent = await Agent.create({
-      projectId,
-      sessionId: chatSession.sessionId,
-      githubToken,
-      assistantMessageId: assistantMessage.id,
-      userId,
-    });
+    // Check if sandbox is running
+    const sandboxManager = getSandboxManager();
+    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
-    console.log(`🚀 Starting agent stream for session ${chatSession.sessionId}`);
+    if (!sandbox || sandbox.status !== 'running') {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Sandbox not running. Start a preview for this session first to initialize the environment.',
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
-    // Build proper content blocks for Claude (text + image/document if present)
-    const messageParam = buildMessageParam(messageContent, attachmentPayloads);
+    console.log(`✅ Sandbox running for session ${chatSession.sessionId}`);
 
-    console.log('messageParam', JSON.stringify(messageParam, null, 2));
+    // Create sandbox client and stream messages
+    const client = new SandboxClient(projectId, sessionId);
 
-    // Create a ReadableStream from the agent's async generator
+    console.log(`🚀 Starting agent stream via sandbox for session ${chatSession.sessionId}`);
+
+    // Transform attachments to sandbox format
+    const sandboxAttachments = attachmentPayloads.map(a => ({
+      upload: {
+        filename: a.upload.filename,
+        fileUrl: a.upload.fileUrl,
+        fileType: a.upload.fileType,
+        mediaType: a.upload.mediaType,
+        fileSize: a.upload.fileSize,
+      },
+    }));
+
+    // Create a ReadableStream that proxies the sandbox SSE stream
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Stream events from agent, passing the messageParam and remoteId for session resumption
-          for await (const event of agent.run(messageParam, chatSession.remoteId)) {
+          // Stream events from sandbox agent
+          for await (const event of client.streamMessage(
+            messageContent,
+            sandboxAttachments.length > 0 ? sandboxAttachments : undefined,
+            githubToken,
+            chatSession.remoteId
+          )) {
             // Check if this is the message_complete event with a captured remoteId
             if (event.type === 'message_complete' && event.remoteId && !chatSession.remoteId) {
               // Save the captured remoteId to the database
               await db
                 .update(chatSessions)
-                .set({ remoteId: event.remoteId })
+                .set({ remoteId: event.remoteId as string })
                 .where(eq(chatSessions.id, chatSession.id));
-              console.log(`✅ Saved remoteId to database for session ${chatSession.sessionId}: ${event.remoteId}`);
+              console.log(
+                `✅ Saved remoteId to database for session ${chatSession.sessionId}: ${event.remoteId}`
+              );
+            }
 
+            // Check if this is the complete event with commit info
+            if (event.type === 'complete' && event.commitSha) {
+              console.log(`✅ Changes committed with SHA: ${event.commitSha}`);
             }
 
             // Format as Server-Sent Events
@@ -498,11 +497,10 @@ export async function POST(
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
         'X-Assistant-Message-Id': assistantMessage.id.toString(),
       },
     });
-
   } catch (error) {
     console.error('Error in session chat endpoint:', error);
 
@@ -513,7 +511,10 @@ export async function POST(
     if (error instanceof Error) {
       errorMessage = error.message;
       // Try to determine error type
-      if ('errorType' in error && typeof (error as Record<string, unknown>).errorType === 'string') {
+      if (
+        'errorType' in error &&
+        typeof (error as Record<string, unknown>).errorType === 'string'
+      ) {
         errorType = (error as Record<string, unknown>).errorType as ErrorType;
       } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
         errorType = 'timeout';
@@ -528,11 +529,11 @@ export async function POST(
       JSON.stringify({
         success: false,
         error: errorMessage,
-        errorType
+        errorType,
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       }
     );
   }

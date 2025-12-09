@@ -4,16 +4,37 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { getPreviewService } from '@/lib/previews';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getSandboxManager } from '@/lib/sandbox';
 import { and, eq } from 'drizzle-orm';
 
 /**
+ * Check if the preview service is responding via HTTP
+ */
+async function checkPreviewHealth(containerName: string, timeout = 2000): Promise<boolean> {
+  // Use container name as hostname (Docker internal DNS)
+  const url = `http://${containerName}:3000/`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    // Consider any response (even errors) as "responding"
+    return response.ok || response.status < 500;
+  } catch {
+    clearTimeout(timeoutId);
+    return false;
+  }
+}
+
+/**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/preview/health
- * Check if the preview container is healthy and responding
- *
- * This performs a server-side health check of the container within the Docker network,
- * avoiding CORS/browser limitations.
+ * Check if the sandbox container is running and the preview is responding
  */
 export async function GET(
   request: NextRequest,
@@ -34,20 +55,17 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Look up the session (including "main" which is now stored in DB)
-      const [session] = await db
-        .select()
-        .from(chatSessions)
-        .where(
-          and(
-            eq(chatSessions.projectId, projectId),
-            eq(chatSessions.sessionId, sessionId)
-          )
-        );
+    // Look up the session
+    const [session] = await db
+      .select()
+      .from(chatSessions)
+      .where(
+        and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId))
+      );
 
-      if (!session) {
-        return ApiErrorHandler.chatSessionNotFound();
-      }
+    if (!session) {
+      return ApiErrorHandler.chatSessionNotFound();
+    }
 
     // Update lastActivityAt to track preview usage for cleanup job
     await db
@@ -55,21 +73,40 @@ export async function GET(
       .set({ lastActivityAt: new Date() })
       .where(eq(chatSessions.id, session.id));
 
-    // Get Preview service and check preview status
-    const previewService = getPreviewService();
-    const status = await previewService.getPreviewStatus(projectId, sessionId);
+    // Check if sandbox container exists
+    const sandboxManager = getSandboxManager();
+    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
-    // Return health status
-    // ok = container is running AND responding
+    if (!sandbox) {
+      return NextResponse.json({
+        ok: false,
+        running: false,
+        is_responding: false,
+        url: null,
+      });
+    }
+
+    // Container exists but not running
+    if (sandbox.status !== 'running') {
+      return NextResponse.json({
+        ok: false,
+        running: false,
+        is_responding: false,
+        url: sandbox.url,
+      });
+    }
+
+    // Container is running - check if preview is responding
+    const isResponding = await checkPreviewHealth(sandbox.name);
+
     return NextResponse.json({
-      ok: status.running && status.is_responding,
-      running: status.running,
-      is_responding: status.is_responding,
-      url: status.url,
+      ok: isResponding,
+      running: true,
+      is_responding: isResponding,
+      url: sandbox.url,
     });
   } catch (error) {
     console.error('Error checking preview health:', error);
     return ApiErrorHandler.handle(error);
   }
 }
-

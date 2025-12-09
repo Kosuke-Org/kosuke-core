@@ -3,16 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { getProjectEnvironmentVariables } from '@/lib/db/queries';
 import { chatSessions } from '@/lib/db/schema';
-import { getPreviewService } from '@/lib/previews';
+import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getSandboxManager } from '@/lib/sandbox';
+import { generatePreviewDatabaseName } from '@/lib/sandbox/naming';
 import { and, eq } from 'drizzle-orm';
 
 /**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/preview
  * Get the preview URL for a project session
- * Automatically starts the preview if it's not running
+ * Automatically starts the sandbox if it's not running
  */
 export async function GET(
   request: NextRequest,
@@ -38,10 +39,7 @@ export async function GET(
       .select()
       .from(chatSessions)
       .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
+        and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId))
       );
 
     if (!session) {
@@ -54,46 +52,75 @@ export async function GET(
       .set({ lastActivityAt: new Date() })
       .where(eq(chatSessions.id, session.id));
 
-    // Use singleton PreviewService instance
-    const previewService = getPreviewService();
-    const status = await previewService.getPreviewStatus(projectId, sessionId);
+    const sandboxManager = getSandboxManager();
 
-    // If container is not running, automatically start it
-    if (!status.running && status.url === null) {
-      console.log('Container is not running, starting preview...');
+    // Check if sandbox already exists
+    const existingSandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
-      // Fetch user-defined environment variables for the project
-      const envVars = await getProjectEnvironmentVariables(projectId);
-
-      // Start preview
-      const url = await previewService.startPreview(
-        projectId,
-        sessionId,
-        envVars,
-        userId
-      );
-
-      // Get updated status
-      const updatedStatus = await previewService.getPreviewStatus(projectId, sessionId);
-
+    if (existingSandbox && existingSandbox.status === 'running') {
+      // Sandbox is running - return URL, frontend will poll health endpoint
       return NextResponse.json({
         success: true,
-        url,
-        previewUrl: url,
+        url: existingSandbox.url,
+        previewUrl: existingSandbox.url,
         project_id: projectId,
         session_id: sessionId,
-        running: updatedStatus.running,
-        is_responding: updatedStatus.is_responding,
-        status: updatedStatus.is_responding ? 'running' : 'starting',
+        running: true,
       });
     }
 
-    // Container is already running, return status
+    // Sandbox not running - need to create/start it
+    console.log('Sandbox is not running, starting...');
+
+    // Get GitHub token
+    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
+    const isKosukeRepo = project.githubOwner === kosukeOrg;
+    const githubToken = isKosukeRepo
+      ? await getKosukeGitHubToken()
+      : await getUserGitHubToken(userId);
+
+    if (!githubToken) {
+      return ApiErrorHandler.badRequest('GitHub token not available');
+    }
+
+    // Determine mode: main session uses production, others use development
+    const isMainSession = session.isDefault;
+    const mode = isMainSession ? 'production' : 'development';
+
+    // Build repo URL
+    const repoUrl =
+      project.githubRepoUrl ||
+      `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
+
+    // Build branch name: main session uses default branch, chat sessions use session branch
+    const branch = isMainSession
+      ? project.githubBranch || 'main'
+      : `${process.env.SESSION_BRANCH_PREFIX || 'kosuke/chat-'}${sessionId}`;
+
+    // Build Postgres URL for the sandbox
+    const basePostgresUrl = process.env.POSTGRES_URL || '';
+    const dbName = generatePreviewDatabaseName(projectId, sessionId);
+    const postgresUrl = `${basePostgresUrl.replace(/\/[^/]+$/, '')}/${dbName}`;
+
+    // Create/start sandbox
+    const sandboxInfo = await sandboxManager.createSandbox({
+      projectId,
+      sessionId,
+      repoUrl,
+      branch,
+      githubToken,
+      mode,
+      agentEnabled: !isMainSession, // Agent disabled for main session
+      postgresUrl,
+    });
+
     return NextResponse.json({
-      ...status,
       success: true,
-      previewUrl: status.url || null,
-      status: status.is_responding ? 'running' : 'starting',
+      url: sandboxInfo.url,
+      previewUrl: sandboxInfo.url,
+      project_id: projectId,
+      session_id: sessionId,
+      running: sandboxInfo.status === 'running',
     });
   } catch (error: unknown) {
     console.error('Error in preview GET:', error);
