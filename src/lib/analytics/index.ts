@@ -2,6 +2,7 @@
  * Analytics module - Centralized analytics utilities
  */
 
+export { hasStatisticsConsent, isCookiebotReady } from './cookiebot';
 export {
   ANALYTICS_EVENTS,
   FEATURE_EVENTS,
@@ -11,4 +12,4 @@ export {
 } from './events';
 export type { AnalyticsEvent } from './events';
 export { initPostHog, posthog } from './posthog';
-export { captureServerEvent, getPostHogClient, identifyServerUser } from './server';
+export { setupSentryWithConsent } from './sentry';
