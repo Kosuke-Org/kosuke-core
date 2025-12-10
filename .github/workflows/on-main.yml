@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - sandbox
 
 concurrency:
   group: 'main-staging-${{ github.workflow }}'
