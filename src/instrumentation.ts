@@ -23,23 +23,36 @@ function validateEnvironmentVariables() {
     { key: 'ANTHROPIC_API_KEY', description: 'Anthropic API key for Claude AI' },
     { key: 'AGENT_MAX_TURNS', description: 'Maximum number of agent conversation turns' },
 
-    // Docker Configuration
-    { key: 'HOST_WORKSPACE_DIR', description: 'Host workspace directory path' },
+    // Docker
+    { key: 'DOCKER_HOST', description: 'Docker socket path' },
 
     // GitHub Configuration
     { key: 'TEMPLATE_REPOSITORY', description: 'GitHub template repository' },
     { key: 'GITHUB_APP_ID', description: 'GitHub App ID for authentication' },
     { key: 'GITHUB_APP_PRIVATE_KEY', description: 'GitHub App private key' },
     { key: 'GITHUB_APP_INSTALLATION_ID', description: 'GitHub App installation ID' },
+    { key: 'GITHUB_WEBHOOK_SECRET', description: 'GitHub webhook secret for verification' },
 
     // Preview Configuration
-    { key: 'PREVIEW_BUN_IMAGE', description: 'Docker image for Bun preview containers' },
-    { key: 'PREVIEW_PYTHON_IMAGE', description: 'Docker image for Python preview containers' },
     { key: 'PREVIEW_RESEND_API_KEY', description: 'Resend API key for preview environments' },
 
-    // Sessions & Sandbox
-    { key: 'SESSION_BRANCH_PREFIX', description: 'Git branch prefix for sessions' },
+    // Sandbox Configuration
+    { key: 'SANDBOX_IMAGE', description: 'Docker image for sandbox containers' },
+    { key: 'SANDBOX_NETWORK', description: 'Docker network for sandbox containers' },
+    { key: 'SANDBOX_PORT_RANGE_START', description: 'Start of port range for sandbox containers' },
+    { key: 'SANDBOX_PORT_RANGE_END', description: 'End of port range for sandbox containers' },
+    { key: 'SANDBOX_MEMORY_LIMIT', description: 'Memory limit for sandbox containers' },
+    { key: 'SANDBOX_CPU_SHARES', description: 'CPU shares for sandbox containers' },
+    { key: 'SANDBOX_PIDS_LIMIT', description: 'PIDs limit for sandbox containers' },
+    { key: 'SANDBOX_AGENT_PORT', description: 'Port for sandbox agent communication' },
+    { key: 'SANDBOX_BASE_DOMAIN', description: 'Base domain for preview deployments' },
     { key: 'SANDBOX_GIT_EMAIL', description: 'Git email for sandbox commits' },
+
+    // Sessions
+    { key: 'SESSION_BRANCH_PREFIX', description: 'Git branch prefix for sessions' },
+
+    // Domain Configuration
+    { key: 'TRAEFIK_ENABLED', description: 'Enable Traefik reverse proxy' },
 
     // Digital Ocean Spaces (Storage)
     { key: 'S3_REGION', description: 'Digital Ocean Spaces region' },
@@ -48,18 +61,6 @@ function validateEnvironmentVariables() {
     { key: 'S3_ACCESS_KEY_ID', description: 'Digital Ocean Spaces access key' },
     { key: 'S3_SECRET_ACCESS_KEY', description: 'Digital Ocean Spaces secret key' },
 
-    // Domain Configuration
-    { key: 'PREVIEW_BASE_DOMAIN', description: 'Base domain for preview deployments' },
-    { key: 'TRAEFIK_ENABLED', description: 'Enable Traefik reverse proxy' },
-    { key: 'PREVIEW_PORT_RANGE_START', description: 'Preview port range start' },
-    { key: 'PREVIEW_PORT_RANGE_END', description: 'Preview port range end' },
-    { key: 'PREVIEW_HEALTH_PATH', description: 'Preview health check path' },
-    { key: 'PREVIEW_NETWORK', description: 'Docker network for previews' },
-    {
-      key: 'PREVIEW_RESOURCE_PREFIX',
-      description: 'Preview resource naming prefix (databases, containers)',
-    },
-
     // Redis Configuration
     { key: 'REDIS_PASSWORD', description: 'Redis password' },
     { key: 'REDIS_URL', description: 'Redis connection URL for job queue' },
@@ -67,6 +68,7 @@ function validateEnvironmentVariables() {
     // Preview Cleanup Configuration
     { key: 'CLEANUP_THRESHOLD_MINUTES', description: 'Minutes of inactivity before cleanup' },
     { key: 'CLEANUP_INTERVAL_MINUTES', description: 'Minutes between cleanup job runs' },
+    { key: 'CLEANUP_WORKER_CONCURRENCY', description: 'Number of concurrent cleanup workers' },
 
     // Queue Configuration
     { key: 'QUEUE_MAX_ATTEMPTS', description: 'Maximum retry attempts for failed jobs' },

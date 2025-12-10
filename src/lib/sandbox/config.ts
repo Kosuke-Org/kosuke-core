@@ -34,16 +34,16 @@ let sandboxConfig: SandboxConfig | null = null;
 export function getSandboxConfig(): SandboxConfig {
   if (!sandboxConfig) {
     sandboxConfig = {
-      sandboxImage: process.env.SANDBOX_IMAGE || 'ghcr.io/kosuke-org/kosuke-sandbox:latest',
-      networkName: process.env.SANDBOX_NETWORK || 'kosuke_network',
+      sandboxImage: process.env.SANDBOX_IMAGE!,
+      networkName: process.env.SANDBOX_NETWORK!,
       traefikEnabled: process.env.TRAEFIK_ENABLED === 'true',
-      previewDomain: process.env.SANDBOX_PREVIEW_DOMAIN || 'previews.kosuke.ai',
-      portRangeStart: 4000,
-      portRangeEnd: 4999,
-      memoryLimit: parseInt(process.env.SANDBOX_MEMORY_LIMIT || '2147483648', 10), // 2GB
-      cpuShares: parseInt(process.env.SANDBOX_CPU_SHARES || '512', 10),
-      pidsLimit: parseInt(process.env.SANDBOX_PIDS_LIMIT || '256', 10),
-      agentPort: parseInt(process.env.SANDBOX_AGENT_PORT || '9000', 10),
+      previewDomain: process.env.SANDBOX_BASE_DOMAIN!,
+      portRangeStart: parseInt(process.env.SANDBOX_PORT_RANGE_START!, 10),
+      portRangeEnd: parseInt(process.env.SANDBOX_PORT_RANGE_END!, 10),
+      memoryLimit: parseInt(process.env.SANDBOX_MEMORY_LIMIT!, 10),
+      cpuShares: parseInt(process.env.SANDBOX_CPU_SHARES!, 10),
+      pidsLimit: parseInt(process.env.SANDBOX_PIDS_LIMIT!, 10),
+      agentPort: parseInt(process.env.SANDBOX_AGENT_PORT!, 10),
     };
   }
   return sandboxConfig;
