@@ -5,6 +5,7 @@
 
 import { DockerClient, type ContainerCreateRequest } from '@docker/node-sdk';
 import { getSandboxConfig } from './config';
+import { createSandboxDatabase, dropSandboxDatabase } from './database';
 import { generatePreviewHost, generateSandboxName } from './naming';
 import type { SandboxCreateOptions, SandboxInfo } from './types';
 
@@ -118,6 +119,9 @@ export class SandboxManager {
       console.warn(`⚠️ Failed to pull image, using local: ${error}`);
     }
 
+    // Create Postgres database for this sandbox
+    const postgresUrl = await createSandboxDatabase(options.projectId, options.sessionId);
+
     // Prepare routing configuration (Traefik vs local port)
     const {
       externalUrl,
@@ -140,7 +144,7 @@ export class SandboxManager {
       `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
       `KOSUKE_MODE=${options.mode}`,
       `KOSUKE_AGENT_ENABLED=${options.agentEnabled}`,
-      `KOSUKE_POSTGRES_URL=${options.postgresUrl}`,
+      `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
@@ -243,7 +247,7 @@ export class SandboxManager {
   }
 
   /**
-   * Destroy a sandbox container (removes container and volumes)
+   * Destroy a sandbox container (removes container, volumes, and database)
    */
   async destroySandbox(projectId: string, sessionId: string): Promise<void> {
     const client = await this.ensureClient();
@@ -262,6 +266,9 @@ export class SandboxManager {
       // Remove container and volumes
       await client.containerDelete(containerName, { force: true, volumes: true });
       console.log(`✅ Sandbox ${containerName} destroyed`);
+
+      // Drop the database
+      await dropSandboxDatabase(projectId, sessionId);
     } catch (err) {
       console.error(`Failed to destroy sandbox ${containerName}:`, err);
       throw err;

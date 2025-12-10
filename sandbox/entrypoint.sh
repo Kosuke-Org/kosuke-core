@@ -112,38 +112,7 @@ echo "   Python directory: ${KOSUKE_PYTHON_DIR:-none}"
 echo "   Has Redis: ${KOSUKE_HAS_REDIS}"
 
 # ============================================================
-# STEP 3: CREATE POSTGRES DATABASE (if configured)
-# ============================================================
-
-if [ -n "$KOSUKE_POSTGRES_URL" ]; then
-    echo "🐘 Creating Postgres database if needed..."
-
-    # Extract database name from URL (last path segment)
-    DB_NAME=$(echo "$KOSUKE_POSTGRES_URL" | sed -E 's|.*/([^/]+)$|\1|')
-
-    # Build admin URL (replace database name with 'postgres')
-    ADMIN_URL=$(echo "$KOSUKE_POSTGRES_URL" | sed -E 's|/[^/]+$|/postgres|')
-
-    echo "   Database: $DB_NAME"
-
-    # Check if database exists, create if not
-    # Using psql with the admin database
-    if psql "$ADMIN_URL" -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
-        echo "   Database already exists"
-    else
-        echo "   Creating database..."
-        if psql "$ADMIN_URL" -c "CREATE DATABASE \"$DB_NAME\"" 2>&1; then
-            echo "✅ Database created: $DB_NAME"
-        else
-            echo "⚠️ Warning: Could not create database (may already exist)"
-        fi
-    fi
-else
-    echo "ℹ️ Postgres not configured, skipping"
-fi
-
-# ============================================================
-# STEP 4: START REDIS (if configured)
+# STEP 3: START REDIS (if configured)
 # ============================================================
 
 if [ "$KOSUKE_HAS_REDIS" = "true" ]; then
@@ -167,7 +136,7 @@ else
 fi
 
 # ============================================================
-# STEP 5: START SERVICES VIA SUPERVISOR
+# STEP 4: START SERVICES VIA SUPERVISOR
 # ============================================================
 
 echo "🚀 Starting services via supervisor..."

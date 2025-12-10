@@ -7,7 +7,6 @@ import { chatSessions } from '@/lib/db/schema';
 import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
-import { generatePreviewDatabaseName } from '@/lib/sandbox/naming';
 import { and, eq } from 'drizzle-orm';
 
 /**
@@ -97,12 +96,7 @@ export async function GET(
       ? project.githubBranch || 'main'
       : `${process.env.SESSION_BRANCH_PREFIX || 'kosuke/chat-'}${sessionId}`;
 
-    // Build Postgres URL for the sandbox
-    const basePostgresUrl = process.env.POSTGRES_URL || '';
-    const dbName = generatePreviewDatabaseName(projectId, sessionId);
-    const postgresUrl = `${basePostgresUrl.replace(/\/[^/]+$/, '')}/${dbName}`;
-
-    // Create/start sandbox
+    // Create/start sandbox (database is created by the manager)
     const sandboxInfo = await sandboxManager.createSandbox({
       projectId,
       sessionId,
@@ -111,7 +105,6 @@ export async function GET(
       githubToken,
       mode,
       agentEnabled: !isMainSession, // Agent disabled for main session
-      postgresUrl,
     });
 
     return NextResponse.json({

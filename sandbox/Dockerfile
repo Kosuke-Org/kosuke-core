@@ -29,8 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     # Redis
     redis-server \
-    # Postgres client (for database creation)
-    postgresql-client \
     # Python
     python3 \
     python3-pip \

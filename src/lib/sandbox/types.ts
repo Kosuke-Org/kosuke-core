@@ -15,7 +15,6 @@ export interface SandboxCreateOptions {
   githubToken: string;
   mode: 'development' | 'production';
   agentEnabled: boolean;
-  postgresUrl: string;
 }
 
 export interface SandboxInfo {
