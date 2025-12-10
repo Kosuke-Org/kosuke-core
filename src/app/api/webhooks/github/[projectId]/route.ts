@@ -11,12 +11,34 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import {
-  isPushToMain,
-  verifyWebhookSignature,
-  type GitHubPushPayload,
-} from '@/lib/github/webhooks';
+import { verifyWebhookSignature, type GitHubPushPayload } from '@/lib/github/webhooks';
 import { getSandboxManager } from '@/lib/sandbox';
+
+/**
+ * Extract branch name from git ref (e.g., "refs/heads/main" -> "main")
+ */
+function getBranchFromRef(ref: string): string {
+  return ref.replace('refs/heads/', '');
+}
+
+/**
+ * Get sessionId from branch name
+ * - "main" -> "main"
+ * - "kosuke/chat-abc123" -> "abc123"
+ */
+function getSessionIdFromBranch(branch: string): string | null {
+  if (branch === 'main') {
+    return 'main';
+  }
+
+  const branchPrefix = process.env.SESSION_BRANCH_PREFIX;
+  if (branchPrefix && branch.startsWith(branchPrefix)) {
+    return branch.slice(branchPrefix.length);
+  }
+
+  // Unknown branch format - no matching sandbox
+  return null;
+}
 
 /**
  * POST /api/webhooks/github/[projectId]
@@ -46,15 +68,17 @@ export async function POST(
 
     // Parse payload
     const payload: GitHubPushPayload = JSON.parse(rawBody);
+    const branch = getBranchFromRef(payload.ref);
+    const sessionId = getSessionIdFromBranch(branch);
 
-    // Only process pushes to main branch
-    if (!isPushToMain(payload)) {
-      console.log(`Ignoring push to ${payload.ref} for project ${projectId}`);
-      return NextResponse.json({ message: 'Ignored - not main branch' });
-    }
-
-    console.log(`📥 Received push to main for project ${projectId}`);
+    console.log(`📥 Received push to ${branch} for project ${projectId}`);
     console.log(`   Commits: ${payload.commits.length}, Pusher: ${payload.pusher.name}`);
+
+    // If we can't map branch to a sessionId, ignore
+    if (!sessionId) {
+      console.log(`ℹ️ No sandbox mapped to branch ${branch}, ignoring`);
+      return NextResponse.json({ message: 'Ignored - no sandbox for this branch' });
+    }
 
     // Verify project exists
     const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
@@ -64,24 +88,29 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Check if main sandbox is running and restart it
+    // Check if sandbox for this branch is running and restart it
     // The entrypoint.sh handles git fetch/reset on container restart
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, 'main');
+    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
     let restarted = false;
 
     if (sandbox && sandbox.status === 'running') {
-      console.log(`🔄 Restarting sandbox for project ${projectId} to sync changes`);
-      await sandboxManager.restartSandbox(projectId, 'main');
+      console.log(`🔄 Restarting sandbox (session: ${sessionId}) for project ${projectId}`);
+      await sandboxManager.restartSandbox(projectId, sessionId);
       restarted = true;
       console.log(`✅ Sandbox restarted for project ${projectId}`);
     } else {
-      console.log(`ℹ️ Sandbox not running for project ${projectId}, skipping restart`);
+      console.log(`ℹ️ Sandbox not running for session ${sessionId}, skipping restart`);
     }
 
-    // Update last sync timestamp
-    await db.update(projects).set({ lastGithubSync: new Date() }).where(eq(projects.id, projectId));
+    // Update last sync timestamp (only for main branch)
+    if (sessionId === 'main') {
+      await db
+        .update(projects)
+        .set({ lastGithubSync: new Date() })
+        .where(eq(projects.id, projectId));
+    }
 
     return NextResponse.json({
       success: true,

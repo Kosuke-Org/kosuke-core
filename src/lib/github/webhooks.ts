@@ -174,10 +174,3 @@ export interface GitHubPushPayload {
     };
   }>;
 }
-
-/**
- * Check if a push event is for the main branch
- */
-export function isPushToMain(payload: GitHubPushPayload): boolean {
-  return payload.ref === 'refs/heads/main';
-}

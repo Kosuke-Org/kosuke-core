@@ -47,13 +47,13 @@ if [ -d "project/.git" ]; then
 
     # Fetch and reset to latest (preserves node_modules, .venv, etc.)
     if ! git fetch origin "$BRANCH" --depth 1 2>&1; then
-        echo "❌ Error: Failed to clone repository"
+        echo "❌ Error: Failed to fetch branch $BRANCH"
         exit 1
-    else
-        # Reset to fetched branch (discards local changes)
-        git reset --hard "origin/$BRANCH"
-        echo "✅ Repository updated"
     fi
+
+    # Reset to fetched commit (FETCH_HEAD is updated by shallow fetch)
+    git reset --hard FETCH_HEAD
+    echo "✅ Repository updated"
 else
     echo "📦 Fresh clone..."
     rm -rf project
