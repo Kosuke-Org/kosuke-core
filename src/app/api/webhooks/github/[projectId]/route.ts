@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
+import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
 import { verifyWebhookSignature, type GitHubPushPayload } from '@/lib/github/webhooks';
 import { getSandboxManager } from '@/lib/sandbox';
 
@@ -122,17 +123,57 @@ export async function POST(
     }
 
     // Check if sandbox for this branch is running and restart it
-    // The entrypoint.sh handles git fetch/reset on container restart
     const sandboxManager = getSandboxManager();
     const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
     let restarted = false;
 
     if (sandbox && sandbox.status === 'running') {
-      console.log(`🔄 Restarting sandbox (session: ${sessionId}) for project ${projectId}`);
-      await sandboxManager.restartSandbox(projectId, sessionId);
-      restarted = true;
-      console.log(`✅ Sandbox restarted for project ${projectId}`);
+      // Get GitHub token based on project ownership
+      const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
+      const isKosukeRepo = kosukeOrg && project.githubOwner === kosukeOrg;
+
+      const githubToken = isKosukeRepo
+        ? await getKosukeGitHubToken()
+        : project.createdBy
+          ? await getUserGitHubToken(project.createdBy)
+          : null;
+
+      if (!githubToken) {
+        console.warn(`⚠️ No GitHub token available for project ${projectId}`);
+        return NextResponse.json({ message: 'No GitHub token available' });
+      }
+
+      if (sandbox.mode === 'production') {
+        // Production mode: destroy and recreate to ensure fresh build
+        console.log(
+          `🔄 Production sandbox - destroying and recreating (session: ${sessionId}) for project ${projectId}`
+        );
+
+        await sandboxManager.destroySandbox(projectId, sessionId);
+
+        const repoUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}.git`;
+        await sandboxManager.createSandbox({
+          projectId,
+          sessionId,
+          repoUrl,
+          branch,
+          githubToken,
+          mode: 'production',
+        });
+
+        restarted = true;
+        console.log(`✅ Production sandbox recreated for project ${projectId}`);
+      } else {
+        // Development mode: restart and pull latest code
+        console.log(`🔄 Restarting sandbox (session: ${sessionId}) for project ${projectId}`);
+        await sandboxManager.restartSandbox(projectId, sessionId, {
+          branch,
+          githubToken,
+        });
+        restarted = true;
+        console.log(`✅ Sandbox restarted and code updated for project ${projectId}`);
+      }
     } else {
       console.log(`ℹ️ Sandbox not running for session ${sessionId}, skipping restart`);
     }

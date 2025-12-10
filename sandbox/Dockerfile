@@ -114,7 +114,6 @@ EXPOSE 3000 8000 9000
 # ============================================================
 
 ENV KOSUKE_MODE=development
-ENV KOSUKE_AGENT_ENABLED=true
 ENV KOSUKE_AGENT_PORT=9000
 ENV KOSUKE_PROJECT_DIR=/app/project
 

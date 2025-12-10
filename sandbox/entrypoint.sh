@@ -8,7 +8,6 @@ set -e
 
 echo "🚀 Starting Kosuke Sandbox..."
 echo "   Mode: ${KOSUKE_MODE}"
-echo "   Agent Enabled: ${KOSUKE_AGENT_ENABLED}"
 echo "   Repo: ${KOSUKE_REPO_URL}"
 echo "   Branch: ${KOSUKE_BRANCH}"
 
@@ -39,21 +38,11 @@ cd /app
 
 # Check if project already has a git repo (container restart scenario)
 if [ -d "project/.git" ]; then
-    echo "📥 Existing repo found, pulling latest changes..."
+    echo "📥 Existing repo found, using cached code..."
     cd /app/project
-
-    # Temporarily set authenticated URL for fetch
-    git remote set-url origin "$AUTH_URL"
-
-    # Fetch and reset to latest (preserves node_modules, .venv, etc.)
-    if ! git fetch origin "$BRANCH" --depth 1 2>&1; then
-        echo "❌ Error: Failed to fetch branch $BRANCH"
-        exit 1
-    fi
-
-    # Reset to fetched commit (FETCH_HEAD is updated by shallow fetch)
-    git reset --hard FETCH_HEAD
-    echo "✅ Repository updated"
+    # Skip git fetch on restart - main app will call /git/pull with fresh token if needed
+    # This avoids token expiration issues since container env vars can't be updated
+    echo "✅ Repository ready (cached state)"
 else
     echo "📦 Fresh clone..."
     rm -rf project

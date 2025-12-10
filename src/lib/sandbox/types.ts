@@ -14,7 +14,6 @@ export interface SandboxCreateOptions {
   branch: string;
   githubToken: string;
   mode: 'development' | 'production';
-  agentEnabled: boolean;
 }
 
 export interface SandboxInfo {
@@ -23,6 +22,8 @@ export interface SandboxInfo {
   sessionId: string;
   status: 'running' | 'stopped' | 'error';
   url: string;
+  mode: 'development' | 'production';
+  branch: string;
 }
 
 // ============================================================

@@ -37,9 +37,7 @@ export async function GET(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId))
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -104,7 +102,6 @@ export async function GET(
       branch,
       githubToken,
       mode,
-      agentEnabled: !isMainSession, // Agent disabled for main session
     });
 
     return NextResponse.json({

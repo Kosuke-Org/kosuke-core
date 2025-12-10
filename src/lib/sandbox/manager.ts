@@ -4,6 +4,7 @@
  */
 
 import { DockerClient, type ContainerCreateRequest } from '@docker/node-sdk';
+import { SandboxClient } from './client';
 import { getSandboxConfig } from './config';
 import { createSandboxDatabase, dropSandboxDatabase } from './database';
 import { generatePreviewHost, generateSandboxName } from './naming';
@@ -84,7 +85,6 @@ export class SandboxManager {
 
     console.log(`🚀 Creating sandbox: ${containerName}`);
     console.log(`   Mode: ${options.mode}`);
-    console.log(`   Agent: ${options.agentEnabled ? 'enabled' : 'disabled'}`);
     console.log(`   Repo: ${options.repoUrl}`);
     console.log(`   Branch: ${options.branch}`);
 
@@ -96,16 +96,44 @@ export class SandboxManager {
         return this.getSandboxInfo(containerName);
       }
 
-      // Container exists but stopped - try to restart it
-      console.log(`🔄 Restarting stopped sandbox ${containerName}`);
-      try {
-        await client.containerStart(existing.Id!);
-        console.log(`✅ Sandbox ${containerName} restarted`);
-        return this.getSandboxInfo(containerName);
-      } catch (startError) {
-        // If restart fails, remove and recreate
-        console.log(`⚠️ Restart failed, recreating sandbox: ${startError}`);
+      // Container exists but stopped
+      const existingMode = existing.Config?.Labels?.['kosuke.mode'];
+
+      if (existingMode === 'production') {
+        // Production mode: always destroy and recreate to ensure fresh build
+        console.log(`🔄 Production sandbox stopped, destroying and recreating...`);
         await client.containerDelete(containerName, { force: true, volumes: true });
+        // Continue to create new container below
+      } else {
+        // Development mode: restart and pull latest code
+        console.log(`🔄 Restarting stopped sandbox ${containerName}`);
+        try {
+          await client.containerStart(existing.Id!);
+          console.log(`✅ Sandbox ${containerName} restarted`);
+
+          // Pull latest code with fresh token
+          console.log(`📥 Pulling latest code for branch ${options.branch}...`);
+          const agentReady = await this.waitForAgent(options.projectId, options.sessionId);
+
+          if (agentReady) {
+            const sandboxClient = new SandboxClient(options.projectId, options.sessionId);
+            const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
+
+            if (pullResult.success) {
+              console.log(
+                `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
+              );
+            } else {
+              console.warn(`⚠️ Pull failed: ${pullResult.error}`);
+            }
+          }
+
+          return this.getSandboxInfo(containerName);
+        } catch (startError) {
+          // If restart fails, remove and recreate
+          console.log(`⚠️ Restart failed, recreating sandbox: ${startError}`);
+          await client.containerDelete(containerName, { force: true, volumes: true });
+        }
       }
     } catch {
       // Container doesn't exist, continue to create
@@ -134,6 +162,7 @@ export class SandboxManager {
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
+      'kosuke.branch': options.branch,
       ...routingLabels,
     };
 
@@ -143,7 +172,6 @@ export class SandboxManager {
       `KOSUKE_BRANCH=${options.branch}`,
       `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
       `KOSUKE_MODE=${options.mode}`,
-      `KOSUKE_AGENT_ENABLED=${options.agentEnabled}`,
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
@@ -204,6 +232,10 @@ export class SandboxManager {
 
     const projectId = container.Config?.Labels?.['kosuke.project_id'] || '';
     const sessionId = container.Config?.Labels?.['kosuke.session_id'] || '';
+    const mode = (container.Config?.Labels?.['kosuke.mode'] || 'development') as
+      | 'development'
+      | 'production';
+    const branch = container.Config?.Labels?.['kosuke.branch'] || 'main';
     const hostPort = container.Config?.Labels?.['kosuke.host_port'];
 
     const url = this.config.traefikEnabled
@@ -216,6 +248,8 @@ export class SandboxManager {
       sessionId,
       status: container.State?.Running ? 'running' : 'stopped',
       url,
+      mode,
+      branch,
     };
   }
 
@@ -279,9 +313,49 @@ export class SandboxManager {
   }
 
   /**
-   * Restart a sandbox container
+   * Wait for the sandbox agent to be ready
    */
-  async restartSandbox(projectId: string, sessionId: string): Promise<void> {
+  private async waitForAgent(
+    projectId: string,
+    sessionId: string,
+    maxAttempts: number = 30
+  ): Promise<boolean> {
+    const agentUrl = this.getSandboxAgentUrl(projectId, sessionId);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(`${agentUrl}/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(2000),
+        });
+        if (response.ok) {
+          console.log(`✅ Agent is ready (attempt ${attempt})`);
+          return true;
+        }
+      } catch {
+        // Agent not ready yet
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    console.warn(`⚠️ Agent not ready after ${maxAttempts} attempts`);
+    return false;
+  }
+
+  /**
+   * Restart a sandbox container and optionally pull latest code
+   * @param projectId - Project ID
+   * @param sessionId - Session ID
+   * @param options - Optional: branch and githubToken to pull latest code after restart
+   */
+  async restartSandbox(
+    projectId: string,
+    sessionId: string,
+    options?: { branch: string; githubToken: string }
+  ): Promise<void> {
     const client = await this.ensureClient();
     const containerName = generateSandboxName(projectId, sessionId);
 
@@ -289,6 +363,25 @@ export class SandboxManager {
       console.log(`🔄 Restarting sandbox ${containerName}...`);
       await client.containerRestart(containerName, { timeout: 10 });
       console.log(`✅ Sandbox ${containerName} restarted`);
+
+      // If token provided, wait for agent and pull latest code
+      if (options?.githubToken && options?.branch) {
+        console.log(`📥 Pulling latest code for branch ${options.branch}...`);
+        const agentReady = await this.waitForAgent(projectId, sessionId);
+
+        if (agentReady) {
+          const sandboxClient = new SandboxClient(projectId, sessionId);
+          const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
+
+          if (pullResult.success) {
+            console.log(
+              `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
+            );
+          } else {
+            console.warn(`⚠️ Pull failed: ${pullResult.error}`);
+          }
+        }
+      }
     } catch (err) {
       console.error(`Failed to restart sandbox ${containerName}:`, err);
       throw err;
