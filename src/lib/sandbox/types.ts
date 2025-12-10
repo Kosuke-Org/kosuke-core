@@ -20,6 +20,7 @@ export interface SandboxCreateOptions {
 export interface SandboxInfo {
   containerId: string;
   name: string;
+  sessionId: string;
   status: 'running' | 'stopped' | 'error';
   url: string;
 }

@@ -211,6 +211,7 @@ export class SandboxManager {
     return {
       containerId: container.Id!,
       name: containerName,
+      sessionId,
       status: container.State?.Running ? 'running' : 'stopped',
       url,
     };

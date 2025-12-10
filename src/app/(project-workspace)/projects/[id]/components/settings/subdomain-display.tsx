@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectPreviewUrls } from '@/hooks/use-preview-urls';
 import type { PreviewUrl } from '@/lib/types/preview-urls';
-import { Activity, Check, ExternalLink, Globe } from 'lucide-react';
+import { Activity, ExternalLink, Globe } from 'lucide-react';
 
 interface SubdomainDisplayProps {
   projectId: string;
@@ -158,11 +158,8 @@ function PreviewUrlCard({ preview }: { preview: PreviewUrl }) {
             <div className="text-sm text-muted-foreground">
               Branch: <code className="bg-muted px-1 rounded text-xs font-mono">{preview.branch_name}</code>
             </div>
-            <div className="flex justify-between items-center text-sm text-muted-foreground">
-              <span>Created: {new Date(preview.created_at).toLocaleDateString()}</span>
-              {preview.last_accessed && (
-                <span>Last accessed: {new Date(preview.last_accessed).toLocaleDateString()}</span>
-              )}
+            <div className="text-sm text-muted-foreground">
+              Created: {new Date(preview.created_at).toLocaleDateString()}
             </div>
           </div>
           <div className="flex gap-2 ml-3">
@@ -170,12 +167,6 @@ function PreviewUrlCard({ preview }: { preview: PreviewUrl }) {
               {getStatusIcon(preview.container_status)}
               {preview.container_status}
             </Badge>
-            {preview.ssl_enabled && (
-              <Badge variant="outline" className="text-green-600 dark:text-green-400">
-                <Check className="w-3 h-3 mr-1" />
-                SSL
-              </Badge>
-            )}
           </div>
         </div>
       </CardContent>

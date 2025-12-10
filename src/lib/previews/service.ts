@@ -7,12 +7,11 @@ import type { StorageConnectionInfo } from '@/lib/previews/storages';
 import type { DockerContainerStatus, RouteInfo } from '@/lib/types/docker';
 import type { ServiceConfig, ServiceType, StoragesConfig } from '@/lib/types/kosuke-config';
 import { getEntrypointService } from '@/lib/types/kosuke-config';
-import type { PreviewUrl, PreviewUrlsResponse } from '@/lib/types/preview-urls';
 import { DockerClient, type ContainerCreateRequest } from '@docker/node-sdk';
 import { join } from 'path';
 import { getPreviewConfig } from './config';
 import { buildEnviornment, readKosukeConfig } from './config-reader';
-import { generatePreviewResourceName, sanitizeUUID } from './naming';
+import { generatePreviewResourceName } from './naming';
 import { PortRouterAdapter, TraefikRouterAdapter, type RouterAdapter } from './router-adapters';
 import { createPreviewStorages, dropPreviewStorages } from './storages';
 
@@ -652,106 +651,6 @@ class PreviewService {
     }
 
     console.log(`✅ Preview ${remove ? 'destroyed' : 'stopped'}`);
-  }
-
-  /**
-   * Get all preview URLs for a project (for backward compatibility)
-   */
-  async getProjectPreviewUrls(projectId: string): Promise<PreviewUrlsResponse> {
-    console.log(`📋 Getting preview URLs for project ${projectId}`);
-
-    try {
-      const client = await this.ensureClient();
-      // Use sanitized projectId (underscores) to match actual container naming convention
-      const namePrefix = `${this.config.previewContainerNamePrefix}${sanitizeUUID(projectId)}_`;
-
-      const allContainers = await client.containerList({ all: true });
-      const projectContainers = allContainers.filter(container => {
-        const name = container.Names?.[0]?.replace(/^\//, '') || '';
-        return name.startsWith(namePrefix);
-      });
-
-      // Group containers by session
-      const sessionContainers = new Map<string, typeof projectContainers>();
-
-      for (const container of projectContainers) {
-        const containerName = container.Names?.[0]?.replace(/^\//, '') || '';
-        // Extract session ID: prefix_projectId_sessionId_serviceName (underscores)
-        const parts = containerName.replace(namePrefix, '').split('_');
-        const sessionId = parts[0]; // First part after projectId
-
-        if (!sessionContainers.has(sessionId)) {
-          sessionContainers.set(sessionId, []);
-        }
-        sessionContainers.get(sessionId)!.push(container);
-      }
-
-      const previewUrls: PreviewUrl[] = [];
-
-      // For each session, find entrypoint container
-      for (const [sessionId, containers] of sessionContainers.entries()) {
-        try {
-          // Find entrypoint container (would need to inspect labels or config)
-          // For now, use first running container
-          const runningContainer = containers.find(c => c.State === 'running');
-          const containerToUse = runningContainer || containers[0];
-
-          if (!containerToUse) continue;
-
-          const containerName = containerToUse.Names?.[0]?.replace(/^\//, '') || '';
-          const containerDetails = await client.containerInspect(containerName);
-          const fullUrl = this.adapter.getContainerUrl(containerDetails);
-
-          if (!fullUrl) continue;
-
-          const labels = containerDetails.Config?.Labels || {};
-          const branchName = labels['kosuke.branch'] || labels['kosuke.session_id'] || sessionId;
-
-          let subdomain: string | null = null;
-          if (fullUrl.startsWith('https://')) {
-            const domain = fullUrl.replace('https://', '').split('/')[0];
-            subdomain = domain.split('.')[0];
-          }
-
-          const rawStatus = containerToUse.State || 'unknown';
-          let containerStatus: 'running' | 'stopped' | 'error';
-          if (rawStatus === 'running') {
-            containerStatus = 'running';
-          } else if (rawStatus === 'exited' || rawStatus === 'created' || rawStatus === 'paused') {
-            containerStatus = 'stopped';
-          } else {
-            containerStatus = 'error';
-          }
-
-          const createdAt = containerDetails.Created || new Date().toISOString();
-
-          previewUrls.push({
-            id: containerName,
-            project_id: projectId,
-            branch_name: branchName,
-            subdomain: subdomain || '',
-            full_url: fullUrl,
-            container_status: containerStatus,
-            ssl_enabled: fullUrl.startsWith('https://'),
-            created_at: createdAt,
-            last_accessed: null,
-          });
-        } catch (error) {
-          console.warn(`Failed to process session ${sessionId}:`, error);
-        }
-      }
-
-      return {
-        preview_urls: previewUrls,
-        total_count: previewUrls.length,
-      };
-    } catch (error) {
-      console.error(`❌ Error getting preview URLs for project ${projectId}:`, error);
-      return {
-        preview_urls: [],
-        total_count: 0,
-      };
-    }
   }
 
   /**
