@@ -467,7 +467,14 @@ export async function POST(
 
             // Check if this is the complete event with commit info
             if (event.type === 'complete' && event.commitSha) {
-              console.log(`✅ Changes committed with SHA: ${event.commitSha}`);
+              // Save the commitSha to the assistant message for revert functionality
+              await db
+                .update(chatMessages)
+                .set({ commitSha: event.commitSha as string })
+                .where(eq(chatMessages.id, assistantMessage.id));
+              console.log(
+                `✅ Saved commitSha to assistant message ${assistantMessage.id}: ${event.commitSha}`
+              );
             }
 
             // Format as Server-Sent Events

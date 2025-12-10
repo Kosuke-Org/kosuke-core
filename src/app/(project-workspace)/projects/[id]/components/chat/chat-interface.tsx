@@ -220,7 +220,6 @@ export default function ChatInterface({
                   onRegenerate={message.onRegenerate}
                   commitSha={message.commitSha}
                   projectId={projectId}
-                  chatSessionId={activeChatSessionId || undefined}
                   sessionId={sessionId}
                   metadata={message.metadata}
                   attachments={message.attachments}

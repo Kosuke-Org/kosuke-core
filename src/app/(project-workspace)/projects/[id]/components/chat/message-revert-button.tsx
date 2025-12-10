@@ -10,7 +10,6 @@ import { RevertConfirmationModal } from './revert-confirmation-modal';
 interface MessageRevertButtonProps {
   message: ChatMessage;
   projectId: string;
-  chatSessionId: string;
   sessionId: string;
   className?: string;
 }
@@ -18,7 +17,6 @@ interface MessageRevertButtonProps {
 export function MessageRevertButton({
   message,
   projectId,
-  chatSessionId,
   sessionId,
   className,
 }: MessageRevertButtonProps) {
@@ -53,7 +51,6 @@ export function MessageRevertButton({
       <RevertConfirmationModal
         message={message}
         projectId={projectId}
-        chatSessionId={chatSessionId}
         sessionId={sessionId}
         isOpen={showConfirmation}
         onClose={() => setShowConfirmation(false)}

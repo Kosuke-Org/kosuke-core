@@ -6,7 +6,7 @@
 import type { MessageParam } from '@anthropic-ai/sdk/resources';
 
 import { getSandboxManager } from './manager';
-import type { FileInfo, GitPullResponse, MessageAttachment } from './types';
+import type { FileInfo, GitPullResponse, GitRevertResponse, MessageAttachment } from './types';
 
 export class SandboxClient {
   private projectId: string;
@@ -206,6 +206,27 @@ export class SandboxClient {
       return {
         success: false,
         changed: false,
+        error: `HTTP ${response.status}`,
+      };
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Revert to a specific commit and force push
+   */
+  async revert(commitSha: string, githubToken: string): Promise<GitRevertResponse> {
+    const response = await fetch(`${this.baseUrl}/git/revert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commitSha, githubToken }),
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        commitSha: '',
         error: `HTTP ${response.status}`,
       };
     }

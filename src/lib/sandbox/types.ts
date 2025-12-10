@@ -54,6 +54,12 @@ export interface GitPullResponse {
   error?: string;
 }
 
+export interface GitRevertResponse {
+  success: boolean;
+  commitSha: string;
+  error?: string;
+}
+
 // ============================================================
 // DATABASE TYPES
 // ============================================================

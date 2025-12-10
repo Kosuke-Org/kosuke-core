@@ -18,6 +18,12 @@ interface PullResult {
   error?: string;
 }
 
+interface RevertResult {
+  success: boolean;
+  commitSha: string;
+  error?: string;
+}
+
 export class GitService {
   private git: SimpleGit;
 
@@ -158,6 +164,69 @@ export class GitService {
     try {
       console.log(`📤 Pushing to ${branch}...`);
       await this.git.push('origin', branch, ['--set-upstream']);
+    } finally {
+      // Always restore original URL (without token)
+      await this.git.remote(['set-url', 'origin', originalUrl]);
+    }
+  }
+
+  /**
+   * Revert to a specific commit and force push
+   */
+  async revertToCommit(commitSha: string, githubToken: string): Promise<RevertResult> {
+    try {
+      console.log(`🔄 Reverting to commit: ${commitSha.substring(0, 8)}`);
+
+      // Hard reset to the target commit
+      await this.git.reset(['--hard', commitSha]);
+
+      // Verify reset was successful
+      const currentCommit = await this.git.revparse(['HEAD']);
+      if (!currentCommit.startsWith(commitSha.substring(0, 7))) {
+        throw new Error(`Reset failed: expected ${commitSha}, got ${currentCommit}`);
+      }
+
+      console.log(`✅ Reset to commit: ${currentCommit.substring(0, 8)}`);
+
+      // Force push to remote
+      await this.forcePushWithToken(githubToken);
+
+      return { success: true, commitSha: currentCommit };
+    } catch (err) {
+      console.error('Revert failed:', err);
+      return {
+        success: false,
+        commitSha: '',
+        error: err instanceof Error ? err.message : 'Revert failed',
+      };
+    }
+  }
+
+  /**
+   * Force push with authentication
+   */
+  private async forcePushWithToken(githubToken: string): Promise<void> {
+    const remotes = await this.git.getRemotes(true);
+    const origin = remotes.find(r => r.name === 'origin');
+
+    if (!origin) {
+      throw new Error('No origin remote found');
+    }
+
+    const pushUrl = origin.refs.push || origin.refs.fetch;
+    const authUrl = this.buildAuthUrl(pushUrl, githubToken);
+    const originalUrl = pushUrl;
+
+    // Get current branch
+    const branch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
+
+    // Temporarily set authenticated URL
+    await this.git.remote(['set-url', 'origin', authUrl]);
+
+    try {
+      console.log(`📤 Force pushing to ${branch}...`);
+      await this.git.push('origin', branch, ['--force']);
+      console.log(`✅ Force pushed to remote`);
     } finally {
       // Always restore original URL (without token)
       await this.git.remote(['set-url', 'origin', originalUrl]);
