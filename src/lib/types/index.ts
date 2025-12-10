@@ -1,5 +1,4 @@
 // Re-export all types from domain-specific files
-export * from './agent';
 export * from './branding';
 export * from './chat';
 export * from './chat-sessions';

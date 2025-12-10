@@ -97,45 +97,30 @@ async function importGitHubRepository(
   const { createUserOctokit } = await import('@/lib/github/client');
   const octokit = await createUserOctokit(userId);
 
-  try {
-    const { data: repoInfo } = await octokit.rest.repos.get({
-      owner,
-      repo,
-    });
+  const { data: repoInfo } = await octokit.rest.repos.get({
+    owner,
+    repo,
+  });
 
-    // Clone repository locally
-    const githubToken = await getUserGitHubToken(userId);
-    if (!githubToken) {
-      throw new Error('GitHub token not found');
-    }
-
-    const { GitOperations } = await import('@/lib/github/git-operations');
-    const gitOps = new GitOperations();
-    const projectPath = await gitOps.cloneRepository(repositoryUrl, projectId, githubToken);
-
-    console.log(`✅ Repository imported successfully to ${projectPath}`);
-
-    return {
-      repoInfo: {
-        owner: repoInfo.owner.login,
-        name: repoInfo.name,
-        full_name: repoInfo.full_name,
-        clone_url: repoInfo.clone_url,
-        default_branch: repoInfo.default_branch,
-      },
-      importResult: {
-        success: true,
-        project_id: projectId,
-        project_path: projectPath,
-      },
-    };
-  } catch (error) {
-    console.error('Error importing repository:', error);
-    if (error instanceof Error && error.message.includes('Not Found')) {
-      throw new Error('Repository not found or not accessible');
-    }
-    throw error;
+  // Check github token is valid
+  const githubToken = await getUserGitHubToken(userId);
+  if (!githubToken) {
+    throw new Error('GitHub token not found');
   }
+
+  return {
+    repoInfo: {
+      owner: repoInfo.owner.login,
+      name: repoInfo.name,
+      full_name: repoInfo.full_name,
+      clone_url: repoInfo.clone_url,
+      default_branch: repoInfo.default_branch,
+    },
+    importResult: {
+      success: true,
+      project_id: projectId,
+    },
+  };
 }
 
 /**
