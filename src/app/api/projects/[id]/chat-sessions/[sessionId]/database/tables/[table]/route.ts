@@ -1,7 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { DatabaseService } from '@/lib/database';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getTableData } from '@/lib/sandbox/database';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -14,13 +14,12 @@ export async function GET(
       return ApiErrorHandler.unauthorized();
     }
 
-    const { id: projectId, sessionId, table } = await params;
+    const { id: projectId, sessionId, table: tableName } = await params;
 
     if (!sessionId) {
       return ApiErrorHandler.badRequest('Session ID is required');
     }
 
-    const tableName = table;
     if (!tableName) {
       return ApiErrorHandler.badRequest('Table name is required');
     }
@@ -37,13 +36,7 @@ export async function GET(
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
     const offset = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
 
-    console.log(
-      `📊 Getting table data for project ${projectId}, session ${sessionId}, table ${tableName}`
-    );
-
-    // Get table data using DatabaseService
-    const dbService = new DatabaseService(projectId, sessionId);
-    const tableData = await dbService.getTableData(tableName, limit, offset);
+    const tableData = await getTableData(projectId, sessionId, tableName, limit, offset);
 
     return NextResponse.json(tableData);
   } catch (error) {

@@ -8,7 +8,12 @@ import { useDatabaseQuery } from '@/hooks/use-database-query';
 import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
-import type { QueryResult, QueryRunnerProps } from '@/lib/types';
+import type { QueryResult } from '@/lib/sandbox/types';
+
+interface QueryRunnerProps {
+  projectId: string;
+  sessionId: string;
+}
 
 export function QueryRunner({ projectId, sessionId }: QueryRunnerProps) {
   const [query, setQuery] = useState('SELECT * FROM information_schema.tables WHERE table_schema = \'public\' LIMIT 5;');

@@ -1,4 +1,4 @@
-import type { DatabaseSchema } from '@/lib/types';
+import type { DatabaseSchema } from '@/lib/sandbox/types';
 import { useQuery } from '@tanstack/react-query';
 
 export function useDatabaseSchema(projectId: string, sessionId: string) {

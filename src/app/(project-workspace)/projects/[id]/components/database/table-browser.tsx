@@ -8,10 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDatabaseSchema } from '@/hooks/use-database-schema';
 import { useTableData } from '@/hooks/use-table-data';
-import type { TableBrowserProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Database, Table as TableIcon } from 'lucide-react';
 import { useState } from 'react';
+
+interface TableBrowserProps {
+  projectId: string;
+  sessionId: string;
+}
 
 export function TableBrowser({ projectId, sessionId }: TableBrowserProps) {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);

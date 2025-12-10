@@ -11,7 +11,6 @@ export type {
   OrganizationMembershipRole,
   UpdateUserData,
 } from './clerk';
-export * from './database';
 export * from './ghost';
 export * from './github';
 export * from './infrastructure';

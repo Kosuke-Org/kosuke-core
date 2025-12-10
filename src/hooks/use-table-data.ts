@@ -1,4 +1,4 @@
-import type { TableData } from '@/lib/types';
+import type { TableData } from '@/lib/sandbox/types';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTableData(
