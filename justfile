@@ -34,3 +34,10 @@ db-reset:
     @sleep 5
     @docker exec kosuke_nextjs npm run db:migrate
     @echo "Database reset complete!"
+
+build-sandbox:
+    @echo "Building sandbox agent..."
+    @cd sandbox/agent && bun install --frozen-lockfile && bun run build
+    @echo "Building sandbox Docker image..."
+    @cd sandbox && docker build -t kosuke-sandbox-local:latest .
+    @echo "Sandbox build complete! Update the SANDBOX_IMAGE in .env to use the new image."
