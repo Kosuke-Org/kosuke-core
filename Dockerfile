@@ -65,8 +65,8 @@ RUN \
     groupadd --gid ${DOCKER_GID} docker && \
     useradd --system --uid 1001 --gid nodejs --create-home nextjs && \
     usermod -aG docker nextjs && \
-    mkdir -p .next projects /home/nextjs/.claude && \
-    chown -R nextjs:nodejs .next projects /home/nextjs
+    mkdir -p .next /home/nextjs/.claude && \
+    chown -R nextjs:nodejs .next /home/nextjs
 
 # Copy only the necessary files
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public

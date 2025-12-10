@@ -28,7 +28,6 @@
         "**/.next": true,
         "**/dist": true,
         "**/__pycache__": true,
-        "projects/**": true
     },
 
     // TypeScript/JavaScript settings

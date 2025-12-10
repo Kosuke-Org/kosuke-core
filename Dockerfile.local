@@ -29,9 +29,6 @@ RUN apt-get update && \
 # Install Claude Code CLI globally (required by @anthropic-ai/claude-agent-sdk)
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create projects directory
-RUN mkdir projects
-
 # Copy dependencies from deps stage with proper ownership
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./package.json

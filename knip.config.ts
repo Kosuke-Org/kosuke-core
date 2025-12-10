@@ -10,7 +10,6 @@ const knipConfig: KnipConfig = {
       ignore: [
         'venv/**',
         '.venv/**',
-        'projects/**',
         // Shadcn/UI components, we keep them as part of the template
         'src/components/ui/**',
         // Library barrel exports, infrastructure for template users

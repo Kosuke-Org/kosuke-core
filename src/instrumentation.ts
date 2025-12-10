@@ -37,10 +37,8 @@ function validateEnvironmentVariables() {
     { key: 'PREVIEW_PYTHON_IMAGE', description: 'Docker image for Python preview containers' },
     { key: 'PREVIEW_RESEND_API_KEY', description: 'Resend API key for preview environments' },
 
-    // Projects & Sessions
-    { key: 'PROJECTS_BASE_PATH', description: 'Base path for projects directory' },
+    // Sessions
     { key: 'SESSION_BRANCH_PREFIX', description: 'Git branch prefix for sessions' },
-    { key: 'PROJECTS_DIR', description: 'Projects directory name' },
 
     // Digital Ocean Spaces (Storage)
     { key: 'S3_REGION', description: 'Digital Ocean Spaces region' },

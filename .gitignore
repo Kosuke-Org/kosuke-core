@@ -56,10 +56,6 @@ next-env.d.ts
 public/uploads/*
 !public/uploads/.gitkeep
 
-# projects (local development - ignore numbered subdirectories)
-projects/*/
-!projects/.gitkeep
-
 # lighthouse reports
 *.report.html
 
