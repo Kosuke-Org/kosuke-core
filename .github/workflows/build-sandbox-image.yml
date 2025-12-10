@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - sandbox
     paths:
       - 'sandbox/**'
       - '.github/workflows/build-sandbox-image.yml'
