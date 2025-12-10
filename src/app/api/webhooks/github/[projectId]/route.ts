@@ -2,7 +2,8 @@
  * GitHub Webhook Handler
  * POST /api/webhooks/github/[projectId]
  *
- * Handles push events from GitHub to sync main branch and restart preview containers
+ * Handles push events from GitHub to restart sandbox containers.
+ * The sandbox entrypoint handles git sync on restart.
  */
 
 import { eq } from 'drizzle-orm';
@@ -10,15 +11,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
-import { GitOperations } from '@/lib/github/git-operations';
 import {
   isPushToMain,
   verifyWebhookSignature,
   type GitHubPushPayload,
 } from '@/lib/github/webhooks';
-import { getPreviewService } from '@/lib/previews';
-import { sessionManager } from '@/lib/sessions';
+import { getSandboxManager } from '@/lib/sandbox';
 
 /**
  * POST /api/webhooks/github/[projectId]
@@ -58,7 +56,7 @@ export async function POST(
     console.log(`📥 Received push to main for project ${projectId}`);
     console.log(`   Commits: ${payload.commits.length}, Pusher: ${payload.pusher.name}`);
 
-    // Get project from database
+    // Verify project exists
     const [project] = await db.select().from(projects).where(eq(projects.id, projectId));
 
     if (!project) {
@@ -66,48 +64,20 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Get GitHub token based on repo type
-    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-    const isKosukeRepo = project.githubOwner === kosukeOrg;
+    // Check if main sandbox is running and restart it
+    // The entrypoint.sh handles git fetch/reset on container restart
+    const sandboxManager = getSandboxManager();
+    const sandbox = await sandboxManager.getSandbox(projectId, 'main');
 
-    let githubToken: string;
-    if (isKosukeRepo) {
-      githubToken = await getKosukeGitHubToken();
+    let restarted = false;
+
+    if (sandbox && sandbox.status === 'running') {
+      console.log(`🔄 Restarting sandbox for project ${projectId} to sync changes`);
+      await sandboxManager.restartSandbox(projectId, 'main');
+      restarted = true;
+      console.log(`✅ Sandbox restarted for project ${projectId}`);
     } else {
-      // For imported repos, we need the creator's token
-      if (!project.createdBy) {
-        console.error(`No creator found for imported project ${projectId}`);
-        return NextResponse.json({ error: 'Cannot authenticate' }, { status: 500 });
-      }
-      const userToken = await getUserGitHubToken(project.createdBy);
-      if (!userToken) {
-        console.error(`No GitHub token found for user ${project.createdBy}`);
-        return NextResponse.json({ error: 'Cannot authenticate' }, { status: 500 });
-      }
-      githubToken = userToken;
-    }
-
-    // Pull changes for the main session
-    const sessionPath = sessionManager.getSessionPath(projectId, 'main');
-    const gitOps = new GitOperations();
-
-    const pullSuccess = await gitOps.pullChanges(sessionPath, 'main', githubToken);
-
-    if (!pullSuccess) {
-      console.error(`Failed to pull changes for project ${projectId}`);
-      return NextResponse.json({ error: 'Failed to pull changes' }, { status: 500 });
-    }
-
-    // Check if preview is running and restart it
-    const previewService = getPreviewService();
-    const status = await previewService.getPreviewStatus(projectId, 'main');
-
-    if (status.running) {
-      console.log(`🔄 Restarting preview for project ${projectId} after push to main`);
-      await previewService.restartPreview(projectId, 'main');
-      console.log(`✅ Preview restarted for project ${projectId}`);
-    } else {
-      console.log(`ℹ️ Preview not running for project ${projectId}, skipping restart`);
+      console.log(`ℹ️ Sandbox not running for project ${projectId}, skipping restart`);
     }
 
     // Update last sync timestamp
@@ -116,8 +86,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: 'Webhook processed successfully',
-      pulled: pullSuccess,
-      previewRestarted: status.running,
+      sandboxRestarted: restarted,
     });
   } catch (error) {
     console.error(`Error processing webhook for project ${projectId}:`, error);

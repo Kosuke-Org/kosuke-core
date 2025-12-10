@@ -47,12 +47,8 @@ if [ -d "project/.git" ]; then
 
     # Fetch and reset to latest (preserves node_modules, .venv, etc.)
     if ! git fetch origin "$BRANCH" --depth 1 2>&1; then
-        echo "⚠️ Fetch failed, doing fresh clone..."
-        cd /app
-        rm -rf project
-        mkdir -p project
-        git clone --depth 1 --branch "$BRANCH" "$AUTH_URL" project
-        cd /app/project
+        echo "❌ Error: Failed to clone repository"
+        exit 1
     else
         # Reset to fetched branch (discards local changes)
         git reset --hard "origin/$BRANCH"
