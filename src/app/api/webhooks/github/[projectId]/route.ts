@@ -78,12 +78,12 @@ export async function POST(
     const signature = request.headers.get('x-hub-signature-256');
     if (!signature) {
       console.warn(`Webhook request missing signature for project ${projectId}`);
-      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+      return NextResponse.json({ message: 'Missing signature' });
     }
 
     if (!verifyWebhookSignature(rawBody, signature)) {
       console.warn(`Invalid webhook signature for project ${projectId}`);
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      return NextResponse.json({ message: 'Invalid signature' });
     }
 
     // Parse payload
@@ -118,7 +118,7 @@ export async function POST(
 
     if (!project) {
       console.warn(`Project ${projectId} not found for webhook`);
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return NextResponse.json({ message: 'Project not found' });
     }
 
     // Check if sandbox for this branch is running and restart it
@@ -152,6 +152,6 @@ export async function POST(
     });
   } catch (error) {
     console.error(`Error processing webhook for project ${projectId}:`, error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ message: 'Internal server error' });
   }
 }
