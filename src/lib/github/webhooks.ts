@@ -149,7 +149,7 @@ export function verifyWebhookSignature(payload: string, signature: string): bool
  * Type for GitHub push webhook payload (simplified)
  */
 export interface GitHubPushPayload {
-  ref: string; // e.g., "refs/heads/main"
+  ref?: string; // e.g., "refs/heads/main"
   before: string; // SHA before push
   after: string; // SHA after push
   repository: {

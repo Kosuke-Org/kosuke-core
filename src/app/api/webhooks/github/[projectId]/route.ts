@@ -68,6 +68,10 @@ export async function POST(
 
     // Parse payload
     const payload: GitHubPushPayload = JSON.parse(rawBody);
+    if (!payload.ref) {
+      console.log(`Ignoring webhook for project ${projectId} as it's not a push to a branch`);
+      return NextResponse.json({ message: 'Ignored - not a push to a branch' });
+    }
     const branch = getBranchFromRef(payload.ref);
     const sessionId = getSessionIdFromBranch(branch);
 
