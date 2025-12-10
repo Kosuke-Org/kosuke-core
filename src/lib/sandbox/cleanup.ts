@@ -1,17 +1,17 @@
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
+import { getSandboxManager } from '@/lib/sandbox';
 import { eq, lt } from 'drizzle-orm';
-import { getPreviewService } from '.';
 
 /**
- * Clean up inactive preview sessions
+ * Clean up inactive sandbox sessions
  * @param thresholdMinutes - Sessions inactive for longer than this are stopped
  * @returns Number of sessions cleaned up
  */
 export async function cleanupInactiveSessions(thresholdMinutes: number) {
   console.log(`[CLEANUP] 🧹 Starting cleanup (threshold: ${thresholdMinutes}min)...`);
 
-  const previewService = getPreviewService();
+  const sandboxManager = getSandboxManager();
   const cutoffTime = new Date(Date.now() - thresholdMinutes * 60 * 1000);
 
   // Find all sessions inactive for > threshold
@@ -27,7 +27,7 @@ export async function cleanupInactiveSessions(thresholdMinutes: number) {
 
   for (const session of inactiveSessions) {
     try {
-      // Re-check activity before stopping (防止 race condition)
+      // Re-check activity before stopping (prevent race condition)
       const current = await db
         .select()
         .from(chatSessions)
@@ -40,8 +40,13 @@ export async function cleanupInactiveSessions(thresholdMinutes: number) {
         continue;
       }
 
-      await previewService.stopPreview(session.projectId, session.sessionId);
-      cleanedCount++;
+      // Check if sandbox exists before trying to stop
+      const sandbox = await sandboxManager.getSandbox(session.projectId, session.sessionId);
+      if (sandbox && sandbox.status === 'running') {
+        await sandboxManager.stopSandbox(session.projectId, session.sessionId);
+        cleanedCount++;
+        console.log(`[CLEANUP] 🛑 Stopped sandbox for session ${session.sessionId}`);
+      }
     } catch (error) {
       console.error(
         `[CLEANUP] ❌ Failed to cleanup session ${session.sessionId}:`,
