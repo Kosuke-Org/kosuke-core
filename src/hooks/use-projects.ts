@@ -3,7 +3,6 @@
 import type { Project } from '@/lib/db/schema';
 import { useOrganization } from '@clerk/nextjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 
 interface UseProjectsOptions {
   userId: string;
@@ -63,72 +62,6 @@ export function useProject(projectId: string) {
   });
 }
 
-export function useCreateProject() {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-
-  return useMutation<
-    Project,
-    Error,
-    { prompt: string; name: string } | import('@/lib/types/project').CreateProjectData
-  >({
-    mutationFn: async requestData => {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to create project');
-      }
-
-      const responseData = await response.json();
-
-      // Handle different response structures
-      let project;
-      if (responseData.data) {
-        // Standard API response format: { data: { project: {...} } }
-        project = responseData.data.project || responseData.data;
-      } else {
-        // Direct response format
-        project = responseData.project || responseData;
-      }
-
-      // Validate project data
-      if (!project || !project.id) {
-        console.error('Invalid project data:', { project, responseData });
-        throw new Error('Invalid project data received from server');
-      }
-
-      return {
-        ...project,
-        createdAt: new Date(project.createdAt),
-        updatedAt: new Date(project.updatedAt),
-      };
-    },
-    onSuccess: data => {
-      // Invalidate projects list to refresh the cache
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['github-repositories'] });
-
-      // Navigate to the project detail page
-      const targetUrl = `/projects/${data.id}`;
-
-      // Small delay to ensure any UI updates complete
-      setTimeout(() => {
-        router.replace(targetUrl);
-      }, 100);
-    },
-    onError: error => {
-      console.error('Failed to create project:', error);
-    },
-  });
-}
-
 export function useDeleteProject() {
   const queryClient = useQueryClient();
 
@@ -182,35 +115,6 @@ export function useDeleteProject() {
           queryKey: ['projects'],
         });
       }, 300);
-    },
-  });
-}
-
-export function useUpdateProject() {
-  const queryClient = useQueryClient();
-
-  return useMutation<Project, Error, { projectId: string; updates: Partial<Project> }>({
-    mutationFn: async ({ projectId, updates }) => {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to update project');
-      }
-      const project = await response.json();
-      return {
-        ...project,
-        createdAt: new Date(project.createdAt),
-        updatedAt: new Date(project.updatedAt),
-      };
-    },
-    onSuccess: data => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['project', data.id] });
     },
   });
 }

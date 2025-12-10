@@ -47,6 +47,8 @@ const knipConfig: KnipConfig = {
         '@types/cookiebot-sdk',
         // Dependencies used in build scripts or configuration
         '@eslint/eslintrc',
+        // Keep for future use
+        '@testing-library/react',
       ],
       entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx', 'src/app/api/**/*.ts'],
     },
