@@ -11,9 +11,6 @@ import { createRepositoryFromTemplate } from '@/lib/github';
 import { getUserGitHubToken } from '@/lib/github/client';
 import { createGitHubWebhook } from '@/lib/github/webhooks';
 
-// GitHub needs time to initialize repos after creation
-const GITHUB_REPO_INIT_DELAY_MS = 10_000; // 10 seconds
-
 // Schema for project creation with GitHub integration
 const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
@@ -62,8 +59,7 @@ export async function GET() {
  * Uses service token - no user GitHub connection required
  */
 async function createGitHubRepository(
-  projectName: string,
-  projectId: string
+  name: string,
 ) {
   const templateRepo = process.env.TEMPLATE_REPOSITORY;
   if (!templateRepo) {
@@ -72,26 +68,10 @@ async function createGitHubRepository(
 
   // Create repository in Kosuke-Org using updated function
   const repoData = await createRepositoryFromTemplate({
-    name: projectName,
+    name: name,
     private: true,
     templateRepo,
   });
-
-  // Wait for GitHub to initialize the repository
-  await new Promise(resolve => setTimeout(resolve, GITHUB_REPO_INIT_DELAY_MS));
-
-  // Clone the repository locally using GitHub App token
-  try {
-    const { getKosukeGitHubToken } = await import('@/lib/github/client');
-    const { GitOperations } = await import('@/lib/github/git-operations');
-    const kosukeToken = await getKosukeGitHubToken();
-    const gitOps = new GitOperations();
-    await gitOps.cloneRepository(repoData.url, projectId, kosukeToken);
-    console.log(`✅ Repository cloned successfully to project ${projectId}`);
-  } catch (cloneError) {
-    console.error('Repository created but failed to clone locally:', cloneError);
-    // Don't throw - repository was created successfully
-  }
 
   return repoData;
 }
@@ -229,10 +209,7 @@ export async function POST(request: NextRequest) {
       // Handle GitHub operations based on type
       if (github.type === 'create') {
         // Create in Kosuke org (no user GitHub required)
-        const repoData = await createGitHubRepository(
-          name, // Use project name
-          project.id
-        );
+        const repoData = await createGitHubRepository(name);
 
         // Update project with GitHub info
         const [updatedProject] = await tx
