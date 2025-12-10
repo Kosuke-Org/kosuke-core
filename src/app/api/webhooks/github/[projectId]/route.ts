@@ -15,6 +15,26 @@ import { verifyWebhookSignature, type GitHubPushPayload } from '@/lib/github/web
 import { getSandboxManager } from '@/lib/sandbox';
 
 /**
+ * Get the sandbox commit email from environment
+ */
+function getSandboxCommitEmail(): string {
+  const sandboxEmail = process.env.SANDBOX_GIT_EMAIL;
+  if (!sandboxEmail) {
+    throw new Error('SANDBOX_GIT_EMAIL environment variable is required');
+  }
+  return sandboxEmail;
+}
+
+/**
+ * Check if all commits in the push are from the Kosuke sandbox
+ */
+function isSandboxPush(commits: GitHubPushPayload['commits']): boolean {
+  if (commits.length === 0) return false;
+  const sandboxEmail = getSandboxCommitEmail();
+  return commits.every(commit => commit.author.email === sandboxEmail);
+}
+
+/**
  * Extract branch name from git ref (e.g., "refs/heads/main" -> "main")
  */
 function getBranchFromRef(ref: string): string {
@@ -72,6 +92,15 @@ export async function POST(
       console.log(`Ignoring webhook for project ${projectId} as it's not a push to a branch`);
       return NextResponse.json({ message: 'Ignored - not a push to a branch' });
     }
+
+    // Ignore pushes made by the Kosuke sandbox to avoid restart loops
+    if (isSandboxPush(payload.commits)) {
+      console.log(
+        `ℹ️ Ignoring sandbox push for project ${projectId} as it's from the Kosuke sandbox`
+      );
+      return NextResponse.json({ message: 'Ignored - sandbox commit' });
+    }
+
     const branch = getBranchFromRef(payload.ref);
     const sessionId = getSessionIdFromBranch(branch);
 

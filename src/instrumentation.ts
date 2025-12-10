@@ -37,8 +37,9 @@ function validateEnvironmentVariables() {
     { key: 'PREVIEW_PYTHON_IMAGE', description: 'Docker image for Python preview containers' },
     { key: 'PREVIEW_RESEND_API_KEY', description: 'Resend API key for preview environments' },
 
-    // Sessions
+    // Sessions & Sandbox
     { key: 'SESSION_BRANCH_PREFIX', description: 'Git branch prefix for sessions' },
+    { key: 'SANDBOX_GIT_EMAIL', description: 'Git email for sandbox commits' },
 
     // Digital Ocean Spaces (Storage)
     { key: 'S3_REGION', description: 'Digital Ocean Spaces region' },

@@ -150,6 +150,8 @@ export class SandboxManager {
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
       `CLAUDE_MODEL=${process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'claude-sonnet-4-20250514'}`,
       `AGENT_MAX_TURNS=${process.env.AGENT_MAX_TURNS || '25'}`,
+      // Git identity for sandbox commits
+      `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
       // Pass __KSK__* resolved values (same name as placeholder)
       `__KSK__PREVIEW_RESEND_API_KEY=${process.env.PREVIEW_RESEND_API_KEY || ''}`,
     ];

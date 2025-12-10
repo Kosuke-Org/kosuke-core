@@ -77,7 +77,7 @@ fi
 
 # Configure git user (for commits)
 git config user.name "Kosuke Bot"
-git config user.email "bot@kosuke.dev"
+git config user.email "${KOSUKE_GIT_EMAIL:-bot@kosuke.dev}"
 
 # Store original URL (without token) for display
 git remote set-url origin "$KOSUKE_REPO_URL"
