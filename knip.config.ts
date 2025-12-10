@@ -31,6 +31,7 @@ const knipConfig: KnipConfig = {
         'react-resizable-panels',
         'vaul',
         'ts-node',
+        'react-hook-form',
         // Dependencies used in configuration files or by frameworks
         'react-day-picker',
         'recharts',
