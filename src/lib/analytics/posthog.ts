@@ -1,17 +1,6 @@
 import posthog from 'posthog-js';
 
-/**
- * Check if user has given consent for statistics cookies via Cookiebot
- */
-export function hasAnalyticsConsent(): boolean {
-  if (typeof window === 'undefined') return false;
-
-  // If Cookiebot is not loaded yet, assume no consent
-  if (!window.Cookiebot) return false;
-
-  // Check if user has given statistics consent
-  return window.Cookiebot.consent?.statistics === true;
-}
+import { hasStatisticsConsent } from './cookiebot';
 
 export function initPostHog() {
   if (typeof window === 'undefined') return;
@@ -24,9 +13,7 @@ export function initPostHog() {
     return;
   }
 
-  // Check for Cookiebot consent before initializing
-  if (window.Cookiebot && !hasAnalyticsConsent()) {
-    console.log('PostHog: Waiting for cookie consent');
+  if (!hasStatisticsConsent()) {
     return;
   }
 
@@ -34,14 +21,13 @@ export function initPostHog() {
     posthog.init(apiKey, {
       api_host: apiHost,
       person_profiles: 'identified_only',
-      capture_pageview: false, // We'll manually capture pageviews
+      capture_pageview: false, // We manually capture pageviews in PostHogProvider
       capture_pageleave: true,
       autocapture: {
-        dom_event_allowlist: ['click'], // Limit autocapture to clicks
+        dom_event_allowlist: ['click'],
         element_allowlist: ['button', 'a'],
       },
       loaded: instance => {
-        // Enable debug mode in development
         if (process.env.NODE_ENV === 'development') {
           instance.debug();
         }
