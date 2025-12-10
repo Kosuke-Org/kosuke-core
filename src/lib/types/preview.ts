@@ -1,31 +1,5 @@
 // Preview Panel and Project Preview Types
 
-// Git Update Status Types
-interface GitUpdateStatus {
-  success: boolean;
-  action: 'cached' | 'pulled' | 'error' | 'no_remote';
-  message: string;
-  commits_pulled: number;
-  last_pull_time?: string;
-  previous_commit?: string;
-  new_commit?: string;
-  error?: string;
-  branch_name?: string;
-}
-
-export interface PullResponse {
-  success: boolean;
-  pullResult: {
-    changed: boolean;
-    commitsPulled: number;
-    message: string;
-    previousCommit?: string;
-    newCommit?: string;
-    branchName?: string;
-  };
-  container_restarted: boolean;
-}
-
 // Preview Status Types
 export type PreviewStatus = 'loading' | 'ready' | 'error';
 
@@ -57,7 +31,6 @@ export interface UsePreviewPanelReturn {
   iframeKey: number;
   isDownloading: boolean;
   isStarting: boolean;
-  gitStatus?: GitUpdateStatus | null;
 
   // Actions
   handleRefresh: (forceStart?: boolean) => Promise<void>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, Download, ExternalLink, Github, GitPullRequest, Loader2, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle, Download, ExternalLink, Github, Loader2, RefreshCw, XCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { usePreviewPanel } from '@/hooks/use-preview-panel';
 import { useDefaultBranchSettings } from '@/hooks/use-project-settings';
-import { usePullBranch } from '@/hooks/use-pull-branch';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
 
@@ -60,28 +53,6 @@ export default function PreviewPanel({
   } = usePreviewPanel({ projectId, sessionId: effectiveSessionId, projectName });
   const isPreviewEnabled = Boolean(effectiveSessionId);
 
-  // Pull branch hook
-  const { mutateAsync: pullBranch, isPending: isPulling } = usePullBranch({
-    projectId,
-    sessionId: effectiveSessionId,
-    onSuccess: () => {
-      // Refresh preview after successful pull
-      setTimeout(() => {
-        handleRefresh();
-      }, 1000);
-    },
-  });
-
-  // Handle pull branch
-  const handlePullBranch = async () => {
-    try {
-      await pullBranch();
-    } catch (error) {
-      // Error handling is done in the hook
-      console.error('Pull failed:', error);
-    }
-  };
-
   // Render status icon based on status type
   const renderStatusIcon = () => {
     const iconType = getStatusIconType();
@@ -95,46 +66,18 @@ export default function PreviewPanel({
     }
   };
 
-  // Render git status badge (removed main-only behavior)
-  const renderGitStatus = () => null;
   // Determine branch name to display
   const displayBranch = branch || effectiveSessionId || 'branch';
 
-  // Get tooltip message based on branch type and state
-  const getTooltipMessage = () => {
-    const label = effectiveSessionId;
-    if (isPulling) return `Pulling latest changes from ${label}...`;
-    return `Pull latest changes from ${label}`;
-  };
-
   return (
-    <TooltipProvider>
-      <div className={cn('flex flex-col h-full w-full overflow-hidden', className)} data-testid="preview-panel">
-        <div className="flex items-center justify-between px-4 py-2 border-b">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">Preview</h3>
-            <Badge variant="secondary" className="text-xs">
-              {displayBranch}
-              {renderGitStatus()}
-            </Badge>
-            <Tooltip>
-              <TooltipTrigger asChild>
-              <Button
-                  variant="ghost"
-                  size="sm"
-                onClick={handlePullBranch}
-                disabled={!isPreviewEnabled || isPulling || status === 'loading'}
-                  aria-label="Pull latest changes"
-                  className="h-6 px-2"
-                >
-                  <GitPullRequest className={cn("h-3 w-3", isPulling && "animate-spin")} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{getTooltipMessage()}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+    <div className={cn('flex flex-col h-full w-full overflow-hidden', className)} data-testid="preview-panel">
+      <div className="flex items-center justify-between px-4 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium">Preview</h3>
+          <Badge variant="secondary" className="text-xs">
+            {displayBranch}
+          </Badge>
+        </div>
         <div className="flex items-center space-x-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -236,7 +179,6 @@ export default function PreviewPanel({
         </div>
       </div>
       <DownloadingModal open={isDownloading} />
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }
