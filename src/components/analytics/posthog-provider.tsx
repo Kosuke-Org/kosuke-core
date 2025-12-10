@@ -1,6 +1,7 @@
 'use client';
 
-import { hasAnalyticsConsent, initPostHog, posthog } from '@/lib/analytics/posthog';
+import { hasStatisticsConsent, isCookiebotReady } from '@/lib/analytics/cookiebot';
+import { initPostHog, posthog } from '@/lib/analytics/posthog';
 import { useUser } from '@clerk/nextjs';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -15,20 +16,14 @@ function PostHogPageView() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!pathname || !hasAnalyticsConsent()) return;
+    if (!pathname || !posthog?.__loaded) return;
 
     let url = window.origin + pathname;
     if (searchParams && searchParams.toString()) {
       url = url + `?${searchParams.toString()}`;
     }
 
-    // Track pageview only if consent given
-    // Wait for posthog to be initialized before capturing
-    if (posthog?.__loaded) {
-      posthog.capture('$pageview', {
-        $current_url: url,
-      });
-    }
+    posthog.capture('$pageview', { $current_url: url });
   }, [pathname, searchParams]);
 
   return null;
@@ -36,52 +31,60 @@ function PostHogPageView() {
 
 export function PostHogProvider({ children }: PostHogProviderProps) {
   const { user, isLoaded } = useUser();
-  const [consentGiven, setConsentGiven] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Check if consent already given
-    if (hasAnalyticsConsent()) {
-      initPostHog();
-      setConsentGiven(true);
+    const tryInit = () => {
+      if (hasStatisticsConsent()) {
+        initPostHog();
+        setInitialized(true);
+      }
+    };
+
+    // Wait for Cookiebot to be ready before checking consent
+    if (isCookiebotReady()) {
+      tryInit();
+    } else {
+      window.addEventListener('CookiebotOnLoad', tryInit);
     }
 
-    // Listen for Cookiebot consent acceptance
-    const handleCookiebotAccept = () => {
-      if (hasAnalyticsConsent()) {
+    // Listen for consent acceptance
+    const handleAccept = () => {
+      if (hasStatisticsConsent()) {
         initPostHog();
-        setConsentGiven(true);
+        setInitialized(true);
       }
     };
 
-    // Listen for Cookiebot consent decline/withdrawal
-    const handleCookiebotDecline = () => {
+    // Listen for consent decline/withdrawal
+    const handleDecline = () => {
       if (posthog?.__loaded) {
         posthog.opt_out_capturing();
-        setConsentGiven(false);
+        setInitialized(false);
       }
     };
 
-    window.addEventListener('CookiebotOnAccept', handleCookiebotAccept);
-    window.addEventListener('CookiebotOnDecline', handleCookiebotDecline);
+    window.addEventListener('CookiebotOnAccept', handleAccept);
+    window.addEventListener('CookiebotOnDecline', handleDecline);
 
     return () => {
-      window.removeEventListener('CookiebotOnAccept', handleCookiebotAccept);
-      window.removeEventListener('CookiebotOnDecline', handleCookiebotDecline);
+      window.removeEventListener('CookiebotOnLoad', tryInit);
+      window.removeEventListener('CookiebotOnAccept', handleAccept);
+      window.removeEventListener('CookiebotOnDecline', handleDecline);
     };
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !user || !consentGiven) return;
+    if (!isLoaded || !user || !initialized || !posthog?.__loaded) return;
 
-    // Identify user in PostHog when Clerk user is loaded and consent given
-    posthog?.identify(user.id, {
+    posthog.identify(user.id, {
       email: user.primaryEmailAddress?.emailAddress,
       name: user.fullName,
       firstName: user.firstName,
       lastName: user.lastName,
       createdAt: user.createdAt,
     });
-  }, [user, isLoaded, consentGiven]);
+  }, [user, isLoaded, initialized]);
 
   return (
     <>
