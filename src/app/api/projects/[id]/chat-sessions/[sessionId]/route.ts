@@ -5,12 +5,12 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { attachments, chatMessages, chatSessions, messageAttachments } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { getGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
-import { uploadFile, MessageAttachmentPayload } from '@/lib/storage';
-import { and, eq } from 'drizzle-orm';
+import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import * as Sentry from '@sentry/nextjs';
+import { and, eq } from 'drizzle-orm';
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -367,12 +367,7 @@ export async function POST(
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
 
     // Get GitHub token based on project ownership
-    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-    const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-    const githubToken = isKosukeRepo
-      ? await getKosukeGitHubToken()
-      : await getUserGitHubToken(userId);
+    const githubToken = await getGitHubToken(project.isImported, userId);
 
     if (!githubToken) {
       return new Response(

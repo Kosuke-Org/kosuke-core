@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 import type { Project } from '@/lib/db/schema';
 
-import { createKosukeOctokit, createUserOctokit } from './client';
+import { getOctokit } from './client';
 
 /**
  * Get the webhook secret from environment
@@ -42,12 +42,7 @@ export async function createGitHubWebhook(project: Project): Promise<number | nu
     return null;
   }
 
-  const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-  const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-  const octokit = isKosukeRepo
-    ? createKosukeOctokit()
-    : await createUserOctokit(project.createdBy!);
+  const octokit = await getOctokit(project.isImported, project.createdBy!);
 
   const webhookUrl = `${getWebhookBaseUrl()}/api/webhooks/github/${project.id}`;
   const secret = getWebhookSecret();
@@ -95,12 +90,7 @@ export async function deleteGitHubWebhook(project: Project): Promise<void> {
     return;
   }
 
-  const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-  const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-  const octokit = isKosukeRepo
-    ? createKosukeOctokit()
-    : await createUserOctokit(project.createdBy!);
+  const octokit = await getOctokit(project.isImported, project.createdBy!);
 
   console.log(
     `Deleting webhook ${project.githubWebhookId} from ${project.githubOwner}/${project.githubRepoName}`

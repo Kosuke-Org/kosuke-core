@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { getGitHubToken } from '@/lib/github/client';
 import { verifyWebhookSignature, type GitHubPushPayload } from '@/lib/github/webhooks';
 import { getSandboxManager } from '@/lib/sandbox';
 
@@ -130,14 +130,9 @@ export async function POST(
 
     if (sandbox && sandbox.status === 'running') {
       // Get GitHub token based on project ownership
-      const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-      const isKosukeRepo = kosukeOrg && project.githubOwner === kosukeOrg;
-
-      const githubToken = isKosukeRepo
-        ? await getKosukeGitHubToken()
-        : project.createdBy
-          ? await getUserGitHubToken(project.createdBy)
-          : null;
+      const githubToken = project.createdBy
+        ? await getGitHubToken(project.isImported, project.createdBy)
+        : null;
 
       if (!githubToken) {
         console.warn(`⚠️ No GitHub token available for project ${projectId}`);

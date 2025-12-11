@@ -5,7 +5,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { createKosukeOctokit, createUserOctokit } from '@/lib/github/client';
+import { getOctokit } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { and, eq } from 'drizzle-orm';
 
@@ -53,12 +53,7 @@ export async function POST(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.sessionId, sessionId)
-        )
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -78,16 +73,13 @@ export async function POST(
     const sourceBranch = `${sessionBranchPrefix}${session.sessionId}`;
     const targetBranch = target_branch || project.defaultBranch || 'main';
     const prTitle = title || `Updates from chat session: ${session.title}`;
-    const prDescription = description || `Automated changes from Kosuke chat session: ${session.title}\n\nSession ID: ${sessionId}`;
+    const prDescription =
+      description ||
+      `Automated changes from Kosuke chat session: ${session.title}\n\nSession ID: ${sessionId}`;
 
     try {
       // Get GitHub client based on project ownership
-      const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-      const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-      const github = isKosukeRepo
-        ? createKosukeOctokit()
-        : await createUserOctokit(userId);
+      const github = await getOctokit(project.isImported, userId);
 
       // Check if source branch exists
       try {
@@ -97,7 +89,9 @@ export async function POST(
           branch: sourceBranch,
         });
       } catch {
-        return ApiErrorHandler.badRequest(`Source branch '${sourceBranch}' not found. Make sure the chat session has made changes and committed them.`);
+        return ApiErrorHandler.badRequest(
+          `Source branch '${sourceBranch}' not found. Make sure the chat session has made changes and committed them.`
+        );
       }
 
       // Check if target branch exists
@@ -124,7 +118,6 @@ export async function POST(
         title: prTitle,
         success: true,
       });
-
     } catch (error: unknown) {
       console.error('Error preparing pull request:', error);
       return ApiErrorHandler.handle(error);

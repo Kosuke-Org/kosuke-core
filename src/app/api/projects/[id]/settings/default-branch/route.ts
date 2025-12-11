@@ -5,7 +5,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { createKosukeOctokit, createUserOctokit } from '@/lib/github/client';
+import { getOctokit } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { eq } from 'drizzle-orm';
 // Schema for updating default branch
@@ -17,10 +17,7 @@ const updateDefaultBranchSchema = z.object({
  * GET /api/projects/[id]/settings/default-branch
  * Get project default branch setting and available branches
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -41,12 +38,7 @@ export async function GET(
     // Get available branches from GitHub if repository is connected
     if (project.githubOwner && project.githubRepoName) {
       try {
-        const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-        const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-        const github = isKosukeRepo
-          ? createKosukeOctokit()
-          : await createUserOctokit(userId);
+        const github = await getOctokit(project.isImported, userId);
 
         const { data: branches } = await github.rest.repos.listBranches({
           owner: project.githubOwner,
@@ -74,10 +66,7 @@ export async function GET(
  * PUT /api/projects/[id]/settings/default-branch
  * Update project default branch
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -111,12 +100,7 @@ export async function PUT(
     // Validate branch exists if GitHub repo is connected
     if (project.githubOwner && project.githubRepoName) {
       try {
-        const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-        const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-        const github = isKosukeRepo
-          ? createKosukeOctokit()
-          : await createUserOctokit(userId);
+        const github = await getOctokit(project.isImported, userId);
 
         // Check if branch exists
         await github.rest.repos.getBranch({

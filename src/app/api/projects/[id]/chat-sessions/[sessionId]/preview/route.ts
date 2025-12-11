@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { getGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
 import { and, eq } from 'drizzle-orm';
@@ -70,11 +70,7 @@ export async function GET(
     console.log('Sandbox is not running, starting...');
 
     // Get GitHub token
-    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-    const isKosukeRepo = project.githubOwner === kosukeOrg;
-    const githubToken = isKosukeRepo
-      ? await getKosukeGitHubToken()
-      : await getUserGitHubToken(userId);
+    const githubToken = await getGitHubToken(project.isImported, userId);
 
     if (!githubToken) {
       return ApiErrorHandler.badRequest('GitHub token not available');

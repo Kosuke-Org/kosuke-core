@@ -6,7 +6,7 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { createKosukeOctokit, createUserOctokit } from '@/lib/github/client';
+import { getOctokit } from '@/lib/github/client';
 import { deleteGitHubWebhook } from '@/lib/github/webhooks';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
@@ -22,10 +22,7 @@ const updateProjectSchema = z.object({
  * GET /api/projects/[id]
  * Get a specific project
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Get the session
     const { userId } = await auth();
@@ -52,10 +49,7 @@ export async function GET(
  * PATCH /api/projects/[id]
  * Update a project
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Get the session
     const { userId } = await auth();
@@ -88,7 +82,11 @@ export async function PATCH(
 
     // Update the project
     const updateData = { ...result.data, updatedAt: new Date() };
-    const [updatedProject] = await db.update(projects).set(updateData).where(eq(projects.id, projectId)).returning();
+    const [updatedProject] = await db
+      .update(projects)
+      .set(updateData)
+      .where(eq(projects.id, projectId))
+      .returning();
 
     return ApiResponseHandler.success(updatedProject);
   } catch (error) {
@@ -164,12 +162,7 @@ export async function DELETE(
     // Step 3: Optionally delete the associated GitHub repository
     if (deleteRepo && project.githubOwner && project.githubRepoName) {
       try {
-        const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-        const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-        const github = isKosukeRepo
-          ? createKosukeOctokit()
-          : await createUserOctokit(userId);
+        const github = await getOctokit(project.isImported, userId);
 
         await github.rest.repos.delete({
           owner: project.githubOwner,

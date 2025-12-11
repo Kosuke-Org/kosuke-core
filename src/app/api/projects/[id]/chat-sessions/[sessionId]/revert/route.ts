@@ -2,7 +2,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatMessages, chatSessions } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { getGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { SandboxClient } from '@/lib/sandbox/client';
 import type { RevertToMessageRequest } from '@/lib/types/chat';
@@ -111,12 +111,7 @@ export async function POST(
     );
 
     // Get GitHub token based on project ownership (required for pushing to remote)
-    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-    const isKosukeRepo = kosukeOrg && project.githubOwner === kosukeOrg;
-
-    const githubToken = isKosukeRepo
-      ? await getKosukeGitHubToken()
-      : await getUserGitHubToken(userId);
+    const githubToken = await getGitHubToken(project.isImported, userId);
 
     if (!githubToken) {
       return ApiErrorHandler.badRequest('GitHub not connected');
@@ -128,7 +123,10 @@ export async function POST(
 
     if (!result.success) {
       return NextResponse.json(
-        { error: 'Failed to revert to commit', details: result.error || 'Git revert operation failed' },
+        {
+          error: 'Failed to revert to commit',
+          details: result.error || 'Git revert operation failed',
+        },
         { status: 400 }
       );
     }
