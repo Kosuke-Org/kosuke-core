@@ -1,7 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { DatabaseService } from '@/lib/database';
 import { verifyProjectAccess } from '@/lib/projects';
+import { executeQuery } from '@/lib/sandbox/database';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
@@ -40,11 +40,7 @@ export async function POST(
       return ApiErrorHandler.badRequest('Only SELECT queries are allowed for security reasons');
     }
 
-    console.log(`📊 Executing query for project ${projectId}, session ${sessionId}`);
-
-    // Execute query using DatabaseService
-    const dbService = new DatabaseService(projectId, sessionId);
-    const result = await dbService.executeQuery(query);
+    const result = await executeQuery(projectId, sessionId, query);
 
     return NextResponse.json(result);
   } catch (error) {

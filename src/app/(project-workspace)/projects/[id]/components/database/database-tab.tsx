@@ -6,11 +6,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useDatabaseInfo } from '@/hooks/use-database-info';
 import { useDefaultBranchSettings } from '@/hooks/use-project-settings';
-import type { DatabaseTabProps } from '@/lib/types';
 import { Database, Play, Search, Table } from 'lucide-react';
 import { QueryRunner } from './query-runner';
 import { SchemaViewer } from './schema-viewer';
 import { TableBrowser } from './table-browser';
+
+interface DatabaseTabProps {
+  projectId: string;
+  sessionId: string;
+}
 
 export function DatabaseTab({ projectId, sessionId }: DatabaseTabProps) {
   // Resolve effective session to use: provided session if available, else default branch

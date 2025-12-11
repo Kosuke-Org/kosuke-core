@@ -82,7 +82,6 @@ export interface ChatMessageProps {
   contextTokens?: number;
   commitSha?: string;
   projectId?: string;
-  chatSessionId?: string;
   sessionId?: string;
   attachments?: Attachment[];
   metadata?: {

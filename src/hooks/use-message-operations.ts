@@ -3,20 +3,17 @@ import type { ApiResponse } from '@/lib/api';
 import type { RevertToMessageRequest, RevertToMessageResponse } from '@/lib/types/chat';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-export function useRevertToMessage(projectId: string, chatSessionId: string, sessionId: string) {
+export function useRevertToMessage(projectId: string, sessionId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: RevertToMessageRequest): Promise<RevertToMessageResponse> => {
-      const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${chatSessionId}/revert`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      );
+      const response = await fetch(`/api/projects/${projectId}/chat-sessions/${sessionId}/revert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
 
       if (!response.ok) {
         const error = await response.text();

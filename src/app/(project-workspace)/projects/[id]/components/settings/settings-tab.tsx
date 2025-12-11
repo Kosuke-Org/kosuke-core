@@ -3,7 +3,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings } from 'lucide-react';
 import DefaultBranchSettings from './default-branch-settings';
-import { EnvironmentVariables } from './environment-variables';
 import { ProductionSettings } from './production-settings';
 import { SubdomainDisplay } from './subdomain-display';
 
@@ -21,17 +20,12 @@ export function SettingsTab({ projectId }: SettingsTabProps) {
         </div>
       </div>
 
-      <Tabs defaultValue="environment" className="w-full">
+      <Tabs defaultValue="branch" className="w-full">
         <TabsList>
-          <TabsTrigger value="environment">Environment Variables</TabsTrigger>
           <TabsTrigger value="branch">Default Branch</TabsTrigger>
           <TabsTrigger value="subdomains">Preview URLs</TabsTrigger>
           <TabsTrigger value="production">Production</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="environment" className="space-y-6 pt-6 pb-12">
-          <EnvironmentVariables projectId={projectId} />
-        </TabsContent>
 
         <TabsContent value="branch" className="space-y-6 pt-6 pb-12">
           <DefaultBranchSettings projectId={projectId} />

@@ -56,9 +56,9 @@ next-env.d.ts
 public/uploads/*
 !public/uploads/.gitkeep
 
-# projects (local development - ignore numbered subdirectories)
-projects/*/
-!projects/.gitkeep
-
 # lighthouse reports
 *.report.html
+
+# sandbox agent
+sandbox/agent/node_modules/
+sandbox/agent/dist/

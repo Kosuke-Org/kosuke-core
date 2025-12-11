@@ -5,11 +5,11 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { chatSessions, projects } from '@/lib/db/schema';
-import { deleteDir, getProjectPath } from '@/lib/fs/operations';
-import { createKosukeOctokit, createUserOctokit } from '@/lib/github/client';
-import { getPreviewService } from '@/lib/previews';
+import { projects } from '@/lib/db/schema';
+import { getOctokit } from '@/lib/github/client';
+import { deleteGitHubWebhook } from '@/lib/github/webhooks';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getSandboxManager } from '@/lib/sandbox';
 import { eq } from 'drizzle-orm';
 
 // Schema for updating a project
@@ -22,10 +22,7 @@ const updateProjectSchema = z.object({
  * GET /api/projects/[id]
  * Get a specific project
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Get the session
     const { userId } = await auth();
@@ -52,10 +49,7 @@ export async function GET(
  * PATCH /api/projects/[id]
  * Update a project
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Get the session
     const { userId } = await auth();
@@ -88,7 +82,11 @@ export async function PATCH(
 
     // Update the project
     const updateData = { ...result.data, updatedAt: new Date() };
-    const [updatedProject] = await db.update(projects).set(updateData).where(eq(projects.id, projectId)).returning();
+    const [updatedProject] = await db
+      .update(projects)
+      .set(updateData)
+      .where(eq(projects.id, projectId))
+      .returning();
 
     return ApiResponseHandler.success(updatedProject);
   } catch (error) {
@@ -134,58 +132,37 @@ export async function DELETE(
       // No body provided; keep defaults
     }
 
-    // Step 1: Destroy all preview containers for this project before file deletion
+    // Step 1: Destroy all sandbox containers for this project
     try {
-      console.log(`Destroying all previews for project ${projectId} before deletion`);
+      console.log(`Destroying all sandboxes for project ${projectId}`);
 
-      // Get all session IDs for this project
-      const sessions = await db
-        .select({ sessionId: chatSessions.sessionId })
-        .from(chatSessions)
-        .where(eq(chatSessions.projectId, projectId));
-      const sessionIds = sessions.map(s => s.sessionId);
-
-      const previewService = getPreviewService();
-      const cleanupResult = await previewService.destroyAllProjectPreviews(projectId, sessionIds);
+      const sandboxManager = getSandboxManager();
+      const cleanupResult = await sandboxManager.destroyAllProjectSandboxes(projectId);
 
       console.log(
-        `Preview cleanup completed for project ${projectId}: ` +
-          `${cleanupResult.stopped} destroyed, ${cleanupResult.failed} failed`
+        `Sandbox cleanup completed for project ${projectId}: ` +
+          `${cleanupResult.destroyed} destroyed, ${cleanupResult.failed} failed`
       );
 
       if (cleanupResult.failed > 0) {
         console.warn(
-          `Some containers failed to destroy for project ${projectId}. ` +
+          `Some sandboxes failed to destroy for project ${projectId}. ` +
             `Manual cleanup may be required.`
         );
       }
-    } catch (previewError) {
-      // Log but continue - we still want to proceed even if destroying previews fails
-      console.error(`Error destroying previews for project ${projectId}:`, previewError);
-      console.log(`Continuing with project deletion despite preview cleanup failure`);
+    } catch (sandboxError) {
+      // Log but continue - we still want to proceed even if destroying sandboxes fails
+      console.error(`Error destroying sandboxes for project ${projectId}:`, sandboxError);
+      console.log(`Continuing with project deletion despite sandbox cleanup failure`);
     }
 
-    // Step 2: Delete project files after containers are stopped
-    const projectDir = getProjectPath(projectId);
-    let filesWarning = null;
-
-    try {
-      await deleteDir(projectDir);
-      console.log(`Successfully deleted project directory: ${projectDir}`);
-    } catch (dirError) {
-      console.error(`Error deleting project directory: ${projectDir}`, dirError);
-      filesWarning = "Project deleted but some files could not be removed";
-    }
+    // Step 2: Delete GitHub webhook if it exists
+    await deleteGitHubWebhook(project);
 
     // Step 3: Optionally delete the associated GitHub repository
     if (deleteRepo && project.githubOwner && project.githubRepoName) {
       try {
-        const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-        const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-        const github = isKosukeRepo
-          ? createKosukeOctokit()
-          : await createUserOctokit(userId);
+        const github = await getOctokit(project.isImported, userId);
 
         await github.rest.repos.delete({
           owner: project.githubOwner,
@@ -200,12 +177,13 @@ export async function DELETE(
     }
 
     // Step 4: Archive the project
-    const [archivedProject] = await db.update(projects).set({ isArchived: true, updatedAt: new Date() }).where(eq(projects.id, projectId)).returning();
+    const [archivedProject] = await db
+      .update(projects)
+      .set({ isArchived: true, updatedAt: new Date() })
+      .where(eq(projects.id, projectId))
+      .returning();
 
-    return ApiResponseHandler.success({
-      ...archivedProject,
-      ...(filesWarning && { warning: filesWarning }),
-    });
+    return ApiResponseHandler.success(archivedProject);
   } catch (error) {
     return ApiErrorHandler.handle(error);
   }

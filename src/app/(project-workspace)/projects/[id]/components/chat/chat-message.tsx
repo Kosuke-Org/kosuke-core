@@ -30,7 +30,6 @@ export default function ChatMessage({
   onRegenerate,
   commitSha,
   projectId,
-  chatSessionId,
   sessionId,
   metadata,
   attachments,
@@ -209,11 +208,10 @@ export default function ChatMessage({
             </h4>
             <div className="flex items-center gap-2">
               {/* Add revert button for assistant messages with commit SHA */}
-              {!isUser && id && projectId && chatSessionId && sessionId && commitSha && (
+              {!isUser && id && projectId && sessionId && commitSha && (
                 <MessageRevertButton
                   message={{ id, role, timestamp, commitSha, content }}
                   projectId={projectId}
-                  chatSessionId={chatSessionId}
                   sessionId={sessionId}
                 />
               )}

@@ -9,9 +9,7 @@ import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
 import { createRepositoryFromTemplate } from '@/lib/github';
 import { getUserGitHubToken } from '@/lib/github/client';
-
-// GitHub needs time to initialize repos after creation
-const GITHUB_REPO_INIT_DELAY_MS = 10_000; // 10 seconds
+import { createGitHubWebhook } from '@/lib/github/webhooks';
 
 // Schema for project creation with GitHub integration
 const createProjectSchema = z.object({
@@ -61,8 +59,7 @@ export async function GET() {
  * Uses service token - no user GitHub connection required
  */
 async function createGitHubRepository(
-  projectName: string,
-  projectId: string
+  name: string,
 ) {
   const templateRepo = process.env.TEMPLATE_REPOSITORY;
   if (!templateRepo) {
@@ -71,26 +68,10 @@ async function createGitHubRepository(
 
   // Create repository in Kosuke-Org using updated function
   const repoData = await createRepositoryFromTemplate({
-    name: projectName,
+    name: name,
     private: true,
     templateRepo,
   });
-
-  // Wait for GitHub to initialize the repository
-  await new Promise(resolve => setTimeout(resolve, GITHUB_REPO_INIT_DELAY_MS));
-
-  // Clone the repository locally using GitHub App token
-  try {
-    const { getKosukeGitHubToken } = await import('@/lib/github/client');
-    const { GitOperations } = await import('@/lib/github/git-operations');
-    const kosukeToken = await getKosukeGitHubToken();
-    const gitOps = new GitOperations();
-    await gitOps.cloneRepository(repoData.url, projectId, kosukeToken);
-    console.log(`✅ Repository cloned successfully to project ${projectId}`);
-  } catch (cloneError) {
-    console.error('Repository created but failed to clone locally:', cloneError);
-    // Don't throw - repository was created successfully
-  }
 
   return repoData;
 }
@@ -116,45 +97,30 @@ async function importGitHubRepository(
   const { createUserOctokit } = await import('@/lib/github/client');
   const octokit = await createUserOctokit(userId);
 
-  try {
-    const { data: repoInfo } = await octokit.rest.repos.get({
-      owner,
-      repo,
-    });
+  const { data: repoInfo } = await octokit.rest.repos.get({
+    owner,
+    repo,
+  });
 
-    // Clone repository locally
-    const githubToken = await getUserGitHubToken(userId);
-    if (!githubToken) {
-      throw new Error('GitHub token not found');
-    }
-
-    const { GitOperations } = await import('@/lib/github/git-operations');
-    const gitOps = new GitOperations();
-    const projectPath = await gitOps.cloneRepository(repositoryUrl, projectId, githubToken);
-
-    console.log(`✅ Repository imported successfully to ${projectPath}`);
-
-    return {
-      repoInfo: {
-        owner: repoInfo.owner.login,
-        name: repoInfo.name,
-        full_name: repoInfo.full_name,
-        clone_url: repoInfo.clone_url,
-        default_branch: repoInfo.default_branch,
-      },
-      importResult: {
-        success: true,
-        project_id: projectId,
-        project_path: projectPath,
-      },
-    };
-  } catch (error) {
-    console.error('Error importing repository:', error);
-    if (error instanceof Error && error.message.includes('Not Found')) {
-      throw new Error('Repository not found or not accessible');
-    }
-    throw error;
+  // Check github token is valid
+  const githubToken = await getUserGitHubToken(userId);
+  if (!githubToken) {
+    throw new Error('GitHub token not found');
   }
+
+  return {
+    repoInfo: {
+      owner: repoInfo.owner.login,
+      name: repoInfo.name,
+      full_name: repoInfo.full_name,
+      clone_url: repoInfo.clone_url,
+      default_branch: repoInfo.default_branch,
+    },
+    importResult: {
+      success: true,
+      project_id: projectId,
+    },
+  };
 }
 
 /**
@@ -200,7 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a transaction to ensure atomicity
-    const result_1 = await db.transaction(async (tx) => {
+    const createdProject = await db.transaction(async (tx) => {
       // First create the project
       const [project] = await tx
         .insert(projects)
@@ -228,10 +194,7 @@ export async function POST(request: NextRequest) {
       // Handle GitHub operations based on type
       if (github.type === 'create') {
         // Create in Kosuke org (no user GitHub required)
-        const repoData = await createGitHubRepository(
-          name, // Use project name
-          project.id
-        );
+        const repoData = await createGitHubRepository(name);
 
         // Update project with GitHub info
         const [updatedProject] = await tx
@@ -272,7 +235,26 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return ApiResponseHandler.created({ project: result_1 });
+    // Create GitHub webhook for push events to main branch (non-blocking)
+    // This is done outside the transaction so webhook failures don't roll back project creation
+    try {
+      const webhookId = await createGitHubWebhook(createdProject);
+
+      if (webhookId) {
+        // Store webhook ID for cleanup on project deletion
+        await db
+          .update(projects)
+          .set({ githubWebhookId: webhookId })
+          .where(eq(projects.id, createdProject.id));
+
+        console.log(`✅ Webhook ${webhookId} created for project ${createdProject.id}`);
+      }
+    } catch (webhookError) {
+      // Log but don't fail - project was created successfully
+      console.error(`⚠️ Failed to create webhook for project ${createdProject.id}:`, webhookError);
+    }
+
+    return ApiResponseHandler.created({ project: createdProject });
   } catch (error) {
     console.error('Error creating project with GitHub integration:', error);
 

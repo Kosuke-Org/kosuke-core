@@ -2,8 +2,9 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatMessages, chatSessions } from '@/lib/db/schema';
-import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
+import { getGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
+import { SandboxClient } from '@/lib/sandbox/client';
 import type { RevertToMessageRequest } from '@/lib/types/chat';
 import { and, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
@@ -77,6 +78,17 @@ export async function POST(
       return ApiErrorHandler.projectNotFound();
     }
 
+    // Get session info
+    const [session] = await db
+      .select()
+      .from(chatSessions)
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)))
+      .limit(1);
+
+    if (!session) {
+      return ApiErrorHandler.notFound('Chat session not found');
+    }
+
     // Verify the message exists and belongs to this session
     const [message] = await db
       .select()
@@ -85,7 +97,7 @@ export async function POST(
         and(
           eq(chatMessages.id, body.message_id),
           eq(chatMessages.projectId, projectId),
-          eq(chatMessages.chatSessionId, sessionId)
+          eq(chatMessages.chatSessionId, session.id)
         )
       )
       .limit(1);
@@ -94,45 +106,27 @@ export async function POST(
       return ApiErrorHandler.notFound('Message not found or no commit associated');
     }
 
-    // Get session info
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(eq(chatSessions.id, sessionId))
-      .limit(1);
-
-    if (!session) {
-      return ApiErrorHandler.notFound('Chat session not found');
-    }
-
     console.log(
       `🔄 Reverting project ${projectId} session ${session.sessionId} to commit ${message.commitSha.substring(0, 8)}`
     );
 
     // Get GitHub token based on project ownership (required for pushing to remote)
-    const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-    const isKosukeRepo = kosukeOrg && project.githubOwner === kosukeOrg;
-
-    const githubToken = isKosukeRepo
-      ? await getKosukeGitHubToken()
-      : await getUserGitHubToken(userId);
+    const githubToken = await getGitHubToken(project.isImported, userId);
 
     if (!githubToken) {
       return ApiErrorHandler.badRequest('GitHub not connected');
     }
 
-    // Get session path
-    const { sessionManager } = await import('@/lib/sessions');
-    const sessionPath = sessionManager.getSessionPath(projectId, session.sessionId);
+    // Perform git revert operation via sandbox
+    const sandboxClient = new SandboxClient(projectId, sessionId);
+    const result = await sandboxClient.revert(message.commitSha, githubToken);
 
-    // Perform git revert operation (reset + force push to remote)
-    const { GitOperations } = await import('@/lib/github/git-operations');
-    const gitOps = new GitOperations();
-    const success = await gitOps.revertToCommit(sessionPath, message.commitSha, githubToken);
-
-    if (!success) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: 'Failed to revert to commit', details: 'Git revert operation failed' },
+        {
+          error: 'Failed to revert to commit',
+          details: result.error || 'Git revert operation failed',
+        },
         { status: 400 }
       );
     }

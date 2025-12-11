@@ -125,7 +125,7 @@ export function createKosukeOctokit(): Octokit {
  * Get an installation access token from the GitHub App
  * This token can be used for git operations (clone, push, etc.)
  */
-export async function getKosukeGitHubToken(): Promise<string> {
+async function getKosukeGitHubToken(): Promise<string> {
   const appId = process.env.GITHUB_APP_ID;
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
   const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
@@ -142,4 +142,29 @@ export async function getKosukeGitHubToken(): Promise<string> {
 
   const { token } = await auth({ type: 'installation' });
   return token;
+}
+
+/**
+ * Get the appropriate Octokit client based on project type.
+ * Uses Kosuke's GitHub App for Kosuke-created repos, otherwise uses user's OAuth token.
+ */
+export async function getOctokit(isImported: boolean | null, userId: string): Promise<Octokit> {
+  if (isImported) {
+    return createUserOctokit(userId);
+  }
+  return createKosukeOctokit();
+}
+
+/**
+ * Get the appropriate GitHub token based on project type.
+ * Uses Kosuke's GitHub App token for Kosuke-created repos, otherwise uses user's OAuth token.
+ */
+export async function getGitHubToken(
+  isImported: boolean | null,
+  userId: string
+): Promise<string | null> {
+  if (isImported) {
+    return getUserGitHubToken(userId);
+  }
+  return getKosukeGitHubToken();
 }

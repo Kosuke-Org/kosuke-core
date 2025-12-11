@@ -57,7 +57,7 @@ export function useChatSidebar({
       // Use a simple fetch call to trigger container creation without waiting for response
       // This allows the user to continue while the container starts in the background
       fetch(`/api/projects/${projectId}/chat-sessions/${newSession.session.sessionId}/preview`, {
-        method: 'POST',
+        method: 'GET',
       }).catch(error => {
         console.warn(
           `[Chat Sidebar] Failed to start container for session ${newSession.session.sessionId}:`,

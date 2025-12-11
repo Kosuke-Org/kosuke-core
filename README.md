@@ -51,6 +51,12 @@ Ensure you have the following tools installed and configured:
      - `GITHUB_APP_ID` - Found on your app's settings page
      - `GITHUB_APP_PRIVATE_KEY` - The private key content (format with `\n` for newlines)
      - `GITHUB_APP_INSTALLATION_ID` - From the installation URL
+     - `GITHUB_WEBHOOK_SECRET` - Generate with `openssl rand -hex 32`
+- **ngrok** (optional) - For testing GitHub webhooks locally
+  1. Install ngrok: `brew install ngrok` or from [ngrok.com](https://ngrok.com)
+  2. Create a free static domain at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains)
+  3. Start tunnel: `ngrok http 3000 --domain=your-domain.ngrok-free.app`
+  4. Update `NEXT_PUBLIC_APP_URL` in `.env` with your static domain
 - **Clerk Account** - Authentication provider
   1. Sign up at [clerk.com](https://clerk.com)
   2. Create a new application:

@@ -19,8 +19,12 @@ const s3Client = new S3Client({
 
 const S3_BUCKET = process.env.S3_BUCKET || '';
 
+export interface MessageAttachmentPayload {
+  upload: UploadResult;
+}
+
 // File upload result with metadata
-export interface UploadResult {
+interface UploadResult {
   fileUrl: string;
   filename: string; // Original filename
   storedFilename: string; // Sanitized filename used in storage

@@ -23,7 +23,7 @@ services:
       - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
       - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
       - MAIN_DOMAIN=${MAIN_DOMAIN}
-      - PREVIEW_BASE_DOMAIN=${PREVIEW_BASE_DOMAIN}
+      - SANDBOX_BASE_DOMAIN=${SANDBOX_BASE_DOMAIN}
 
   postgres:
     image: postgres:16.4-alpine
@@ -55,7 +55,6 @@ services:
     env_file:
       - .env
     volumes:
-      - ./projects:/app/projects:cached
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - kosuke_network
@@ -65,10 +64,10 @@ services:
       - 'traefik.http.routers.main.tls.certresolver=letsencrypt'
       - 'traefik.http.services.main.loadbalancer.server.port=3000'
       # Request wildcard certificate for preview domain
-      - 'traefik.http.routers.wildcard-cert.rule=Host(`${PREVIEW_BASE_DOMAIN}`)'
+      - 'traefik.http.routers.wildcard-cert.rule=Host(`${SANDBOX_BASE_DOMAIN}`)'
       - 'traefik.http.routers.wildcard-cert.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.wildcard-cert.tls.domains[0].main=${PREVIEW_BASE_DOMAIN}'
-      - 'traefik.http.routers.wildcard-cert.tls.domains[0].sans=*.${PREVIEW_BASE_DOMAIN}'
+      - 'traefik.http.routers.wildcard-cert.tls.domains[0].main=${SANDBOX_BASE_DOMAIN}'
+      - 'traefik.http.routers.wildcard-cert.tls.domains[0].sans=*.${SANDBOX_BASE_DOMAIN}'
     depends_on:
       - postgres
 

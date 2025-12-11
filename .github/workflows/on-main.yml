@@ -96,7 +96,7 @@ jobs:
 
       - name: Pull latest code from main branch
         run: |
-          ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "cd /home/developer/kosuke-core && git fetch && git reset --hard origin/${{ github.ref_name }} && git checkout ${{ github.ref_name }}"
+          ssh ${{ secrets.STAGE_SERVER_USER }}@${{ secrets.STAGE_SERVER_IP }} "cd /home/developer/kosuke-core && git fetch && git reset --hard origin/${{ github.ref_name }} && git checkout -- ${{ github.ref_name }}"
 
       - name: Generate .env on server
         run: |

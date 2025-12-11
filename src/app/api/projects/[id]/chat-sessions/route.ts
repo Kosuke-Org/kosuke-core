@@ -5,7 +5,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { createKosukeOctokit, createUserOctokit } from '@/lib/github/client';
+import { getOctokit } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import type { Octokit } from '@octokit/rest';
 import { and, desc, eq } from 'drizzle-orm';
@@ -96,10 +96,7 @@ async function checkBranchMergeStatus(
  * GET /api/projects/[id]/chat-sessions
  * List all chat sessions for a project
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -119,32 +116,21 @@ export async function GET(
     let sessions = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(
-          eq(chatSessions.projectId, projectId),
-          eq(chatSessions.isDefault, false)
-        )
-      )
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, false)))
       .orderBy(desc(chatSessions.lastActivityAt));
 
     // Check and update merge status for sessions with GitHub branches
     if (project.githubOwner && project.githubRepoName) {
       try {
-        const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
-        const isKosukeRepo = project.githubOwner === kosukeOrg;
-
-        const github = isKosukeRepo
-          ? createKosukeOctokit()
-          : await createUserOctokit(userId);
+        const github = await getOctokit(project.isImported, userId);
 
         // Check merge status for sessions that have branches but no merge info yet
-        const sessionsToUpdate = sessions.filter(session =>
-          !!session.sessionId &&
-          !session.branchMergedAt // Only check if not already marked as merged
+        const sessionsToUpdate = sessions.filter(
+          session => !!session.sessionId && !session.branchMergedAt // Only check if not already marked as merged
         );
 
         // Process sessions in parallel but limit concurrency
-        const updatePromises = sessionsToUpdate.map(async (session) => {
+        const updatePromises = sessionsToUpdate.map(async session => {
           try {
             const mergeStatus = await checkBranchMergeStatus(
               github,
@@ -204,10 +190,7 @@ export async function GET(
  * POST /api/projects/[id]/chat-sessions
  * Create a new chat session
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
     if (!userId) {

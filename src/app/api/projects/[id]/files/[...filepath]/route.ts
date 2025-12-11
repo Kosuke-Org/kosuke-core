@@ -4,18 +4,24 @@ import path from 'path';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { getFileContent } from '@/lib/fs/operations';
+import { db } from '@/lib/db/drizzle';
+import { chatSessions } from '@/lib/db/schema';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import { and, eq } from 'drizzle-orm';
+
 /**
  * GET /api/projects/[id]/files/[...filepath]
- * Get the content of a file in a project
+ * Get the content of a file in a project (uses main session sandbox)
+ *
+ * NOTE: This endpoint now uses the main session sandbox.
+ * For session-specific files, use /api/projects/[id]/chat-sessions/[sessionId]/files/[...filepath]
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; filepath: string[] }> }
 ) {
   try {
-    // Get the session
     const { userId } = await auth();
     if (!userId) {
       return ApiErrorHandler.unauthorized();
@@ -30,12 +36,44 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
+    // Get the main session
+    const [mainSession] = await db
+      .select()
+      .from(chatSessions)
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, true)));
+
+    if (!mainSession) {
+      return NextResponse.json(
+        {
+          error: 'Main session not found',
+          message: 'Project does not have a main session',
+        },
+        { status: 404 }
+      );
+    }
+
+    // Check if sandbox is running
+    const sandboxManager = getSandboxManager();
+    const sandbox = await sandboxManager.getSandbox(projectId, mainSession.sessionId);
+
+    if (!sandbox || sandbox.status !== 'running') {
+      return NextResponse.json(
+        {
+          error: 'Preview not running',
+          message: 'Start the main preview to view files',
+        },
+        { status: 404 }
+      );
+    }
+
     // Construct the relative file path
     const filePath = path.join(...filepath);
 
+    // Get file from sandbox
+    const client = new SandboxClient(projectId, mainSession.sessionId);
+
     try {
-      // Get the file content using the shared file operations
-      const fileContent = await getFileContent(projectId, filePath);
+      const fileContent = await client.readFile(filePath);
 
       // Determine the content type
       const contentType = mime.lookup(filePath) || 'application/octet-stream';

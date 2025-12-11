@@ -1,5 +1,5 @@
 import { useToast } from '@/hooks/use-toast';
-import type { QueryResult } from '@/lib/types';
+import type { QueryResult } from '@/lib/sandbox/types';
 import { useMutation } from '@tanstack/react-query';
 
 export function useDatabaseQuery(projectId: string, sessionId: string) {

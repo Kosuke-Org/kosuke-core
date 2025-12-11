@@ -1,4 +1,4 @@
-import { cleanupInactiveSessions } from '@/lib/previews/cleanup';
+import { cleanupInactiveSessions } from '@/lib/sandbox/cleanup';
 import { createQueueEvents, createWorker } from '../client';
 import { QUEUE_NAMES } from '../config';
 import type { PreviewCleanupJobData } from '../queues/previews';

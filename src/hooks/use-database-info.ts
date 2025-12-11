@@ -1,4 +1,4 @@
-import type { DatabaseInfo } from '@/lib/types';
+import type { DatabaseInfo } from '@/lib/sandbox/types';
 import { useQuery } from '@tanstack/react-query';
 
 export function useDatabaseInfo(projectId: string, sessionId: string) {

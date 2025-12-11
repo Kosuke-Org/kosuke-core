@@ -1,7 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { DatabaseService } from '@/lib/database';
 import { verifyProjectAccess } from '@/lib/projects';
+import { getDatabaseSchema } from '@/lib/sandbox/database';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -27,11 +27,7 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    console.log(`📊 Getting database schema for project ${projectId}, session ${sessionId}`);
-
-    // Get database schema using DatabaseService
-    const dbService = new DatabaseService(projectId, sessionId);
-    const schema = await dbService.getSchema();
+    const schema = await getDatabaseSchema(projectId, sessionId);
 
     return NextResponse.json(schema);
   } catch (error) {
