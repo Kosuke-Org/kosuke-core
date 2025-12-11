@@ -8,13 +8,8 @@ import { attachments, chatMessages, chatSessions, messageAttachments } from '@/l
 import { getKosukeGitHubToken, getUserGitHubToken } from '@/lib/github/client';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
-import { uploadFile, UploadResult } from '@/lib/storage';
+import { uploadFile, MessageAttachmentPayload } from '@/lib/storage';
 import { and, eq } from 'drizzle-orm';
-
-export interface MessageAttachmentPayload {
-  upload: UploadResult;
-  // Note: base64Data is no longer needed - we use public URLs instead
-}
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
