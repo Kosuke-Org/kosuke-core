@@ -258,8 +258,6 @@ export async function POST(
     // Parse request body - support both JSON and FormData
     const contentType = req.headers.get('content-type') || '';
     let messageContent: string;
-    let includeContext = false;
-    let contextFiles: string[] = [];
     let attachmentPayloads: MessageAttachmentPayload[] = [];
 
     if (contentType.includes('multipart/form-data')) {
@@ -267,8 +265,6 @@ export async function POST(
       console.log('Processing multipart/form-data request');
       const formData = await processFormDataRequest(req, projectId);
       messageContent = formData.content;
-      includeContext = formData.includeContext;
-      contextFiles = formData.contextFiles.map(f => f.content);
       attachmentPayloads = formData.attachments;
 
       if (attachmentPayloads.length > 0) {
@@ -297,14 +293,6 @@ export async function POST(
       } else {
         // Format: { content }
         messageContent = parseResult.data.content;
-      }
-
-      // Extract options if present
-      if ('includeContext' in body) {
-        includeContext = body.includeContext || false;
-      }
-      if ('contextFiles' in body) {
-        contextFiles = body.contextFiles || [];
       }
     }
 
@@ -377,10 +365,6 @@ export async function POST(
       .returning();
 
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
-
-    // Mark unused variables for future use
-    void includeContext;
-    void contextFiles;
 
     // Get GitHub token based on project ownership
     const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
