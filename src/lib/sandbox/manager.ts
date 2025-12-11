@@ -205,6 +205,13 @@ export class SandboxManager {
               '3000/tcp': [{ HostPort: String(hostPort) }],
             }
           : undefined,
+        Binds:
+          !this.config.traefikEnabled && process.env.HOST_PROJECT_PATH
+            ? [
+                // Mount kosuke-cli source for hot-reload in local development (rw for npm link)
+                `${process.env.HOST_PROJECT_PATH}/sandbox/kosuke-cli:/app/kosuke-cli`,
+              ]
+            : undefined,
       },
     };
 

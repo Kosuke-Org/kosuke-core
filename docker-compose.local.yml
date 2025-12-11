@@ -48,6 +48,8 @@ services:
     container_name: kosuke_nextjs
     ports:
       - '3000:3000'
+    environment:
+      - HOST_PROJECT_PATH=${PWD}
     volumes:
       - .:/app:cached
       - /app/node_modules
@@ -62,6 +64,8 @@ services:
     container_name: kosuke_worker
     ports: []
     command: npx tsx watch src/worker.ts
+    environment:
+      - HOST_PROJECT_PATH=${PWD}
     volumes:
       - .:/app:cached
       - /app/node_modules

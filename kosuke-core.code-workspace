@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "kosuke-core",
+      "path": ".",
+    },
+    {
+      "name": "kosuke-cli",
+      "path": "./sandbox/kosuke-cli",
+    },
+  ],
+}

@@ -78,14 +78,22 @@ WORKDIR /app
 RUN mkdir -p /app/project /app/agent /app/scripts /var/log/supervisor
 
 # ============================================================
-# AGENT SERVER (pre-built)
-# Build with: cd sandbox/agent && bun install && bun run build
+# KOSUKE CLI AGENT
+# LOCAL: Expects kosuke-cli to be mounted at runtime
+# PRODUCTION: Install from npm package when available
 # ============================================================
 
-COPY agent/package.json agent/bun.lock* /app/agent/
-RUN cd /app/agent && bun install --production
+# Build argument to control installation mode
+ARG KOSUKE_CLI_MODE=production
 
-COPY agent/dist /app/agent/dist
+# Setup based on mode
+RUN if [ "$KOSUKE_CLI_MODE" = "production" ]; then \
+    echo "📦 Installing @kosuke-org/cli from npm..." && \
+    npm install -g @kosuke-org/cli && \
+    kosuke --version; \
+else \
+    echo "💡 Local mode: kosuke-cli will be mounted at runtime"; \
+fi
 
 # ============================================================
 # CONFIGURATION FILES
