@@ -44,6 +44,30 @@ else
 fi
 
 # ============================================================
+# DATABASE SETUP
+# ============================================================
+
+if [ "$KOSUKE_MODE" = "production" ]; then
+    echo "🗄️ Running database migrations..."
+    bun run db:migrate
+else
+    echo "🗄️ Setting up development database..."
+
+    # Run migrations first
+    bun run db:migrate
+
+    # Seed database (only if not already seeded)
+    SEED_MARKER=".kosuke-db-seeded"
+    if [ ! -f "$SEED_MARKER" ]; then
+        echo "🌱 Seeding database..."
+        bun run db:seed
+        touch "$SEED_MARKER"
+    else
+        echo "✅ Database already seeded"
+    fi
+fi
+
+# ============================================================
 # START SERVER
 # ============================================================
 
