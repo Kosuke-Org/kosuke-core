@@ -10,6 +10,7 @@ import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { uploadFile, MessageAttachmentPayload } from '@/lib/storage';
 import { and, eq } from 'drizzle-orm';
+import * as Sentry from '@sentry/nextjs';
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -200,6 +201,7 @@ export async function DELETE(
       await sandboxManager.destroySandbox(projectId, sessionId);
       console.log(`Sandbox destroyed successfully for session ${sessionId}`);
     } catch (containerError) {
+      Sentry.captureException(containerError);
       // Log but continue - we still want to delete the session even if container cleanup fails
       console.error(`Error destroying sandbox for session ${sessionId}:`, containerError);
       console.log(`Continuing with session deletion despite container cleanup failure`);
