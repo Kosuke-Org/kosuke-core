@@ -103,11 +103,10 @@ RUN chmod +x /entrypoint.sh /app/scripts/*.sh
 # ============================================================
 
 # 3000 - Bun/Next.js (entrypoint service)
-# 8000 - Python/FastAPI (if used)
-# 6379 - Redis (internal only)
-# 9000 - Agent API server
+# Note: Agent port (9000) and Redis (6379) are internal only,
+# accessed via Docker network by the main application
 
-EXPOSE 3000 8000 9000
+EXPOSE 3000
 
 # ============================================================
 # ENVIRONMENT VARIABLES (defaults, override at runtime)

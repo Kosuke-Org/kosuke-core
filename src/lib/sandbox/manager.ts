@@ -185,6 +185,7 @@ export class SandboxManager {
     ];
 
     // Container configuration
+    // Note: Agent port is only accessed via Docker network, not exposed to host
     const containerConfig: ContainerCreateRequest = {
       Image: this.config.sandboxImage,
       Env: envVars,
@@ -192,7 +193,6 @@ export class SandboxManager {
       ExposedPorts: hostPort
         ? {
             '3000/tcp': {},
-            [`${this.config.agentPort}/tcp`]: {},
           }
         : undefined,
       HostConfig: {
@@ -203,7 +203,6 @@ export class SandboxManager {
         PortBindings: hostPort
           ? {
               '3000/tcp': [{ HostPort: String(hostPort) }],
-              [`${this.config.agentPort}/tcp`]: [{ HostPort: String(hostPort + 1000) }],
             }
           : undefined,
       },
