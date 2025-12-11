@@ -65,3 +65,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      - name: Notify Slack - Success
+        if: success()
+        run: |
+          curl -X POST --data '{"text":"✅ Kosuke Sandbox Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ github.sha }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+
+      - name: Notify Slack - Failure
+        if: failure()
+        run: |
+          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
