@@ -18,38 +18,22 @@ echo "🐍 Python service directory: $(pwd)"
 echo "   Mode: $KOSUKE_MODE"
 
 # ============================================================
-# CHECK FOR REQUIREMENTS.TXT
-# ============================================================
-
-if [ ! -f "requirements.txt" ]; then
-    echo "⚠️ No requirements.txt found, nothing to start"
-    exec tail -f /dev/null
-fi
-
-# ============================================================
-# INSTALL DEPENDENCIES (if not already done)
+# INSTALL DEPENDENCIES
 # ============================================================
 
 DEPS_MARKER=".kosuke-deps-installed"
 
 if [ ! -f "$DEPS_MARKER" ]; then
-    echo "📦 Installing Python dependencies..."
-
-    # Create virtual environment if it doesn't exist
-    if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
-    fi
-
-    # Activate and install
-    source .venv/bin/activate
-    pip install --quiet -r requirements.txt
-
+    echo "📦 Installing Python dependencies with uv..."
+    uv sync --frozen
     touch "$DEPS_MARKER"
     echo "✅ Python dependencies installed"
 else
     echo "✅ Dependencies already installed"
-    source .venv/bin/activate
 fi
+
+# Activate virtual environment (created by uv sync)
+source .venv/bin/activate
 
 # ============================================================
 # DETERMINE MAIN MODULE
