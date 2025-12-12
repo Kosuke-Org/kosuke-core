@@ -118,7 +118,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
               strategy="beforeInteractive"
             />
           )}
-          <div id="clerk-captcha" />
           <Providers>
             <div className="flex flex-col min-h-dvh">
               <ErrorBoundary>
