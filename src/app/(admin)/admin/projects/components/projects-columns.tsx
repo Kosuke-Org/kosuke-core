@@ -1,9 +1,9 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
+import { formatDistanceToNow } from 'date-fns';
 import { Calendar, Database, Eye, FileText, Github, MoreHorizontal, Trash } from 'lucide-react';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -89,25 +89,28 @@ export function getProjectColumns(
     {
       accessorKey: 'githubRepoUrl',
       header: () => <DataTableColumnHeader title="Repository" icon={<Github size={16} />} />,
-      cell: ({ row }) => (
-        <div className="text-sm">
-          {row.original.githubRepoUrl ? (
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-sm" asChild>
-              <Link
-                href={row.original.githubRepoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-              >
-                <Github className="h-3 w-3 mr-1" />
-                View
-              </Link>
-            </Button>
-          ) : (
-            <span className="text-muted-foreground">N/A</span>
-          )}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const repoUrl = row.original.githubRepoUrl;
+        if (!repoUrl) {
+          return <span className="text-sm text-muted-foreground">N/A</span>;
+        }
+
+        // Extract owner/repo from GitHub URL
+        const repoPath = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '');
+
+        return (
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-sm" asChild>
+            <Link
+              href={repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+            >
+              {repoPath}
+            </Link>
+          </Button>
+        );
+      },
     },
     {
       accessorKey: 'createdAt',
