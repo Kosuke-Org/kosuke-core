@@ -310,4 +310,37 @@ export class ClerkService {
       status,
     });
   }
+
+  /**
+   * List all organizations (paginated)
+   */
+  async listOrganizations(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{ data: ClerkOrganization[]; totalCount: number }> {
+    const response = await this.client.organizations.getOrganizationList({
+      limit: params?.limit || 100,
+      offset: params?.offset || 0,
+    });
+
+    const organizations = response.data.map(org => {
+      const publicMetadata = (org.publicMetadata || {}) as OrgPublicMetadata;
+
+      return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        imageUrl: org.imageUrl || '',
+        createdBy: org.createdBy || '',
+        isPersonal: publicMetadata.isPersonal || false,
+        createdAt: new Date(org.createdAt),
+        updatedAt: new Date(org.updatedAt),
+      };
+    });
+
+    return {
+      data: organizations,
+      totalCount: response.totalCount,
+    };
+  }
 }

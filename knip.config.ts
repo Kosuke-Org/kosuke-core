@@ -33,9 +33,7 @@ const knipConfig: KnipConfig = {
         'ts-node',
         'react-hook-form',
         // Dependencies used in configuration files or by frameworks
-        'react-day-picker',
         'recharts',
-        'server-only',
         'sonner',
         'eslint-config-next',
         'eslint-config-prettier',
