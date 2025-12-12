@@ -1,55 +1,28 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, Building2, Eye, MoreHorizontal, Shield } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { ArrowUpDown, Building2, Eye, MoreHorizontal } from 'lucide-react';
+import Image from 'next/image';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { AdminOrganization } from '@/lib/types';
 
 interface OrganizationsColumnsProps {
   onView: (id: string) => void;
-  onBlock: (id: string) => void;
 }
 
 export function createOrganizationsColumns({
-  onBlock,
+  onView,
 }: OrganizationsColumnsProps): ColumnDef<AdminOrganization>[] {
   return [
-    {
-      id: 'select',
-      header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && 'indeterminate')
-          }
-          onCheckedChange={value => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={value => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
     {
       accessorKey: 'name',
       header: ({ column }) => (
@@ -147,40 +120,32 @@ export function createOrganizationsColumns({
     },
     {
       id: 'actions',
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>
-              Copy organization ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-full justify-start px-2 text-sm"
-                asChild
-              >
-                <Link href={`/admin/organizations/${row.original.id}`}>
-                  <Eye className="mr-2 h-3 w-3" />
-                  View Details
-                </Link>
+      enableHiding: false,
+      cell: ({ row }) => {
+        const organization = row.original;
+
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={e => e.stopPropagation()}>
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onBlock(row.original.id)}>
-              <Shield className="mr-2 h-3 w-3" />
-              Block Organization
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={e => {
+                  e.stopPropagation();
+                  onView(organization.id);
+                }}
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
     },
   ];
 }

@@ -7,17 +7,13 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  OnChangeFn,
-  RowSelectionState,
   SortingState,
   useReactTable,
   VisibilityState,
 } from '@tanstack/react-table';
-import { Shield } from 'lucide-react';
 import { useState } from 'react';
 
 import { DataTablePagination } from '@/app/(admin)/admin/components/data-table-pagination';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -47,10 +43,6 @@ interface OrganizationsDataTableProps {
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onView: (id: string) => void;
-  onBlock: (id: string) => void;
-  selectedRowIds: RowSelectionState;
-  onRowSelectionChange: OnChangeFn<RowSelectionState>;
-  onBulkBlock: (ids: string[]) => void;
 }
 
 export function OrganizationsDataTable({
@@ -68,16 +60,12 @@ export function OrganizationsDataTable({
   onPageChange,
   onPageSizeChange,
   onView,
-  onBlock,
-  selectedRowIds,
-  onRowSelectionChange,
-  onBulkBlock,
 }: OrganizationsDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const columns = createOrganizationsColumns({ onView, onBlock });
+  const columns = createOrganizationsColumns({ onView });
 
   const table = useReactTable({
     data: organizations,
@@ -86,10 +74,7 @@ export function OrganizationsDataTable({
       sorting,
       columnFilters,
       columnVisibility,
-      rowSelection: selectedRowIds,
     },
-    enableRowSelection: true,
-    onRowSelectionChange,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -101,14 +86,7 @@ export function OrganizationsDataTable({
     pageCount: totalPages,
   });
 
-  const selectedRows = table.getFilteredSelectedRowModel().rows;
-  const hasSelection = selectedRows.length > 0;
   const hasActiveFilters = !!selectedType;
-
-  const handleBulkBlock = () => {
-    const selectedIds = selectedRows.map(row => row.original.id);
-    onBulkBlock(selectedIds);
-  };
 
   const handleRefresh = () => {
     window.location.reload();
@@ -132,19 +110,6 @@ export function OrganizationsDataTable({
           hasActiveFilters={hasActiveFilters}
         />
       </div>
-
-      {/* Bulk Actions */}
-      {hasSelection && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/50 p-2">
-          <span className="text-sm text-muted-foreground">
-            {selectedRows.length} organization(s) selected
-          </span>
-          <Button size="sm" variant="outline" onClick={handleBulkBlock}>
-            <Shield className="h-4 w-4 mr-2" />
-            Block Selected
-          </Button>
-        </div>
-      )}
 
       {/* Table */}
       <div className="rounded-md border">
@@ -171,7 +136,22 @@ export function OrganizationsDataTable({
               </TableRow>
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className="cursor-pointer"
+                  onClick={e => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target.closest('[role="checkbox"]') ||
+                      target.closest('[role="menuitem"]') ||
+                      target.closest('button')
+                    ) {
+                      return;
+                    }
+                    onView(row.original.id);
+                  }}
+                >
                   {row.getVisibleCells().map(cell => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

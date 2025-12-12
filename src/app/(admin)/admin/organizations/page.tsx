@@ -1,19 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { RowSelectionState } from '@tanstack/react-table';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
-import { useToast } from '@/hooks/use-toast';
-import { useTableSearch } from '@/hooks/table/use-table-search';
 import { useTablePagination } from '@/hooks/table/use-table-pagination';
+import { useTableSearch } from '@/hooks/table/use-table-search';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import type { AdminOrganization, OrganizationStats } from '@/lib/types';
 
-import { OrganizationsStats } from './components/organizations-stats';
 import { OrganizationsDataTable } from './components/organizations-data-table';
+import { OrganizationsStats } from './components/organizations-stats';
 
 interface OrganizationsResponse {
   organizations: AdminOrganization[];
@@ -25,7 +23,6 @@ interface OrganizationsResponse {
 
 export default function AdminOrganizationsPage() {
   const router = useRouter();
-  const { toast } = useToast();
 
   const [selectedType, setSelectedType] = useState<'personal' | 'team' | undefined>();
 
@@ -39,8 +36,6 @@ export default function AdminOrganizationsPage() {
     initialPage: 1,
     initialPageSize: 10,
   });
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   // Fetch statistics
   const { data: stats, isLoading: isLoadingStats } = useQuery({
@@ -86,21 +81,6 @@ export default function AdminOrganizationsPage() {
     router.push(`/admin/organizations/${id}`);
   };
 
-  const handleBlockClick = (id: string) => {
-    toast({
-      title: 'Block Organization',
-      description: `Block action for organization ${id} (placeholder - not implemented)`,
-    });
-  };
-
-  const handleBulkBlock = (ids: string[]) => {
-    toast({
-      title: 'Bulk Block',
-      description: `Block action for ${ids.length} organization(s) (placeholder - not implemented)`,
-    });
-    setRowSelection({});
-  };
-
   if (isLoading && page === 1) {
     return <PageSkeleton />;
   }
@@ -137,10 +117,6 @@ export default function AdminOrganizationsPage() {
         onPageChange={setPage}
         onPageSizeChange={setPageSize}
         onView={handleViewClick}
-        onBlock={handleBlockClick}
-        selectedRowIds={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onBulkBlock={handleBulkBlock}
       />
     </div>
   );
