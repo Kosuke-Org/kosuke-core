@@ -413,22 +413,3 @@ figure.kg-card.kg-video-card video,
   margin: 2rem auto;
   display: block;
 }
-
-/* ============================================================================
- * CLERK CAPTCHA FIXES
- * ============================================================================ */
-
-/* Ensure Cloudflare Turnstile captcha appears above Clerk modal */
-#clerk-captcha {
-  position: relative;
-  z-index: 9999 !important;
-}
-
-/* Cloudflare Turnstile iframe positioning */
-#clerk-captcha iframe {
-  position: fixed !important;
-  z-index: 9999 !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-}
