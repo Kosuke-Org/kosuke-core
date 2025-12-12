@@ -25,6 +25,8 @@ export interface UsePreviewPanelOptions {
   sessionId: string;
   projectName: string;
   enabled?: boolean;
+  /** When true, shows template preview immediately while container starts in background */
+  isNewProject?: boolean;
 }
 
 export interface UsePreviewPanelReturn {
@@ -36,6 +38,8 @@ export interface UsePreviewPanelReturn {
   iframeKey: number;
   isDownloading: boolean;
   isStarting: boolean;
+  /** True when showing the template preview instead of actual project preview */
+  isShowingTemplate: boolean;
 
   // Actions
   handleRefresh: (forceStart?: boolean) => Promise<void>;
