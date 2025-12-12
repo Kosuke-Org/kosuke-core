@@ -35,7 +35,7 @@ function ProjectLoadingSkeleton() {
         <header className="w-full h-14 flex items-center bg-background">
           <div className="flex w-full h-full">
             {/* Left section - matches chat width */}
-            <div className="flex items-center h-full w-full md:w-1/4 lg:w-1/4 border-r border-transparent relative">
+            <div className="flex items-center h-full w-full md:w-2/5 lg:w-2/5 border-r border-transparent relative">
               <div className="px-4 flex items-center">
                 <Skeleton className="h-6 w-6 rounded-full" />
               </div>
@@ -73,7 +73,7 @@ function ProjectLoadingSkeleton() {
       {/* Content Skeleton */}
       <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden">
         {/* Left Panel Skeleton - Chat Sidebar */}
-        <div className="h-full overflow-hidden w-full md:w-1/4 lg:w-1/4">
+        <div className="h-full overflow-hidden w-full md:w-2/5 lg:w-2/5">
           <div className="relative flex h-full w-full rounded-md">
             <div className="flex flex-col h-full w-full">
               {/* New Chat Button Skeleton */}
@@ -104,7 +104,7 @@ function ProjectLoadingSkeleton() {
         </div>
 
         {/* Right Panel Skeleton - Preview/Code Explorer */}
-        <div className="hidden md:flex md:w-3/4 lg:w-3/4 h-full flex-col overflow-hidden border border-border rounded-md">
+        <div className="hidden md:flex md:w-3/5 lg:w-3/5 h-full flex-col overflow-hidden border border-border rounded-md">
           <div className="flex items-center justify-between p-4 border-b">
             <Skeleton className="h-6 w-32" />
             <div className="flex gap-2">
@@ -140,8 +140,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Pull request functionality
   const createPullRequestMutation = useCreatePullRequest(projectId);
 
-    // UI state management
-  const { currentView, setCurrentView, isChatCollapsed, toggleChatCollapsed } = useProjectUIState(project);
+  // UI state management
+  const { currentView, setCurrentView, isChatCollapsed, toggleChatCollapsed } =
+    useProjectUIState(project);
 
   // Chat session state management
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
@@ -188,7 +189,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const currentBranch = currentSession?.sessionId;
   const sessionId = currentSession?.sessionId;
 
-    // Preview should use session only when in chat interface view, not in sidebar list view
+  // Preview should use session only when in chat interface view, not in sidebar list view
   const previewSessionId = showSidebar ? null : sessionId;
 
   // Reference to the ChatInterface component to maintain its state
@@ -255,15 +256,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div
           ref={chatInterfaceRef}
           className={cn(
-            "h-full overflow-hidden",
+            'h-full overflow-hidden',
             // Balanced width for chat area - more than original but not too much
-            isChatCollapsed ? "w-0 opacity-0" : "w-full sm:w-1/4 md:w-1/4 lg:w-1/4"
+            isChatCollapsed ? 'w-0 opacity-0' : 'w-full sm:w-2/5 md:w-2/5 lg:w-2/5'
           )}
           style={{
             // Use visibility instead of conditional rendering
             visibility: isChatCollapsed ? 'hidden' : 'visible',
             // Use display to properly hide when collapsed
-            display: isChatCollapsed ? 'none' : 'flex'
+            display: isChatCollapsed ? 'none' : 'flex',
           }}
         >
           {/* Chat area with toggle between sidebar and interface */}
@@ -293,9 +294,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         <div
           className={cn(
-            "h-full flex-col overflow-hidden border rounded-md border-border",
+            'h-full flex-col overflow-hidden border rounded-md border-border',
             // Balanced width for preview panel - maintains good visibility
-            isChatCollapsed ? "w-full" : "hidden md:flex sm:w-3/4 md:w-3/4 lg:w-3/4"
+            isChatCollapsed ? 'w-full' : 'hidden md:flex sm:w-3/5 md:w-3/5 lg:w-3/5'
           )}
         >
           {currentView === 'preview' ? (
@@ -306,25 +307,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               branch={showSidebar ? undefined : currentBranch}
             />
           ) : currentView === 'code' ? (
-            <CodeExplorer
-              projectId={projectId}
-            />
+            <CodeExplorer projectId={projectId} />
           ) : currentView === 'branding' ? (
-            <BrandGuidelines
-              projectId={projectId}
-              sessionId={previewSessionId ?? ''}
-            />
+            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
           ) : currentView === 'settings' ? (
-            <SettingsTab
-              projectId={projectId}
-            />
+            <SettingsTab projectId={projectId} />
           ) : currentView === 'database' ? (
             <DatabaseTab projectId={projectId} sessionId={previewSessionId ?? ''} />
           ) : (
-            <BrandGuidelines
-              projectId={projectId}
-              sessionId={previewSessionId ?? ''}
-            />
+            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
           )}
         </div>
       </div>

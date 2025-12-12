@@ -10,7 +10,9 @@
  */
 
 import { gracefulShutdown } from '@/lib/queue/client';
+import { buildQueue } from '@/lib/queue/queues/build';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { buildWorker } from '@/lib/queue/workers/build';
 import { previewWorker } from '@/lib/queue/workers/previews';
 
 async function main() {
@@ -22,11 +24,12 @@ async function main() {
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
-    console.log('[WORKER]   - Preview Cleanup (concurrency: 1)\n');
+    console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
+    console.log('[WORKER]   - Build (concurrency: 1)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker];
-    const queues = [previewQueue];
+    const workers = [previewWorker, buildWorker];
+    const queues = [previewQueue, buildQueue];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleCheck, CircleX, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -48,12 +48,24 @@ export default function ContentBlock({
 
   // Auto-collapse thinking blocks when they finish streaming (only if user hasn't manually interacted)
   useEffect(() => {
-    if (contentBlock.type === 'thinking' && contentBlock.status === 'completed' && !isCollapsed && !userHasInteracted) {
+    if (
+      contentBlock.type === 'thinking' &&
+      contentBlock.status === 'completed' &&
+      !isCollapsed &&
+      !userHasInteracted
+    ) {
       if (onToggleCollapse) {
         onToggleCollapse(contentBlock.id, false); // false = not user initiated
       }
     }
-  }, [contentBlock.type, contentBlock.status, contentBlock.id, userHasInteracted, isCollapsed, onToggleCollapse]);
+  }, [
+    contentBlock.type,
+    contentBlock.status,
+    contentBlock.id,
+    userHasInteracted,
+    isCollapsed,
+    onToggleCollapse,
+  ]);
 
   // Render markdown content for text blocks
   useEffect(() => {
@@ -111,7 +123,12 @@ export default function ContentBlock({
             <div className="pl-2 py-2">
               <div className="text-muted-foreground/70 text-xs leading-relaxed">
                 {contentBlock.content.split('\n').map((line, j) => (
-                  <p key={j} className={line.trim() === '' ? 'h-3' : '[word-break:normal] [overflow-wrap:anywhere]'}>
+                  <p
+                    key={j}
+                    className={
+                      line.trim() === '' ? 'h-3' : '[word-break:normal] [overflow-wrap:anywhere]'
+                    }
+                  >
                     {line}
                   </p>
                 ))}
@@ -136,65 +153,95 @@ export default function ContentBlock({
                   {contentBlock.status === 'streaming' ? (
                     <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin" />
                   ) : contentBlock.status === 'error' ? (
-                    <div className="h-3.5 w-3.5 bg-red-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-[8px] font-bold">✗</span>
-                    </div>
+                    <CircleX className="h-3.5 w-3.5 text-red-500 fill-red-500/10" />
                   ) : (
-                    <div className="h-3.5 w-3.5 bg-green-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-[8px] font-bold">✓</span>
-                    </div>
+                    <CircleCheck className="h-3.5 w-3.5 text-green-500 fill-green-500/10" />
                   )}
                 </div>
                 <div className="truncate">
                   <div className="font-medium text-foreground truncate">
-                    {contentBlock.toolName?.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim() || 'Tool'}
+                    {contentBlock.toolName
+                      ?.replace(/_/g, ' ')
+                      .replace(/([A-Z])/g, ' $1')
+                      .trim() || 'Tool'}
                   </div>
                 </div>
               </div>
               <div className="flex-shrink-0 ml-2 text-right">
-                <div className={cn(
-                  "text-[10px] font-medium text-muted-foreground"
-                )}>
-                  {/* Extract filename from tool input */}
+                <div className={cn('text-[10px] font-medium text-muted-foreground')}>
+                  {/* Extract relevant parameter from tool input based on tool type */}
                   {(() => {
-                    // First priority: check tool input for file_path
-                    if (contentBlock.toolInput && 'file_path' in contentBlock.toolInput) {
-                      const filePath = contentBlock.toolInput.file_path as string;
-                      return filePath.split('/').pop(); // Get just the filename
+                    if (!contentBlock.toolInput) {
+                      return contentBlock.toolName?.replace(/_/g, ' ') || 'Tool';
                     }
 
-                    // Second priority: extract from tool result for backward compatibility
-                    if (contentBlock.toolResult) {
-                      // Pattern 1: "The file [file_path] has been updated/created/read" - Claude Code SDK format
-                      const fileMatch = contentBlock.toolResult.match(/The file\s+([^\s]+)\s+has been/i);
-                      if (fileMatch) {
-                        const filePath = fileMatch[1].trim();
-                        return filePath.split('/').pop(); // Get just the filename
-                      }
+                    const input = contentBlock.toolInput as Record<string, unknown>;
 
-                      // Pattern 2: "Successfully [action] [file_path]" - legacy format
-                      const successMatch = contentBlock.toolResult.match(/Successfully\s+(?:edited|read|created|deleted)\s+(.+?)(?:\s|$)/i);
-                      if (successMatch) {
-                        const filePath = successMatch[1].trim();
-                        return filePath.split('/').pop(); // Get just the filename
-                      }
+                    // Handle different tool types
+                    switch (contentBlock.toolName) {
+                      case 'Read':
+                      case 'Write':
+                      case 'Edit':
+                      case 'StrReplace':
+                      case 'Delete':
+                      case 'LS':
+                        // File/directory path tools
+                        const path = input.path;
+                        if (path && typeof path === 'string') {
+                          return path.split('/').pop(); // Get just the filename
+                        }
+                        break;
 
-                      // Pattern 3: "[action] file: [file_path]"
-                      const actionMatch = contentBlock.toolResult.match(/(?:file|path)[:=]\s*["']?([^"'\s]+)["']?/i);
-                      if (actionMatch) {
-                        return actionMatch[1].split('/').pop(); // Get just the filename
-                      }
+                      case 'Glob':
+                        // Pattern-based search
+                        const globPattern = input.pattern;
+                        if (globPattern && typeof globPattern === 'string') {
+                          return globPattern;
+                        }
+                        break;
 
-                      // Pattern 4: Look for any file-like path (contains . and /)
-                      const pathMatch = contentBlock.toolResult.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_.\/-]+\.[a-zA-Z0-9]+)/);
-                      if (pathMatch) {
-                        return pathMatch[1].split('/').pop(); // Get just the filename
-                      }
+                      case 'Grep':
+                        // Search pattern (show pattern + optional path)
+                        const grepPattern = input.pattern;
+                        const grepPath = input.path;
+                        if (grepPattern && typeof grepPattern === 'string') {
+                          if (grepPath && typeof grepPath === 'string') {
+                            return `${grepPattern} in ${grepPath.split('/').pop()}`;
+                          }
+                          return grepPattern;
+                        }
+                        break;
+
+                      case 'Shell':
+                      case 'Bash':
+                        // Command execution (show truncated command)
+                        const command = input.command;
+                        if (command && typeof command === 'string') {
+                          return command.length > 30 ? `${command.substring(0, 30)}...` : command;
+                        }
+                        break;
+
+                      case 'WebSearch':
+                        // Search query
+                        const query = input.query;
+                        if (query && typeof query === 'string') {
+                          return query.length > 30 ? `${query.substring(0, 30)}...` : query;
+                        }
+                        break;
+
+                      case 'CodebaseSearch':
+                        // Codebase search query
+                        const searchQuery = input.query;
+                        if (searchQuery && typeof searchQuery === 'string') {
+                          return searchQuery.length > 30
+                            ? `${searchQuery.substring(0, 30)}...`
+                            : searchQuery;
+                        }
+                        break;
                     }
 
-                    // Fallback to tool name processing
-                    const toolAction = contentBlock.toolName?.replace(/_/g, ' ') || 'Tool';
-                    return toolAction;
+                    // Fallback: show tool name if no parameter found
+                    return contentBlock.toolName?.replace(/_/g, ' ') || 'Tool';
                   })()}
                 </div>
               </div>
@@ -215,14 +262,19 @@ export default function ContentBlock({
             <div
               className="w-full max-w-full"
               dangerouslySetInnerHTML={{
-                __html: renderedContent
+                __html: renderedContent,
               }}
             />
           ) : (
             // Loading state or fallback for when content is being rendered
             <div className="w-full max-w-full">
               {contentBlock.content.split('\n').map((line, j) => (
-                <p key={j} className={line.trim() === '' ? 'h-4' : '[word-break:normal] [overflow-wrap:anywhere]'}>
+                <p
+                  key={j}
+                  className={
+                    line.trim() === '' ? 'h-4' : '[word-break:normal] [overflow-wrap:anywhere]'
+                  }
+                >
                   {line}
                 </p>
               ))}

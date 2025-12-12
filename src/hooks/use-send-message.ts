@@ -4,9 +4,10 @@ import type {
   ErrorType,
   MessageOptions,
   StreamingEvent,
+  ToolInput,
 } from '@/lib/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Send message function with streaming support
 const sendMessage = async (
@@ -152,69 +153,56 @@ const sendMessage = async (
               continue;
             }
 
-            // Handle content block lifecycle events
-            if (data.type === 'content_block_start') {
-              // Create new sequential content block
-              const newBlock: ContentBlock = {
-                id: `block-${assistantMessageId}-${Date.now()}-${contentBlocks.length}`,
+            // Handle kosuke-cli events
+            if (data.type === 'tool_call') {
+              // Tool call from kosuke-cli: { type: 'tool_call', data: { action, params } }
+              const toolData = data.data as
+                | { action?: string; params?: Record<string, unknown> }
+                | undefined;
+
+              // Format tool call content with relevant params
+              let toolContent = `${toolData?.action || 'Tool'}`;
+              if (toolData?.params) {
+                // Extract key params for display
+                if (toolData.params.path) {
+                  toolContent += `: ${toolData.params.path}`;
+                } else if (toolData.params.pattern) {
+                  toolContent += `: ${toolData.params.pattern}`;
+                } else if (toolData.params.file_path) {
+                  toolContent += `: ${toolData.params.file_path}`;
+                } else if (toolData.params.query) {
+                  toolContent += `: ${toolData.params.query}`;
+                }
+              }
+
+              const toolBlock: ContentBlock = {
+                id: `tool-${assistantMessageId}-${Date.now()}-${contentBlocks.length}`,
                 index: contentBlocks.length,
-                type: 'text', // Default, will be updated based on deltas
-                content: '',
-                status: 'streaming',
+                type: 'tool',
+                content: toolContent,
+                status: 'completed',
                 timestamp: new Date(),
+                toolName: toolData?.action,
+                toolInput: toolData?.params as ToolInput | undefined,
               };
 
-              // Always append sequentially
-              contentBlocks.push(newBlock);
+              contentBlocks.push(toolBlock);
 
-              // Notify callback
               if (contentBlockCallback) {
                 contentBlockCallback([...contentBlocks]);
               }
-            } else if (data.type === 'content_block_delta') {
-              // Find the last streaming block that matches the content type
-              let targetBlock: ContentBlock | null = null;
+            } else if (data.type === 'message') {
+              // Message from kosuke-cli: { type: 'message', data: { type: 'assistant', text, ... } }
+              const messageData = data.data as { text?: string; type?: string };
 
-              if (data.delta_type === 'thinking_delta') {
-                // Find last streaming thinking block or create new one
-                for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                  if (
-                    contentBlocks[i].type === 'thinking' &&
-                    contentBlocks[i].status === 'streaming'
-                  ) {
-                    targetBlock = contentBlocks[i];
-                    break;
-                  }
-                }
+              if (messageData?.text) {
+                // Create or update text block
+                let textBlock = contentBlocks.find(
+                  b => b.type === 'text' && b.status === 'streaming'
+                );
 
-                if (!targetBlock) {
-                  // Create new thinking block if none exists
-                  targetBlock = {
-                    id: `thinking-${assistantMessageId}-${Date.now()}`,
-                    index: contentBlocks.length,
-                    type: 'thinking',
-                    content: '',
-                    status: 'streaming',
-                    timestamp: new Date(),
-                  };
-                  contentBlocks.push(targetBlock);
-                }
-
-                if (data.thinking) {
-                  targetBlock.content += data.thinking;
-                }
-              } else if (data.delta_type === 'text_delta') {
-                // Find last streaming text block or create new one
-                for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                  if (contentBlocks[i].type === 'text' && contentBlocks[i].status === 'streaming') {
-                    targetBlock = contentBlocks[i];
-                    break;
-                  }
-                }
-
-                if (!targetBlock) {
-                  // Create new text block if none exists
-                  targetBlock = {
+                if (!textBlock) {
+                  textBlock = {
                     id: `text-${assistantMessageId}-${Date.now()}`,
                     index: contentBlocks.length,
                     type: 'text',
@@ -222,127 +210,99 @@ const sendMessage = async (
                     status: 'streaming',
                     timestamp: new Date(),
                   };
-                  contentBlocks.push(targetBlock);
+                  contentBlocks.push(textBlock);
                 }
 
-                if (data.text) {
-                  targetBlock.content += data.text;
-                }
-              }
+                // Append text (messages come as complete chunks, not deltas)
+                textBlock.content += messageData.text + '\n\n';
+                textBlock.status = 'completed';
 
-              // Notify callback
-              if (contentBlockCallback) {
-                contentBlockCallback([...contentBlocks]);
-              }
-            } else if (data.type === 'content_block_stop') {
-              // Find and finalize the last streaming block
-              let lastStreamingBlock: ContentBlock | null = null;
-              for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                if (contentBlocks[i].status === 'streaming') {
-                  lastStreamingBlock = contentBlocks[i];
-                  break;
-                }
-              }
-
-              if (lastStreamingBlock) {
-                // Finalize content block
-                lastStreamingBlock.status = 'completed';
-
-                // Auto-collapse thinking blocks immediately
-                if (lastStreamingBlock.type === 'thinking') {
-                  lastStreamingBlock.isCollapsed = true;
-                }
-
-                // Notify callback
                 if (contentBlockCallback) {
                   contentBlockCallback([...contentBlocks]);
                 }
               }
-            } else if (data.type === 'tool_start') {
-              // Create tool content block inline
-              if (data.tool_name) {
-                const toolBlock: ContentBlock = {
-                  id: data.tool_id
-                    ? `tool-${data.tool_id}`
-                    : `tool-${assistantMessageId}-${data.tool_name}-${Date.now()}`,
-                  index: contentBlocks.length,
-                  type: 'tool',
-                  content: `Executing ${data.tool_name}...`,
-                  status: 'streaming',
-                  timestamp: new Date(),
-                  toolName: data.tool_name,
-                  toolInput: data.tool_input, // Include tool input for file path extraction
-                  toolId: data.tool_id, // Store tool ID for matching with tool_stop
-                };
-
-                contentBlocks.push(toolBlock);
-
-                // Notify callback
-                if (contentBlockCallback) {
-                  contentBlockCallback([...contentBlocks]);
-                }
+            } else if (data.type === 'build_started') {
+              // Build started event
+              const buildData = data.data as { totalTickets?: number };
+              const textBlock: ContentBlock = {
+                id: `build-start-${assistantMessageId}`,
+                index: contentBlocks.length,
+                type: 'text',
+                content: `🏗️ Starting build with ${buildData?.totalTickets || 0} tickets...`,
+                status: 'completed',
+                timestamp: new Date(),
+              };
+              contentBlocks.push(textBlock);
+              if (contentBlockCallback) contentBlockCallback([...contentBlocks]);
+            } else if (data.type === 'ticket_started') {
+              // Ticket started event
+              const ticketData = data.data as {
+                ticket?: { title?: string };
+                index?: number;
+                total?: number;
+              };
+              const textBlock: ContentBlock = {
+                id: `ticket-${assistantMessageId}-${ticketData?.index}`,
+                index: contentBlocks.length,
+                type: 'text',
+                content: `\n📝 Ticket ${ticketData?.index}/${ticketData?.total}: ${ticketData?.ticket?.title}`,
+                status: 'streaming',
+                timestamp: new Date(),
+              };
+              contentBlocks.push(textBlock);
+              if (contentBlockCallback) contentBlockCallback([...contentBlocks]);
+            } else if (data.type === 'ticket_completed') {
+              // Mark last ticket as completed
+              const lastTicket = contentBlocks.findLast(b => b.content?.includes('📝 Ticket'));
+              if (lastTicket) {
+                lastTicket.status = 'completed';
+                if (contentBlockCallback) contentBlockCallback([...contentBlocks]);
               }
-            } else if (data.type === 'tool_stop') {
-              // Find and finalize the streaming tool with matching ID
-              if (data.tool_id) {
-                let toolBlock: ContentBlock | null = null;
-                for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                  if (
-                    contentBlocks[i].type === 'tool' &&
-                    contentBlocks[i].status === 'streaming' &&
-                    contentBlocks[i].toolId === data.tool_id
-                  ) {
-                    toolBlock = contentBlocks[i];
-                    break;
-                  }
-                }
+            } else if (data.type === 'ship_tool_call' || data.type === 'test_tool_call') {
+              // Sub-phase tool calls (ship/test) - less verbose
+              const toolData = data.data as { action?: string };
+              console.log(`[${data.type}] ${toolData?.action}`);
+            } else if (data.type === 'done') {
+              // Done event from kosuke-cli: { type: 'done', data: { status, message?, ... } }
+              const doneData = data.data as {
+                status?: string;
+                message?: string;
+                buildJobId?: string;
+                error?: string;
+              };
 
-                if (toolBlock) {
-                  toolBlock.status = data.is_error ? 'error' : 'completed';
-                  toolBlock.toolResult =
-                    data.tool_result || data.result || 'Tool completed successfully';
-
-                  // Notify callback
-                  if (contentBlockCallback) {
-                    contentBlockCallback([...contentBlocks]);
-                  }
-                }
-              }
-            } else if (data.type === 'task_summary') {
-              // Add task summary as final content block
-              if (data.summary) {
-                const summaryBlock: ContentBlock = {
-                  id: `summary-${assistantMessageId}`,
+              // If there's a clarification message or error, add it as text
+              if (doneData?.message) {
+                const textBlock: ContentBlock = {
+                  id: `done-${assistantMessageId}-${Date.now()}`,
                   index: contentBlocks.length,
                   type: 'text',
-                  content: `**Task Summary:**\n${data.summary}`,
+                  content: doneData.message,
                   status: 'completed',
                   timestamp: new Date(),
                 };
 
-                contentBlocks.push(summaryBlock);
+                contentBlocks.push(textBlock);
 
-                // Notify callback
                 if (contentBlockCallback) {
                   contentBlockCallback([...contentBlocks]);
                 }
               }
-            } else if (data.type === 'message_complete') {
-              // Handle message completion
+
+              if (doneData?.error) {
+                console.error('Error:', doneData.error);
+              }
+
+              // Stream is complete - onStreamEnd will clear streaming state
               isStreamActive = false;
               if (onStreamEnd) onStreamEnd();
               break;
             } else if (data.type === 'error') {
               // Handle errors
-              console.error('Streaming error');
+              console.error('Streaming error:', data.data);
               isStreamActive = false;
               if (onStreamEnd) onStreamEnd();
               throw new Error('Streaming error');
-            } else if (data.type === 'completed') {
-              // Legacy completion handling
-              isStreamActive = false;
-              if (onStreamEnd) onStreamEnd();
-              break;
             }
           } catch (outerError) {
             // This catches any unexpected errors in the streaming processing
@@ -395,6 +355,14 @@ export function useSendMessage(
 ) {
   const queryClient = useQueryClient();
 
+  // Use ref to always get the latest sessionId (avoid stale closure)
+  const sessionIdRef = useRef(sessionId);
+
+  // Update ref when sessionId changes
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
   // Streaming state (minimal React state for real-time updates)
   const [streamingState, setStreamingState] = useState({
     isStreaming: false,
@@ -421,8 +389,11 @@ export function useSendMessage(
   // Mutation for sending messages
   const mutation = useMutation({
     mutationFn: (args: { content: string; options?: MessageOptions }) => {
+      // Get current sessionId from ref (avoids stale closure)
+      const currentSessionId = sessionIdRef.current;
+
       // Ensure we have a sessionId for the new endpoint
-      if (!sessionId) {
+      if (!currentSessionId) {
         throw new Error('Session ID is required for sending messages');
       }
 
@@ -467,20 +438,23 @@ export function useSendMessage(
           }));
         },
         abortController,
-        sessionId
+        currentSessionId
       );
     },
     onMutate: async newMessage => {
+      // Get current sessionId from ref
+      const currentSessionId = sessionIdRef.current;
+
       // Cancel any outgoing refetches for session-specific queries
       await queryClient.cancelQueries({
-        queryKey: ['chat-session-messages', projectId, sessionId],
+        queryKey: ['chat-session-messages', projectId, currentSessionId],
       });
 
       // Snapshot the previous messages
       const previousMessages = queryClient.getQueryData([
         'chat-session-messages',
         projectId,
-        sessionId,
+        currentSessionId,
       ]);
 
       // Optimistically add the user message
@@ -521,7 +495,7 @@ export function useSendMessage(
         };
 
         queryClient.setQueryData(
-          ['chat-session-messages', projectId, sessionId],
+          ['chat-session-messages', projectId, currentSessionId],
           (old: { messages?: ApiChatMessage[] } | undefined) => ({
             ...(old || {}),
             messages: [...((old?.messages as ApiChatMessage[] | undefined) || []), userMessage],
@@ -532,10 +506,13 @@ export function useSendMessage(
       return { previousMessages };
     },
     onError: (error, _, context) => {
+      // Get current sessionId from ref
+      const currentSessionId = sessionIdRef.current;
+
       // If there's an error, roll back to the previous state
       if (context?.previousMessages) {
         queryClient.setQueryData(
-          ['chat-session-messages', projectId, sessionId],
+          ['chat-session-messages', projectId, currentSessionId],
           context.previousMessages
         );
       }
@@ -552,6 +529,9 @@ export function useSendMessage(
       console.error('Message sending failed:', error);
     },
     onSuccess: data => {
+      // Get current sessionId from ref
+      const currentSessionId = sessionIdRef.current;
+
       // Mark that we're expecting a webhook update
       setStreamingState(prev => ({
         ...prev,
@@ -561,7 +541,7 @@ export function useSendMessage(
       // If this was an image upload (non-streaming), invalidate queries immediately
       if (data.expectingWebhookUpdate === false) {
         queryClient.invalidateQueries({
-          queryKey: ['chat-session-messages', projectId, sessionId],
+          queryKey: ['chat-session-messages', projectId, currentSessionId],
         });
 
         // Update session list to reflect new message count
@@ -569,33 +549,34 @@ export function useSendMessage(
       }
     },
     onSettled: () => {
-      // Add a delay before invalidating queries to allow webhook to save data
+      // Get current sessionId from ref
+      const currentSessionId = sessionIdRef.current;
+
+      // Clear streaming state and refresh queries after message is saved
       setTimeout(async () => {
-        // Invalidate and wait for the query to settle before clearing streaming state
+        // Invalidate queries to refresh with final message from database
         await queryClient.invalidateQueries({
-          queryKey: ['chat-session-messages', projectId, sessionId],
+          queryKey: ['chat-session-messages', projectId, currentSessionId],
         });
 
         // Also invalidate session list to update message counts
         await queryClient.invalidateQueries({ queryKey: ['chat-sessions', projectId] });
 
-        // Always trigger preview refresh after streaming finishes and we fetch the assistant message
+        // Trigger preview refresh after streaming finishes
         const fileUpdatedEvent = new CustomEvent('file-updated', {
           detail: { projectId },
         });
         window.dispatchEvent(fileUpdatedEvent);
 
-        // Add small delay to ensure new data is rendered
-        setTimeout(() => {
-          setStreamingState({
-            isStreaming: false,
-            expectingWebhookUpdate: false,
-            streamingContentBlocks: [],
-            streamingAssistantMessageId: null,
-            streamAbortController: null,
-          });
-        }, 100); // Small delay to ensure smooth transition
-      }, 2000); // 2 second delay to allow webhook to complete
+        // Clear streaming state to hide streaming UI
+        setStreamingState({
+          isStreaming: false,
+          expectingWebhookUpdate: false,
+          streamingContentBlocks: [],
+          streamingAssistantMessageId: null,
+          streamAbortController: null,
+        });
+      }, 1000); // Short delay to ensure message is saved to database
     },
   });
 

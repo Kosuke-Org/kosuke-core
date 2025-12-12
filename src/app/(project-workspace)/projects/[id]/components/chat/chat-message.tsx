@@ -12,9 +12,9 @@ import { cn } from '@/lib/utils';
 import type { AssistantBlock, ChatMessageProps, ContentBlock, ErrorType } from '@/lib/types';
 import { getFileName, processMessageContent } from '@/lib/utils/message-content';
 import AssistantResponse from './assistant-response';
+import { BuildMessage } from './build-message';
 import ChatMessageAttachments from './chat-message-attachments';
 import { MessageRevertButton } from './message-revert-button';
-
 
 export default function ChatMessage({
   id,
@@ -38,8 +38,6 @@ export default function ChatMessage({
   const isSystem = role === 'system';
   const isRevertMessage = isSystem && metadata?.revertInfo;
   const { imageUrl, displayName, initials } = useUser();
-
-
 
   // Get appropriate error message based on error type
   const getErrorMessage = (type: ErrorType): string => {
@@ -111,11 +109,13 @@ export default function ChatMessage({
     const handleSystemMessageClick = () => {
       if (metadata?.revertInfo?.messageId) {
         // Find and scroll to the original message
-        const targetMessage = document.querySelector(`[data-message-id="${metadata.revertInfo.messageId}"]`);
+        const targetMessage = document.querySelector(
+          `[data-message-id="${metadata.revertInfo.messageId}"]`
+        );
         if (targetMessage) {
           targetMessage.scrollIntoView({
             behavior: 'smooth',
-            block: 'center'
+            block: 'center',
           });
           // Add a brief highlight effect
           targetMessage.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
@@ -138,13 +138,10 @@ export default function ChatMessage({
           role="listitem"
           onClick={handleSystemMessageClick}
         >
-
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground">
-                  System
-                </span>
+                <span className="text-sm font-medium text-foreground">System</span>
                 {metadata?.revertInfo && (
                   <code className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono text-foreground">
                     {metadata.revertInfo.commitSha?.slice(0, 7)}
@@ -156,9 +153,7 @@ export default function ChatMessage({
               </time>
             </div>
 
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {content}
-            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{content}</p>
           </div>
         </div>
       </div>
@@ -203,9 +198,7 @@ export default function ChatMessage({
       <div className="flex-1 space-y-2">
         {showAvatar && ( // Only show header for first message in a sequence
           <div className="flex items-center justify-between group">
-            <h4>
-              {isUser ? 'You' : 'AI Assistant'}
-            </h4>
+            <h4>{isUser ? 'You' : 'AI Assistant'}</h4>
             <div className="flex items-center gap-2">
               {/* Add revert button for assistant messages with commit SHA */}
               {!isUser && id && projectId && sessionId && commitSha && (
@@ -222,9 +215,8 @@ export default function ChatMessage({
           </div>
         )}
 
-        {/* Render content - either regular content or assistant response blocks */}
+        {/* Render assistant response content blocks if available */}
         {hasBlocks && contentBlocks ? (
-          // Render assistant response content blocks
           <AssistantResponse
             response={{
               id: id || `temp-${Date.now()}`,
@@ -233,34 +225,55 @@ export default function ChatMessage({
               status: isLoading ? 'streaming' : 'completed',
             }}
           />
-        ) : (
-          // Render regular text/image content
-          <div className={cn(
-              "prose prose-xs dark:prose-invert max-w-none text-sm wrap-anywhere",
-              !showAvatar && "mt-0", // Remove top margin for consecutive messages
-              hasError && !isUser && "text-muted-foreground" // Muted text for error messages
-            )}>
-              {contentParts.map((part, i) => (
-                part.type === 'text' ? (
-                  // Render regular text content with line breaks
-                  part.content.split('\n').map((line, j) => (
-                    <p key={`${i}-${j}`} className={line.trim() === '' ? 'h-4' : '[word-break:normal] wrap-anywhere'}>
-                      {line}
-                    </p>
-                  ))
-                ) : part.type === 'thinking' ? (
-                  // Render thinking content with different styling
-                  <div key={i} className="my-3 relative">
-                    <div className="border-l-2 border-muted-foreground/30 pl-4 py-2 bg-muted/20 rounded-r-md">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-3 h-3 bg-muted-foreground/50 rounded-full animate-pulse"></div>
-                        <span className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wide">
-                          Thinking
-                        </span>
+        ) : null}
+
+        {/* Render build message if metadata contains buildJobId */}
+        {metadata?.buildJobId && projectId && sessionId ? (
+          <BuildMessage
+            buildJobId={String(metadata.buildJobId)}
+            projectId={projectId}
+            sessionId={sessionId}
+          />
+        ) : null}
+
+        {/* Render regular text/image content if no blocks */}
+        {!hasBlocks && (
+          <div
+            className={cn(
+              'prose prose-xs dark:prose-invert max-w-none text-sm wrap-anywhere',
+              !showAvatar && 'mt-0', // Remove top margin for consecutive messages
+              hasError && !isUser && 'text-muted-foreground' // Muted text for error messages
+            )}
+          >
+            {contentParts.map((part, i) =>
+              part.type === 'text' ? (
+                // Render regular text content with line breaks
+                part.content.split('\n').map((line, j) => (
+                  <p
+                    key={`${i}-${j}`}
+                    className={line.trim() === '' ? 'h-4' : '[word-break:normal] wrap-anywhere'}
+                  >
+                    {line}
+                  </p>
+                ))
+              ) : part.type === 'thinking' ? (
+                // Render thinking content with different styling
+                <div key={i} className="my-3 relative">
+                  <div className="border-l-2 border-muted-foreground/30 pl-4 py-2 bg-muted/20 rounded-r-md">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-3 h-3 bg-muted-foreground/50 rounded-full animate-pulse"></div>
+                      <span className="text-xs font-medium text-muted-foreground/80 uppercase tracking-wide">
+                        Thinking
+                      </span>
                     </div>
                     <div className="text-muted-foreground/70 text-xs leading-relaxed italic">
                       {part.content.split('\n').map((line, j) => (
-                        <p key={`thinking-${i}-${j}`} className={line.trim() === '' ? 'h-3' : '[word-break:normal] wrap-anywhere'}>
+                        <p
+                          key={`thinking-${i}-${j}`}
+                          className={
+                            line.trim() === '' ? 'h-3' : '[word-break:normal] wrap-anywhere'
+                          }
+                        >
                           {line}
                         </p>
                       ))}
@@ -296,7 +309,7 @@ export default function ChatMessage({
                   </div>
                 </div>
               )
-            ))}
+            )}
 
             {/* Display attachments if present */}
             {attachments && attachments.length > 0 && (

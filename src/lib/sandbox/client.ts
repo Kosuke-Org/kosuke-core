@@ -3,10 +3,8 @@
  * HTTP client for communicating with sandbox containers
  */
 
-import type { MessageParam } from '@anthropic-ai/sdk/resources';
-
 import { getSandboxManager } from './manager';
-import type { FileInfo, GitPullResponse, GitRevertResponse, MessageAttachment } from './types';
+import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
 
 export class SandboxClient {
   private projectId: string;
@@ -26,93 +24,6 @@ export class SandboxClient {
    */
   getBaseUrl(): string {
     return this.baseUrl;
-  }
-
-  // ============================================================
-  // AGENT MESSAGING
-  // ============================================================
-
-  /**
-   * Send message to agent (returns raw Response for SSE streaming)
-   */
-  async sendMessage(
-    content: string | MessageParam,
-    attachments: MessageAttachment[] | undefined,
-    githubToken: string,
-    remoteId?: string | null
-  ): Promise<Response> {
-    const response = await fetch(`${this.baseUrl}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content,
-        attachments,
-        githubToken,
-        remoteId,
-      }),
-    });
-
-    if (!response.ok && !response.headers.get('content-type')?.includes('text/event-stream')) {
-      const error = await response.text();
-      throw new Error(`Failed to send message: ${error}`);
-    }
-
-    return response;
-  }
-
-  /**
-   * Send message and stream events via async generator
-   */
-  async *streamMessage(
-    content: string | MessageParam,
-    attachments: MessageAttachment[] | undefined,
-    githubToken: string,
-    remoteId?: string | null
-  ): AsyncGenerator<Record<string, unknown>> {
-    const response = await this.sendMessage(content, attachments, githubToken, remoteId);
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // Process complete SSE messages
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-
-            if (data === '[DONE]') {
-              return;
-            }
-
-            try {
-              const event = JSON.parse(data);
-              yield event;
-            } catch {
-              console.warn('Failed to parse SSE event:', data);
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
   }
 
   // ============================================================
@@ -140,34 +51,53 @@ export class SandboxClient {
    * Read file content from sandbox
    */
   async readFile(filePath: string): Promise<string> {
-    // Ensure path doesn't start with /
-    const cleanPath = filePath.replace(/^\/+/, '');
+    // Make path relative to /app/project if it's absolute
+    const relativePath = filePath.startsWith('/app/project/')
+      ? filePath.slice('/app/project/'.length)
+      : filePath.replace(/^\/+/, '');
 
-    const response = await fetch(`${this.baseUrl}/files/${cleanPath}`, {
-      method: 'GET',
+    const response = await fetch(`${this.baseUrl}/api/files/read`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        filepath: relativePath,
+      }),
     });
 
     if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
       if (response.status === 404) {
         throw new Error(`File not found: ${filePath}`);
       }
-      throw new Error(`Failed to read file: HTTP ${response.status}`);
+      throw new Error(
+        `Failed to read file: HTTP ${response.status} - ${errorData.message || response.statusText}`
+      );
     }
 
-    return response.text();
+    const data = await response.json();
+    return data.content;
   }
 
   /**
    * Write file content to sandbox
    */
   async writeFile(filePath: string, content: string): Promise<void> {
-    // Ensure path doesn't start with /
-    const cleanPath = filePath.replace(/^\/+/, '');
+    // Make path relative to /app/project if it's absolute
+    const relativePath = filePath.startsWith('/app/project/')
+      ? filePath.slice('/app/project/'.length)
+      : filePath.replace(/^\/+/, '');
 
-    const response = await fetch(`${this.baseUrl}/files/${cleanPath}`, {
+    const response = await fetch(`${this.baseUrl}/api/files/write`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        cwd: '/app/project',
+        filepath: relativePath,
+        content,
+      }),
     });
 
     if (!response.ok) {
@@ -232,5 +162,115 @@ export class SandboxClient {
     }
 
     return response.json();
+  }
+
+  // ============================================================
+  // KOSUKE SERVE API
+  // ============================================================
+
+  /**
+   * Stream plan phase from kosuke serve (SSE)
+   */
+  async *streamPlan(
+    query: string,
+    cwd: string,
+    options?: {
+      noTest?: boolean;
+      resume?: string;
+    }
+  ): AsyncGenerator<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/api/plan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({
+        query,
+        cwd,
+        noTest: options?.noTest,
+        resume: options?.resume,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Plan request failed: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body from plan endpoint');
+    }
+
+    yield* this.parseSSEStream(response.body);
+  }
+
+  // ============================================================
+  // PRIVATE HELPERS
+  // ============================================================
+
+  /**
+   * Parse SSE stream (reusable for both streamMessage and kosuke serve endpoints)
+   * Handles both event: and data: fields from SSE
+   */
+  private async *parseSSEStream(
+    body: ReadableStream<Uint8Array>
+  ): AsyncGenerator<Record<string, unknown>> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages (delimited by double newlines)
+        const messages = buffer.split('\n\n');
+        buffer = messages.pop() || ''; // Keep incomplete message in buffer
+
+        for (const message of messages) {
+          const lines = message.split('\n');
+          let eventType: string | null = null;
+          let eventData: string | null = null;
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              eventData = line.slice(6).trim();
+            }
+          }
+
+          // Process complete event (must have data)
+          if (eventData) {
+            if (eventData === '[DONE]') {
+              return;
+            }
+
+            try {
+              const parsedData = JSON.parse(eventData);
+
+              // Structure event with type field if event type was specified
+              if (eventType) {
+                yield { type: eventType, data: parsedData };
+              } else {
+                // Fallback: yield data as-is (legacy format)
+                yield parsedData;
+              }
+            } catch (error) {
+              console.warn('Failed to parse SSE event:', eventData, error);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 }

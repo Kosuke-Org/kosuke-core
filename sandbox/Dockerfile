@@ -51,11 +51,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
     node --version && npm --version
 
 # ============================================================
-# BUN (pinned version)
+# BUN (pinned version) - Install to /usr/local for all users
 # ============================================================
 
-RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}"
-ENV PATH="/root/.bun/bin:$PATH"
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" && \
+    mv /root/.bun/bin/bun /usr/local/bin/bun && \
+    chmod +x /usr/local/bin/bun && \
+    rm -rf /root/.bun
 RUN bun --version
 
 # ============================================================
@@ -64,6 +66,15 @@ RUN bun --version
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN uv --version
+
+# ============================================================
+# NON-ROOT USER
+# ============================================================
+
+# Create kosuke user and group
+RUN groupadd -r kosuke && useradd -r -g kosuke -m -s /bin/bash kosuke && \
+    # Allow kosuke user to install global npm packages
+    chown -R kosuke:kosuke /usr/local/lib /usr/local/bin /usr/local/share
 
 # ============================================================
 # DIRECTORY STRUCTURE
@@ -75,7 +86,8 @@ WORKDIR /app
 # /app/agent       - Fastify agent server
 # /app/scripts     - Helper scripts
 
-RUN mkdir -p /app/project /app/agent /app/scripts /var/log/supervisor
+RUN mkdir -p /app/project /app/agent /app/scripts /var/log/supervisor && \
+    chown -R kosuke:kosuke /app /var/log/supervisor
 
 # ============================================================
 # KOSUKE CLI AGENT
@@ -104,7 +116,10 @@ COPY config/redis.conf /etc/redis/redis.conf
 COPY entrypoint.sh /entrypoint.sh
 COPY scripts/ /app/scripts/
 
-RUN chmod +x /entrypoint.sh /app/scripts/*.sh
+RUN chmod +x /entrypoint.sh /app/scripts/*.sh && \
+    chown kosuke:kosuke /etc/supervisor/conf.d/supervisord.conf && \
+    chown kosuke:kosuke /etc/redis/redis.conf && \
+    mkdir -p /etc/redis && chown kosuke:kosuke /etc/redis
 
 # ============================================================
 # PORTS
@@ -130,6 +145,12 @@ ENV KOSUKE_PROJECT_DIR=/app/project
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:${KOSUKE_AGENT_PORT}/health || exit 1
+
+# ============================================================
+# SWITCH TO NON-ROOT USER
+# ============================================================
+
+USER kosuke
 
 # ============================================================
 # ENTRYPOINT

@@ -19,6 +19,7 @@ export default function ChatInput({
   onStop,
   placeholder = 'Type a message...',
   className,
+  disabled = false,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -62,17 +63,14 @@ export default function ChatInput({
       return;
     }
 
-    if ((!message.trim() && !hasAttachments) || isLoading) return;
+    if ((!message.trim() && !hasAttachments) || isLoading || disabled) return;
 
     try {
       // Send the message with all attached files if present
-      await onSendMessage(
-        message.trim(),
-        {
-          includeContext,
-          attachments: attachments.map(a => a.file)
-        }
-      );
+      await onSendMessage(message.trim(), {
+        includeContext,
+        attachments: attachments.map(a => a.file),
+      });
 
       // Clear the input and all attachments
       setMessage('');
@@ -90,15 +88,11 @@ export default function ChatInput({
   };
 
   return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className={cn('pb-0', className)}
-    >
+    <form ref={formRef} onSubmit={handleSubmit} className={cn('pb-0', className)}>
       <div
         className={cn(
-          "relative flex flex-col rounded-lg border border-border transition-colors shadow-lg bg-background",
-          isDraggingOver && "border-primary border-dashed bg-primary/5"
+          'relative flex flex-col rounded-lg border border-border transition-colors shadow-lg bg-background',
+          isDraggingOver && 'border-primary border-dashed bg-primary/5'
         )}
       >
         {isDraggingOver && (
@@ -118,13 +112,13 @@ export default function ChatInput({
         <Textarea
           ref={textareaRef}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={e => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className="min-h-[100px] max-h-[200px] resize-none border-0 !bg-transparent px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
           rows={3}
-          style={{ height: '100px' }}  // Set initial fixed height
+          style={{ height: '100px' }} // Set initial fixed height
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"
@@ -147,7 +141,7 @@ export default function ChatInput({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               onClick={triggerFileInput}
               title="Attach images or PDFs (you can also paste or drag & drop)"
             >
@@ -158,9 +152,13 @@ export default function ChatInput({
             <Button
               type="submit"
               size="icon"
-              variant={isStreaming ? "outline" : (!message.trim() && !hasAttachments ? "outline" : "default")}
+              variant={
+                isStreaming ? 'outline' : !message.trim() && !hasAttachments ? 'outline' : 'default'
+              }
               className="h-8 w-8"
-              disabled={!isStreaming && ((!message.trim() && !hasAttachments) || isLoading)}
+              disabled={
+                disabled || (!isStreaming && ((!message.trim() && !hasAttachments) || isLoading))
+              }
             >
               {isLoading && !isStreaming ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -169,9 +167,7 @@ export default function ChatInput({
               ) : (
                 <ArrowUp className="h-5 w-5" />
               )}
-              <span className="sr-only">
-                {isStreaming ? 'Stop generation' : 'Send message'}
-              </span>
+              <span className="sr-only">{isStreaming ? 'Stop generation' : 'Send message'}</span>
             </Button>
           </div>
         </div>

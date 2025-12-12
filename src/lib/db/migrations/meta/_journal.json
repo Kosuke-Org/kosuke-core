@@ -36,6 +36,27 @@
       "when": 1764846607031,
       "tag": "0004_overjoyed_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765532921502,
+      "tag": "0005_sudden_rictor",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765558548272,
+      "tag": "0006_loose_randall",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1765562621549,
+      "tag": "0007_strong_echo",
+      "breakpoints": true
     }
   ]
 }
