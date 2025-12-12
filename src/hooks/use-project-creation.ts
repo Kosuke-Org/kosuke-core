@@ -44,7 +44,7 @@ export function useProjectCreation() {
       // Navigate after a brief delay to show success state
       setTimeout(() => {
         router.replace(`/projects/${project.id}`);
-      }, 1000);
+      }, 200);
     },
     onError: error => {
       setCurrentStep({

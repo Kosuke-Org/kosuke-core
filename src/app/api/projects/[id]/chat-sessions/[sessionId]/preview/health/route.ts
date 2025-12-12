@@ -6,6 +6,7 @@ import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
+import type { PreviewHealthResponse } from '@/lib/types';
 import { and, eq } from 'drizzle-orm';
 
 /**
@@ -59,9 +60,7 @@ export async function GET(
     const [session] = await db
       .select()
       .from(chatSessions)
-      .where(
-        and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId))
-      );
+      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -78,33 +77,36 @@ export async function GET(
     const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
 
     if (!sandbox) {
-      return NextResponse.json({
+      const response: PreviewHealthResponse = {
         ok: false,
         running: false,
-        is_responding: false,
+        isResponding: false,
         url: null,
-      });
+      };
+      return NextResponse.json(response);
     }
 
     // Container exists but not running
     if (sandbox.status !== 'running') {
-      return NextResponse.json({
+      const response: PreviewHealthResponse = {
         ok: false,
         running: false,
-        is_responding: false,
+        isResponding: false,
         url: sandbox.url,
-      });
+      };
+      return NextResponse.json(response);
     }
 
     // Container is running - check if preview is responding
     const isResponding = await checkPreviewHealth(sandbox.name);
 
-    return NextResponse.json({
+    const response: PreviewHealthResponse = {
       ok: isResponding,
       running: true,
-      is_responding: isResponding,
+      isResponding,
       url: sandbox.url,
-    });
+    };
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error checking preview health:', error);
     return ApiErrorHandler.handle(error);

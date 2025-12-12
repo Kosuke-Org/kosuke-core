@@ -1,7 +1,6 @@
 // Project Creation and Update Types
 export interface CreateProjectData {
   name: string;
-  prompt: string;
   github: {
     type: 'create' | 'import';
     repositoryUrl?: string;

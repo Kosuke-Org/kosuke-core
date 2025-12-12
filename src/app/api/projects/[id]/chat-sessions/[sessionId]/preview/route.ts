@@ -58,11 +58,9 @@ export async function GET(
       // Sandbox is running - return URL, frontend will poll health endpoint
       return NextResponse.json({
         success: true,
-        url: existingSandbox.url,
         previewUrl: existingSandbox.url,
-        project_id: projectId,
-        session_id: sessionId,
-        running: true,
+        projectId,
+        sessionId,
       });
     }
 
@@ -102,11 +100,9 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      url: sandboxInfo.url,
       previewUrl: sandboxInfo.url,
-      project_id: projectId,
-      session_id: sessionId,
-      running: sandboxInfo.status === 'running',
+      projectId,
+      sessionId,
     });
   } catch (error: unknown) {
     console.error('Error in preview GET:', error);

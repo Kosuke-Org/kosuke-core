@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
-import type { PreviewStatus, UsePreviewPanelOptions, UsePreviewPanelReturn } from '@/lib/types';
+import type {
+  PreviewHealthResponse,
+  PreviewStatus,
+  UsePreviewPanelOptions,
+  UsePreviewPanelReturn,
+} from '@/lib/types';
 import { useStartPreview } from './use-start-preview';
+
+// Template preview URL from environment
+const TEMPLATE_PREVIEW_URL = process.env.NEXT_PUBLIC_TEMPLATE_PREVIEW_URL;
 
 export function usePreviewPanel({
   projectId,
   sessionId,
   projectName,
   enabled = true,
+  isNewProject = false,
 }: UsePreviewPanelOptions): UsePreviewPanelReturn {
   const { toast } = useToast();
 
@@ -25,10 +34,10 @@ export function usePreviewPanel({
   const [error, setError] = useState<string | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isShowingTemplate, setIsShowingTemplate] = useState(false);
   const requestInFlightRef = useRef(false);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
-  // Removed gitStatus from status flow; pull flow handles its own toasts
 
   // Cleanup polling timeout on unmount
   useEffect(() => {
@@ -49,9 +58,8 @@ export function usePreviewPanel({
       const healthUrl = `/api/projects/${projectId}/chat-sessions/${sessionId}/preview/health`;
       const response = await fetch(healthUrl, { method: 'GET' });
       if (!response.ok) return false;
-      const data: { ok: boolean; running?: boolean; is_responding?: boolean } =
-        await response.json();
-      return Boolean(data.ok);
+      const data: PreviewHealthResponse = await response.json();
+      return data.ok;
     } catch (error) {
       if (Math.random() < 0.2) {
         console.log(
@@ -153,18 +161,12 @@ export function usePreviewPanel({
         const data = await startPreview();
         console.log(`[Preview Panel] Preview status response:`, data);
 
-        const readyUrl = data.previewUrl || data.url;
-        if (readyUrl) {
-          console.log('[Preview Panel] Setting preview URL:', readyUrl);
-          setPreviewUrl(readyUrl);
-          if (data.is_responding && data.running) {
-            console.log('[Preview Panel] Preview is responding and running');
-            setStatus('ready');
-            setProgress(100);
-          } else {
-            console.log('[Preview Panel] Preview starting, polling until ready');
-            pollServerUntilReady();
-          }
+        if (data.previewUrl) {
+          console.log('[Preview Panel] Setting preview URL:', data.previewUrl);
+          setPreviewUrl(data.previewUrl);
+          // Always poll health endpoint to confirm preview is ready
+          console.log('[Preview Panel] Polling until preview is ready');
+          pollServerUntilReady();
         } else {
           throw new Error('No preview URL returned');
         }
@@ -193,8 +195,26 @@ export function usePreviewPanel({
     if (!enabled || !sessionId) return;
     const sessionText = `session ${sessionId}`;
     console.log(`[Preview Panel] Initializing preview for project ${projectId} ${sessionText}`);
+
+    // For new projects, show template immediately while container starts in background
+    if (isNewProject && TEMPLATE_PREVIEW_URL) {
+      console.log('[Preview Panel] New project - showing template preview immediately');
+      setPreviewUrl(TEMPLATE_PREVIEW_URL);
+      setStatus('ready');
+      setProgress(100);
+      setIsShowingTemplate(true);
+
+      // Start the actual preview container in background (fire and forget)
+      startPreview().catch(error => {
+        console.log('[Preview Panel] Background preview start failed:', error);
+        // Don't update state - template is still showing
+      });
+      return;
+    }
+
+    // Normal flow: fetch and poll
     fetchPreviewUrlRef.current?.();
-  }, [projectId, sessionId, enabled]); // Depend on both projectId and sessionId
+  }, [projectId, sessionId, enabled, isNewProject, startPreview]);
 
   // Function to refresh the preview
   const handleRefresh = useCallback(
@@ -202,10 +222,15 @@ export function usePreviewPanel({
       console.log(
         `[Preview Panel] Manually refreshing preview${forceStart ? ' (forcing start)' : ''}`
       );
+      // When refreshing, switch from template to actual preview
+      if (isShowingTemplate) {
+        console.log('[Preview Panel] Switching from template to actual preview');
+        setIsShowingTemplate(false);
+      }
       setIframeKey(prev => prev + 1);
       fetchPreviewUrl(forceStart);
     },
-    [fetchPreviewUrl]
+    [fetchPreviewUrl, isShowingTemplate]
   );
 
   // Listen for custom refresh events from the chat interface (real-time via streaming)
@@ -352,7 +377,7 @@ export function usePreviewPanel({
     iframeKey,
     isDownloading,
     isStarting,
-    // gitStatus removed
+    isShowingTemplate,
 
     // Actions
     handleRefresh,

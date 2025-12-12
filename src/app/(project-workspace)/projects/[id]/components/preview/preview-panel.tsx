@@ -1,6 +1,14 @@
 'use client';
 
-import { CheckCircle, Download, ExternalLink, Github, Loader2, RefreshCw, XCircle } from 'lucide-react';
+import {
+  CheckCircle,
+  Download,
+  ExternalLink,
+  Github,
+  Loader2,
+  RefreshCw,
+  XCircle,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +30,8 @@ interface PreviewPanelProps {
   sessionId: string;
   branch?: string;
   className?: string;
+  /** When true, shows template preview immediately while container starts */
+  isNewProject?: boolean;
 }
 
 export default function PreviewPanel({
@@ -30,6 +40,7 @@ export default function PreviewPanel({
   sessionId,
   branch,
   className,
+  isNewProject = false,
 }: PreviewPanelProps) {
   // Resolve effective session to use for preview: chat session if provided, else default branch
   const { data: defaultBranchSettings } = useDefaultBranchSettings(projectId);
@@ -42,6 +53,7 @@ export default function PreviewPanel({
     iframeKey,
     isDownloading,
     isStarting,
+    isShowingTemplate,
     // Actions
     handleRefresh,
     openInNewTab,
@@ -50,7 +62,7 @@ export default function PreviewPanel({
     // Status helpers
     getStatusMessage,
     getStatusIconType,
-  } = usePreviewPanel({ projectId, sessionId: effectiveSessionId, projectName });
+  } = usePreviewPanel({ projectId, sessionId: effectiveSessionId, projectName, isNewProject });
   const isPreviewEnabled = Boolean(effectiveSessionId);
 
   // Render status icon based on status type
@@ -70,13 +82,22 @@ export default function PreviewPanel({
   const displayBranch = branch || effectiveSessionId || 'branch';
 
   return (
-    <div className={cn('flex flex-col h-full w-full overflow-hidden', className)} data-testid="preview-panel">
+    <div
+      className={cn('flex flex-col h-full w-full overflow-hidden', className)}
+      data-testid="preview-panel"
+    >
       <div className="flex items-center justify-between px-4 py-2 border-b">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium">Preview</h3>
-          <Badge variant="secondary" className="text-xs">
-            {displayBranch}
-          </Badge>
+          {isShowingTemplate ? (
+            <Badge variant="outline" className="text-xs">
+              Template
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs">
+              {displayBranch}
+            </Badge>
+          )}
         </div>
         <div className="flex items-center space-x-1">
           <DropdownMenu>
@@ -92,10 +113,7 @@ export default function PreviewPanel({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                className="flex items-center"
-                disabled
-              >
+              <DropdownMenuItem className="flex items-center" disabled>
                 <Github className="mr-2 h-4 w-4" />
                 <span>Create GitHub Repo</span>
               </DropdownMenuItem>
@@ -128,13 +146,13 @@ export default function PreviewPanel({
             aria-label="Refresh preview"
             title="Refresh preview"
           >
-            <RefreshCw className={cn("h-4 w-4", status === 'loading' && "animate-spin")} />
+            <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
           </Button>
         </div>
       </div>
       <div className="flex-1 overflow-hidden">
         <div className="h-full w-full">
-          {(!isPreviewEnabled || status !== 'ready') ? (
+          {!isPreviewEnabled || status !== 'ready' ? (
             <div className="flex h-full items-center justify-center flex-col p-6">
               {isPreviewEnabled ? renderStatusIcon() : null}
               <span className="text-sm font-medium mt-4 mb-2">

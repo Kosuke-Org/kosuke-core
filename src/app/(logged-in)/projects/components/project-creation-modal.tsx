@@ -21,7 +21,6 @@ interface ProjectCreationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialProjectName?: string;
-  prompt?: string;
   initialTab?: 'create' | 'import';
   showGitHubConnected?: boolean;
 }
@@ -30,21 +29,24 @@ export default function ProjectCreationModal({
   open,
   onOpenChange,
   initialProjectName = '',
-  prompt = '',
   initialTab = 'create',
   showGitHubConnected = false,
 }: ProjectCreationModalProps) {
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'create' | 'import'>(initialTab);
   const [projectName, setProjectName] = useState(initialProjectName);
-  const [projectPrompt, setProjectPrompt] = useState(prompt);
   const [showConnectedMessage, setShowConnectedMessage] = useState(false);
 
   // Import mode state
   const [selectedRepository, setSelectedRepository] = useState<GitHubRepository>();
 
   const { currentStep, createProject, isCreating, resetCreation } = useProjectCreation();
-  const { isConnected: isGitHubConnected, isConnecting: isConnectingGitHub, connectGitHub, clearConnectingState } = useGitHubOAuth();
+  const {
+    isConnected: isGitHubConnected,
+    isConnecting: isConnectingGitHub,
+    connectGitHub,
+    clearConnectingState,
+  } = useGitHubOAuth();
 
   // Auto-set project name from repository name (import mode)
   useEffect(() => {
@@ -58,7 +60,6 @@ export default function ProjectCreationModal({
     if (open) {
       resetCreation();
       setProjectName(initialProjectName);
-      setProjectPrompt(prompt);
       setSelectedRepository(undefined);
       setActiveTab(initialTab);
 
@@ -77,7 +78,14 @@ export default function ProjectCreationModal({
     } else {
       setShowConnectedMessage(false);
     }
-  }, [open, initialProjectName, prompt, initialTab, showGitHubConnected, resetCreation, clearConnectingState]);
+  }, [
+    open,
+    initialProjectName,
+    initialTab,
+    showGitHubConnected,
+    resetCreation,
+    clearConnectingState,
+  ]);
 
   // Close modal on successful creation
   useEffect(() => {
@@ -93,7 +101,6 @@ export default function ProjectCreationModal({
 
     const createData: CreateProjectData = {
       name: projectName.trim(),
-      prompt: projectPrompt || projectName.trim(),
       github: {
         type: activeTab,
         ...(activeTab === 'create'
@@ -205,11 +212,15 @@ export default function ProjectCreationModal({
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>GitHub Connection Required</AlertTitle>
                     <AlertDescription className="justify-items-center">
-                      <p className="mb-3 justify-self-start">Connect your GitHub account to import your existing repositories.</p>
+                      <p className="mb-3 justify-self-start">
+                        Connect your GitHub account to import your existing repositories.
+                      </p>
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => connectGitHub('/projects?openImport=true&githubConnected=true')}
+                        onClick={() =>
+                          connectGitHub('/projects?openImport=true&githubConnected=true')
+                        }
                         disabled={isConnectingGitHub}
                         className={isConnectingGitHub ? 'animate-pulse' : ''}
                       >

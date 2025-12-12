@@ -140,8 +140,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Pull request functionality
   const createPullRequestMutation = useCreatePullRequest(projectId);
 
-    // UI state management
-  const { currentView, setCurrentView, isChatCollapsed, toggleChatCollapsed } = useProjectUIState(project);
+  // UI state management
+  const { currentView, setCurrentView, isChatCollapsed, toggleChatCollapsed } =
+    useProjectUIState(project);
 
   // Chat session state management
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
@@ -188,8 +189,20 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const currentBranch = currentSession?.sessionId;
   const sessionId = currentSession?.sessionId;
 
-    // Preview should use session only when in chat interface view, not in sidebar list view
+  // Preview should use session only when in chat interface view, not in sidebar list view
   const previewSessionId = showSidebar ? null : sessionId;
+
+  // Show template preview for new projects
+  const isNewProject = (() => {
+    if (!project) return false;
+    if (sessionFromUrl) return false;
+    if (project.isImported) return false;
+
+    const oneMinutesAgo = Date.now() - 60_000;
+    // Handle both Date object and string (from persisted cache)
+    const createdAtTime = new Date(project.createdAt).getTime();
+    return createdAtTime > oneMinutesAgo;
+  })();
 
   // Reference to the ChatInterface component to maintain its state
   const chatInterfaceRef = useRef<HTMLDivElement>(null);
@@ -255,15 +268,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div
           ref={chatInterfaceRef}
           className={cn(
-            "h-full overflow-hidden",
+            'h-full overflow-hidden',
             // Balanced width for chat area - more than original but not too much
-            isChatCollapsed ? "w-0 opacity-0" : "w-full sm:w-1/4 md:w-1/4 lg:w-1/4"
+            isChatCollapsed ? 'w-0 opacity-0' : 'w-full sm:w-1/4 md:w-1/4 lg:w-1/4'
           )}
           style={{
             // Use visibility instead of conditional rendering
             visibility: isChatCollapsed ? 'hidden' : 'visible',
             // Use display to properly hide when collapsed
-            display: isChatCollapsed ? 'none' : 'flex'
+            display: isChatCollapsed ? 'none' : 'flex',
           }}
         >
           {/* Chat area with toggle between sidebar and interface */}
@@ -293,9 +306,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
         <div
           className={cn(
-            "h-full flex-col overflow-hidden border rounded-md border-border",
+            'h-full flex-col overflow-hidden border rounded-md border-border',
             // Balanced width for preview panel - maintains good visibility
-            isChatCollapsed ? "w-full" : "hidden md:flex sm:w-3/4 md:w-3/4 lg:w-3/4"
+            isChatCollapsed ? 'w-full' : 'hidden md:flex sm:w-3/4 md:w-3/4 lg:w-3/4'
           )}
         >
           {currentView === 'preview' ? (
@@ -304,27 +317,18 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               projectName={project.name}
               sessionId={previewSessionId ?? ''}
               branch={showSidebar ? undefined : currentBranch}
+              isNewProject={isNewProject}
             />
           ) : currentView === 'code' ? (
-            <CodeExplorer
-              projectId={projectId}
-            />
+            <CodeExplorer projectId={projectId} />
           ) : currentView === 'branding' ? (
-            <BrandGuidelines
-              projectId={projectId}
-              sessionId={previewSessionId ?? ''}
-            />
+            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
           ) : currentView === 'settings' ? (
-            <SettingsTab
-              projectId={projectId}
-            />
+            <SettingsTab projectId={projectId} />
           ) : currentView === 'database' ? (
             <DatabaseTab projectId={projectId} sessionId={previewSessionId ?? ''} />
           ) : (
-            <BrandGuidelines
-              projectId={projectId}
-              sessionId={previewSessionId ?? ''}
-            />
+            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
           )}
         </div>
       </div>
