@@ -114,6 +114,32 @@ just install
 just migrate
 ```
 
+## 🧪 Sandbox & Local Development
+
+The `sandbox/` directory contains the infrastructure for preview environments and isolated development sandboxes:
+
+### Kosuke CLI Development
+
+To work with **kosuke-cli** locally alongside kosuke-core with hot-reload:
+
+```bash
+# Clone kosuke-cli into the sandbox directory
+cd sandbox
+git clone https://github.com/Kosuke-Org/cli.git kosuke-cli
+cd kosuke-cli && npm install
+
+# Enable hot-reload: watches .ts files → auto-compiles → auto-restarts in preview containers
+just watch-agent
+```
+
+> The `just watch-agent` command runs `npm run build:watch` which watches TypeScript files and auto-compiles to `dist/`. Preview sandbox containers (created dynamically via `src/lib/sandbox/manager.ts`) mount `sandbox/kosuke-cli/` at `/app/kosuke-cli` when `HOST_PROJECT_PATH` is set, and `nodemon` inside the container auto-restarts the agent on changes. See `sandbox/Dockerfile`, `sandbox/entrypoint.sh`, and `sandbox/scripts/start-agent.sh` for implementation details.
+
+### Other Sandbox Components
+
+- **agent/** - Experimental AI agent service (Bun + TypeScript)
+- **config/** - Shared configuration files (Redis, etc.)
+- **scripts/** - Development helper scripts
+
 ## Adding environment variables
 
 - If it is needed for local development, add it to `.env.local`
