@@ -14,7 +14,6 @@ import { createGitHubWebhook } from '@/lib/github/webhooks';
 // Schema for project creation with GitHub integration
 const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
-  prompt: z.string().min(1),
   github: z.object({
     type: z.enum(['create', 'import']),
     repositoryName: z.string().optional(),
@@ -58,9 +57,7 @@ export async function GET() {
  * Helper function to create a GitHub repository in Kosuke org
  * Uses service token - no user GitHub connection required
  */
-async function createGitHubRepository(
-  name: string,
-) {
+async function createGitHubRepository(name: string) {
   const templateRepo = process.env.TEMPLATE_REPOSITORY;
   if (!templateRepo) {
     throw new Error('TEMPLATE_REPOSITORY not configured');
@@ -80,11 +77,7 @@ async function createGitHubRepository(
  * Helper function to import a GitHub repository
  * Parses repository URL, gets repo info, and clones it locally
  */
-async function importGitHubRepository(
-  userId: string,
-  repositoryUrl: string,
-  projectId: string
-) {
+async function importGitHubRepository(userId: string, repositoryUrl: string, projectId: string) {
   // Parse repository URL to get owner and repo name
   const urlMatch = repositoryUrl.match(/github\.com[/:]([\w-]+)\/([\w.-]+?)(?:\.git)?$/);
   if (!urlMatch) {
@@ -136,7 +129,9 @@ export async function POST(request: NextRequest) {
 
     // Require active organization
     if (!orgId) {
-      return ApiErrorHandler.badRequest('No organization selected. Please select an organization to create a project.');
+      return ApiErrorHandler.badRequest(
+        'No organization selected. Please select an organization to create a project.'
+      );
     }
 
     // Parse and validate the request body
@@ -166,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a transaction to ensure atomicity
-    const createdProject = await db.transaction(async (tx) => {
+    const createdProject = await db.transaction(async tx => {
       // First create the project
       const [project] = await tx
         .insert(projects)
