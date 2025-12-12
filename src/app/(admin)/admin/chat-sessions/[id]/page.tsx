@@ -1,10 +1,9 @@
 'use client';
 
-import { use } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import Link from 'next/link';
+import { use } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -59,14 +58,6 @@ export default function AdminChatSessionDetailPage({
   if (!chatSession) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/chat-sessions">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Chat Sessions
-            </Link>
-          </Button>
-        </div>
         <Card>
           <CardContent className="pt-6">
             <div className="text-center text-muted-foreground">Chat session not found</div>
@@ -78,16 +69,6 @@ export default function AdminChatSessionDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Header with Back button */}
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/admin/chat-sessions">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Chat Sessions
-          </Link>
-        </Button>
-      </div>
-
       {/* Chat Session Overview Card */}
       <Card>
         <CardHeader>
@@ -248,9 +229,6 @@ export default function AdminChatSessionDetailPage({
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-9 w-32" />
-      </div>
       <Card>
         <CardHeader>
           <Skeleton className="h-8 w-64 mb-2" />

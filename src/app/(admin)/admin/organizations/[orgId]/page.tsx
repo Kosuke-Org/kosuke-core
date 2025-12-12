@@ -1,15 +1,13 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Building2, Users, Database, MessageSquare, Zap } from 'lucide-react';
+import { Building2, Database, MessageSquare, Users, Zap } from 'lucide-react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { use } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import type { ClerkOrganization } from '@/lib/types';
 
 interface OrganizationDetailResponse {
@@ -47,16 +45,6 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ o
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/admin/organizations">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Organizations
-          </Link>
-        </Button>
-      </div>
-
       {/* Organization Info */}
       <div className="flex items-center gap-4">
         {organization.imageUrl ? (
@@ -132,7 +120,6 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ o
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-10 w-48" />
       <div className="flex items-center gap-4">
         <Skeleton className="h-16 w-16 rounded-lg" />
         <div className="space-y-2">
