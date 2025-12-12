@@ -3,15 +3,20 @@
 // Preview Status Types
 export type PreviewStatus = 'loading' | 'ready' | 'error';
 
+// Health endpoint response - used by both frontend and backend
+export interface PreviewHealthResponse {
+  ok: boolean;
+  running: boolean;
+  isResponding: boolean;
+  url: string | null;
+}
+
+// Preview endpoint response - starts/returns preview URL
 export interface StartPreviewResponse {
   success: boolean;
-  url?: string;
-  previewUrl?: string;
-  error?: string;
-  project_id?: string;
-  session_id?: string;
-  running?: boolean;
-  is_responding?: boolean;
+  previewUrl: string;
+  projectId: string;
+  sessionId: string;
 }
 
 // Preview Panel Hook Types

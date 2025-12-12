@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
-import type { PreviewStatus, UsePreviewPanelOptions, UsePreviewPanelReturn } from '@/lib/types';
+import type {
+  PreviewHealthResponse,
+  PreviewStatus,
+  UsePreviewPanelOptions,
+  UsePreviewPanelReturn,
+} from '@/lib/types';
 import { useStartPreview } from './use-start-preview';
 
 export function usePreviewPanel({
@@ -49,9 +54,8 @@ export function usePreviewPanel({
       const healthUrl = `/api/projects/${projectId}/chat-sessions/${sessionId}/preview/health`;
       const response = await fetch(healthUrl, { method: 'GET' });
       if (!response.ok) return false;
-      const data: { ok: boolean; running?: boolean; is_responding?: boolean } =
-        await response.json();
-      return Boolean(data.ok);
+      const data: PreviewHealthResponse = await response.json();
+      return data.ok;
     } catch (error) {
       if (Math.random() < 0.2) {
         console.log(
@@ -153,18 +157,12 @@ export function usePreviewPanel({
         const data = await startPreview();
         console.log(`[Preview Panel] Preview status response:`, data);
 
-        const readyUrl = data.previewUrl || data.url;
-        if (readyUrl) {
-          console.log('[Preview Panel] Setting preview URL:', readyUrl);
-          setPreviewUrl(readyUrl);
-          if (data.is_responding && data.running) {
-            console.log('[Preview Panel] Preview is responding and running');
-            setStatus('ready');
-            setProgress(100);
-          } else {
-            console.log('[Preview Panel] Preview starting, polling until ready');
-            pollServerUntilReady();
-          }
+        if (data.previewUrl) {
+          console.log('[Preview Panel] Setting preview URL:', data.previewUrl);
+          setPreviewUrl(data.previewUrl);
+          // Always poll health endpoint to confirm preview is ready
+          console.log('[Preview Panel] Polling until preview is ready');
+          pollServerUntilReady();
         } else {
           throw new Error('No preview URL returned');
         }
