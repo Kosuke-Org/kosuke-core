@@ -139,36 +139,16 @@ export async function POST(
         return NextResponse.json({ message: 'No GitHub token available' });
       }
 
-      if (sandbox.mode === 'production') {
-        // Production mode: destroy and recreate to ensure fresh build
-        console.log(
-          `🔄 Production sandbox - destroying and recreating (session: ${sessionId}) for project ${projectId}`
-        );
-
-        await sandboxManager.destroySandbox(projectId, sessionId);
-
-        const repoUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}.git`;
-        await sandboxManager.createSandbox({
-          projectId,
-          sessionId,
-          repoUrl,
-          branch,
-          githubToken,
-          mode: 'production',
-        });
-
-        restarted = true;
-        console.log(`✅ Production sandbox recreated for project ${projectId}`);
-      } else {
-        // Development mode: restart and pull latest code
-        console.log(`🔄 Restarting sandbox (session: ${sessionId}) for project ${projectId}`);
-        await sandboxManager.restartSandbox(projectId, sessionId, {
-          branch,
-          githubToken,
-        });
-        restarted = true;
-        console.log(`✅ Sandbox restarted and code updated for project ${projectId}`);
-      }
+      // Update sandbox with latest code
+      console.log(
+        `🔄 Updating sandbox (session: ${sessionId}, mode: ${sandbox.mode}) for project ${projectId}`
+      );
+      await sandboxManager.updateSandbox(projectId, sessionId, {
+        branch,
+        githubToken,
+      });
+      restarted = true;
+      console.log(`✅ Sandbox updated for project ${projectId}`);
     } else {
       console.log(`ℹ️ Sandbox not running for session ${sessionId}, skipping restart`);
     }
