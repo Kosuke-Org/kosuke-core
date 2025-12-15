@@ -35,7 +35,7 @@ db-reset:
     @docker exec kosuke_nextjs npm run db:migrate
     @echo "Database reset complete!"
 
-build-sandbox kosuke-cli-mode="local" install-chromium="true":
+build-sandbox kosuke-cli-mode="local" install-chromium="false":
     @echo "Building kosuke-cli..."
     @cd sandbox/kosuke-cli && npm install && npm run build
     @echo "Building sandbox Docker image for {{kosuke-cli-mode}} with chromium={{install-chromium}}..."
