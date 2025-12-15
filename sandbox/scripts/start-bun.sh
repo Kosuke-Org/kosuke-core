@@ -49,7 +49,7 @@ fi
 
 if [ "$KOSUKE_MODE" = "production" ]; then
     echo "📦 Running production build..."
-    bun run build
+    NODE_OPTIONS="--max-old-space-size=1024" bun run build
     echo "▶️ Starting production server..."
     exec bun run start
 else
