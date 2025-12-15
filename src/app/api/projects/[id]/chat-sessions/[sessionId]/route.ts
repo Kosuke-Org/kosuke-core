@@ -550,6 +550,7 @@ export async function POST(
               const ticketsJson = await sandboxClient.readFile(eventData.ticketsFile);
               const ticketsData = JSON.parse(ticketsJson);
               const tickets = ticketsData.tickets || [];
+              const testUrl = sandbox?.url;
 
               console.log(`📝 Found ${tickets.length} tickets to save`);
 
@@ -611,6 +612,7 @@ export async function POST(
                 githubToken,
                 enableReview: false, // TODO: Make configurable
                 enableTest: false, // TODO: Make configurable
+                testUrl,
               });
 
               console.log(`🚀 Enqueued build job ${buildJob.id}`);
