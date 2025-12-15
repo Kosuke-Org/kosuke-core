@@ -33,6 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    # Python WeasyPrint dependencies
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz-subset0 \
     # Build tools (for native modules)
     build-essential \
     # Cleanup
