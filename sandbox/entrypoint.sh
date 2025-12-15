@@ -121,7 +121,16 @@ else
 fi
 
 # ============================================================
-# STEP 4: START SERVICES VIA SUPERVISOR
+# STEP 4: LOAD CHROMIUM PATH (defined in ~/.bashrc)
+# ============================================================
+
+source ~/.bashrc
+if [ -n "$PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" ]; then
+    echo "🎭 Chromium: $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+fi
+
+# ============================================================
+# STEP 5: START SERVICES VIA SUPERVISOR
 # ============================================================
 
 echo "🚀 Starting services via supervisor..."

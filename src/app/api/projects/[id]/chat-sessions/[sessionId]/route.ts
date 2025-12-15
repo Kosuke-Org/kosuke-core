@@ -550,7 +550,8 @@ export async function POST(
               const ticketsJson = await sandboxClient.readFile(eventData.ticketsFile);
               const ticketsData = JSON.parse(ticketsJson);
               const tickets = ticketsData.tickets || [];
-              const testUrl = sandbox?.url;
+              // Convert localhost to host.docker.internal for container access
+              const testUrl = sandbox?.url?.replace('localhost', 'host.docker.internal');
 
               console.log(`📝 Found ${tickets.length} tickets to save`);
 

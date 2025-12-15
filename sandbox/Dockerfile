@@ -68,19 +68,48 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN uv --version
 
 # ============================================================
-# PLAYWRIGHT CHROMIUM SYSTEM DEPENDENCIES (as root)
-# Optional: Set INSTALL_CHROMIUM=false to skip (saves ~500MB)
-# Usage: docker build --build-arg INSTALL_CHROMIUM=false .
+# PLAYWRIGHT CHROME DEPENDENCIES (for Playwright MCP)
+# Install all dependencies that Chrome needs as root before switching to kosuke user
 # ============================================================
 
 ARG INSTALL_CHROMIUM=true
 
 RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
-    echo "📦 Installing Chromium system dependencies..." && \
-    npx playwright@latest install-deps chromium && \
-    echo "✅ System dependencies installed"; \
-else \
-    echo "⏭️  Skipping Chromium installation"; \
+    echo "📦 Installing Chrome dependencies..." && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        # Core libraries
+        libnss3 \
+        libnspr4 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libdrm2 \
+        libdbus-1-3 \
+        libxkbcommon0 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxfixes3 \
+        libxrandr2 \
+        libgbm1 \
+        libasound2 \
+        libpango-1.0-0 \
+        libcairo2 \
+        libatspi2.0-0 \
+        # Fonts
+        fonts-liberation \
+        fonts-noto-color-emoji \
+        # Additional
+        libxshmfence1 \
+        libglib2.0-0 \
+        libnss3 \
+        libx11-6 \
+        libx11-xcb1 \
+        libxcb1 \
+        libxext6 \
+        libxrender1 \
+        libxtst6 \
+        ca-certificates \
+        && rm -rf /var/lib/apt/lists/*; \
 fi
 
 # ============================================================
@@ -91,6 +120,25 @@ fi
 RUN groupadd -r kosuke && useradd -r -g kosuke -m -s /bin/bash kosuke && \
     # Allow kosuke user to install global npm packages
     chown -R kosuke:kosuke /usr/local/lib /usr/local/bin /usr/local/share
+
+# ============================================================
+# PLAYWRIGHT MCP + BROWSERS (install as root, then fix ownership)
+# ============================================================
+
+ARG INSTALL_CHROMIUM=true
+
+RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
+    echo "📦 Installing Playwright MCP and browsers..." && \
+    npm install -g @playwright/mcp@latest && \
+    cd /usr/local/lib/node_modules/@playwright/mcp && \
+    # Try chrome first (chrome-for-testing), fallback to chromium
+    npx playwright install chrome || npx playwright install chromium && \
+    # Move playwright cache to kosuke's home directory
+    mkdir -p /home/kosuke/.cache && \
+    mv /root/.cache/ms-playwright /home/kosuke/.cache/ && \
+    chown -R kosuke:kosuke /home/kosuke/.cache && \
+    echo "✅ Playwright MCP and browsers installed"; \
+fi
 
 # ============================================================
 # DIRECTORY STRUCTURE
@@ -154,6 +202,8 @@ EXPOSE 3000
 ENV KOSUKE_MODE=development
 ENV KOSUKE_AGENT_PORT=9000
 ENV KOSUKE_PROJECT_DIR=/app/project
+ENV PLAYWRIGHT_MCP_GLOBAL=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/home/kosuke/.cache/ms-playwright
 
 # ============================================================
 # HEALTH CHECK
@@ -169,16 +219,10 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 \
 USER kosuke
 
 # ============================================================
-# PLAYWRIGHT CHROMIUM BROWSERS (as kosuke user)
+# CHROMIUM PATH DETECTION (for Playwright MCP)
 # ============================================================
 
-RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
-    echo "📦 Installing Chromium browser..." && \
-    npx playwright@latest install chromium && \
-    echo "✅ Chromium installed for user kosuke"; \
-else \
-    echo "⏭️  Skipping Chromium browser installation"; \
-fi
+RUN echo 'export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux/chrome 2>/dev/null | grep -v headless_shell | head -1)' >> ~/.bashrc
 
 # ============================================================
 # ENTRYPOINT
