@@ -12,8 +12,8 @@
 import { gracefulShutdown } from '@/lib/queue/client';
 import { buildQueue } from '@/lib/queue/queues/build';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
-import { buildWorker } from '@/lib/queue/workers/build';
-import { previewWorker } from '@/lib/queue/workers/previews';
+import { createBuildWorker } from '@/lib/queue/workers/build';
+import { createPreviewWorker } from '@/lib/queue/workers/previews';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
@@ -21,6 +21,10 @@ async function main() {
   try {
     // Schedule all recurring jobs (idempotent - safe to call multiple times)
     await schedulePreviewCleanup();
+
+    // Initialize workers (explicit - no side effects on import)
+    const previewWorker = createPreviewWorker();
+    const buildWorker = createBuildWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');

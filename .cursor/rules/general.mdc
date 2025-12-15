@@ -452,7 +452,7 @@ const { data } = useQuery({
 - Sensitive data (passwords, tokens, API keys)
 - Real-time data (notifications, live counts)
 - Temporary search/filter results
-Configured globally in `src/app/providers.tsx` with `PersistQueryClientProvider`.
+  Configured globally in `src/app/providers.tsx` with `PersistQueryClientProvider`.
 
 **staleTime vs gcTime:**
 
@@ -785,6 +785,164 @@ export const usedFunction = () => {}; // Keep
 // Ignore "unlisted dependencies" warnings
 ```
 
+## Background Jobs & BullMQ Worker Pattern - MANDATORY
+
+**Use factory functions for workers to avoid module-level side effects.**
+
+### The Problem: Accidental Worker Initialization
+
+When workers are created at module level, importing the module immediately starts workers:
+
+```typescript
+// ❌ BAD - Worker starts on import (side effect)
+export const buildWorker = createWorker(...);
+const events = createQueueEvents(...);
+events.on('completed', ...);
+console.log('Worker initialized'); // Runs immediately!
+```
+
+**Consequence:** Importing this module in API routes accidentally starts workers in the Next.js container.
+
+### The Solution: Factory Functions
+
+Use factory functions that only initialize workers when explicitly called:
+
+```typescript
+// ✅ GOOD - No side effects, safe to import anywhere
+export function createBuildWorker() {
+  const worker = createWorker(...);
+  const events = createQueueEvents(...);
+  events.on('completed', ...);
+  console.log('Worker initialized'); // Only runs when called
+  return worker;
+}
+```
+
+### Implementation Pattern
+
+**Worker Module** (`src/lib/queue/workers/build.ts`):
+
+```typescript
+/**
+ * Build Worker - Factory function (no side effects)
+ */
+
+async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobResult> {
+  // Job processing logic
+}
+
+/**
+ * Create and initialize build worker
+ * Factory function - NO side effects until called
+ */
+export function createBuildWorker() {
+  const worker = createWorker<BuildJobData>(QUEUE_NAMES.BUILD, processBuildJob, {
+    concurrency: 1,
+  });
+
+  const events = createQueueEvents(QUEUE_NAMES.BUILD);
+
+  events.on('completed', ({ jobId, returnvalue }) => {
+    console.log(`[WORKER] ✅ Job ${jobId} completed`);
+  });
+
+  events.on('failed', ({ jobId, failedReason }) => {
+    console.error(`[WORKER] ❌ Job ${jobId} failed:`, failedReason);
+  });
+
+  console.log('[WORKER] 🚀 Build Worker Initialized');
+
+  return worker;
+}
+```
+
+**Worker Process** (`src/worker.ts`):
+
+```typescript
+import { createBuildWorker } from '@/lib/queue/workers/build';
+import { createPreviewWorker } from '@/lib/queue/workers/previews';
+
+async function main() {
+  console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
+
+  // Initialize workers (explicit - no side effects on import)
+  const previewWorker = createPreviewWorker();
+  const buildWorker = createBuildWorker();
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', async () => {
+    await gracefulShutdown([previewWorker, buildWorker], [previewQueue, buildQueue]);
+    process.exit(0);
+  });
+}
+
+main();
+```
+
+**Barrel Export** (`src/lib/queue/index.ts`):
+
+```typescript
+/**
+ * BullMQ Queue Module
+ * Safe to import anywhere - worker factories have NO side effects
+ */
+
+// Queues (for enqueueing jobs in API routes)
+export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export { previewQueue, schedulePreviewCleanup } from './queues/previews';
+
+// Worker factories (for worker process only, but safe to import anywhere)
+export { createBuildWorker } from './workers/build';
+export { createPreviewWorker } from './workers/previews';
+
+// Helpers
+export async function enqueueBuild(data: BuildJobData): Promise<void> {
+  const { buildQueue } = await import('./queues/build');
+  await buildQueue.add('process-build', data);
+}
+```
+
+### Usage Patterns
+
+**In API Routes** (enqueue jobs):
+
+```typescript
+import { buildQueue, enqueueBuild } from '@/lib/queue';
+
+// Enqueue a build job
+await enqueueBuild({
+  buildJobId: 'abc123',
+  projectId: 'proj-1',
+  sessionId: 'sess-1',
+  ticketsPath: 'tickets/2024-01-01.json',
+});
+```
+
+**In Worker Process** (process jobs):
+
+```typescript
+import { createBuildWorker, createPreviewWorker } from '@/lib/queue';
+
+// Explicit initialization - only in worker process
+const buildWorker = createBuildWorker();
+const previewWorker = createPreviewWorker();
+```
+
+### Benefits
+
+✅ **No accidental worker initialization** - Workers only run when explicitly called
+✅ **Safe barrel exports** - Can export factory functions without side effects
+✅ **Clear initialization** - Worker lifecycle is visible and controllable
+✅ **Better testing** - Can test worker logic without starting actual workers
+✅ **Explicit control** - Worker lifecycle is visible in `src/worker.ts`
+
+### Rules
+
+- ❌ **NEVER** create workers at module level with `export const worker = createWorker(...)`
+- ✅ **ALWAYS** use factory functions: `export function createWorker() { return createWorker(...); }`
+- ✅ **ALWAYS** call worker factories explicitly in `src/worker.ts`
+- ✅ **NEVER** call worker factories in API routes (only import queues)
+
 ## TypeScript and Type Safety Guidelines
 
 - Never use the `any` type - it defeats TypeScript's type checking
@@ -816,7 +974,6 @@ export const usedFunction = () => {}; // Keep
 2. **Domain Extension Types** - Only define in `lib/types/` when extending base types AND actively used
 3. **Infrastructure Types** - API utilities, errors, and configurations in `lib/api/`
 
-
 ### Type Naming Conventions
 
 - Base types: `User`, `UserSubscription`, `Task` (match schema exports)
@@ -825,7 +982,6 @@ export const usedFunction = () => {}; // Keep
 - List types: Infer from router output `RouterOutput['tasks']['list'][number]`
 - Input types: Infer from router input `RouterInput['tasks']['create']`
 - Statistics: `UserStats`, `BillingStats` (computed aggregations)
-
 
 ## Centralized Type Organization Rules - MANDATORY
 
@@ -872,7 +1028,6 @@ export interface AsyncOperationOptions {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
 }
-
 ```
 
 ### ❌ WRONG - Manual type definitions
@@ -952,7 +1107,6 @@ import { tasks } from '@/lib/db/schema'; // OK in database queries
 **This is an authentication-first application with minimal public pages.**
 
 **Sitemap** only includes legal pages in `app/sitemap.ts`.
-
 
 ## GitHub Actions Workflow Notifications - MANDATORY
 

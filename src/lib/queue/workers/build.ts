@@ -460,43 +460,45 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
 }
 
 /**
- * Build worker instance
+ * Create and initialize build worker
+ * Factory function - NO side effects until called
  */
-export const buildWorker = createWorker<BuildJobData>(QUEUE_NAMES.BUILD, processBuildJob, {
-  concurrency: 1, // One build at a time per worker
-});
+export function createBuildWorker() {
+  const worker = createWorker<BuildJobData>(QUEUE_NAMES.BUILD, processBuildJob, {
+    concurrency: 1, // One build at a time per worker
+  });
 
-/**
- * Queue events for monitoring
- */
-const buildEvents = createQueueEvents(QUEUE_NAMES.BUILD);
+  const events = createQueueEvents(QUEUE_NAMES.BUILD);
 
-buildEvents.on('completed', ({ jobId, returnvalue }) => {
-  console.log('\n' + '='.repeat(80));
-  console.log(`[WORKER] ✅ Job ${jobId} completed`);
-  if (returnvalue) {
-    const result = returnvalue as unknown as BuildJobResult;
-    console.log(`[WORKER]    Success: ${result.success}`);
-    console.log(`[WORKER]    Tasks: ${result.completedTasks}/${result.totalTasks}`);
-    console.log(`[WORKER]    Cost: $${result.totalCost?.toFixed(4) || '0.0000'}`);
-  }
+  events.on('completed', ({ jobId, returnvalue }) => {
+    console.log('\n' + '='.repeat(80));
+    console.log(`[WORKER] ✅ Job ${jobId} completed`);
+    if (returnvalue) {
+      const result = returnvalue as unknown as BuildJobResult;
+      console.log(`[WORKER]    Success: ${result.success}`);
+      console.log(`[WORKER]    Tasks: ${result.completedTasks}/${result.totalTasks}`);
+      console.log(`[WORKER]    Cost: $${result.totalCost?.toFixed(4) || '0.0000'}`);
+    }
+    console.log('='.repeat(80) + '\n');
+  });
+
+  events.on('failed', ({ jobId, failedReason }) => {
+    console.error('\n' + '='.repeat(80));
+    console.error(`[WORKER] ❌ Job ${jobId} failed`);
+    console.error(`[WORKER]    Reason: ${failedReason}`);
+    console.error('='.repeat(80) + '\n');
+  });
+
+  events.on('progress', ({ jobId, data }) => {
+    console.log(`[WORKER] 📊 Job ${jobId} progress:`, data);
+  });
+
+  console.log('='.repeat(80));
+  console.log('[WORKER] 🚀 Build Worker Initialized');
+  console.log('[WORKER]    Queue: ' + QUEUE_NAMES.BUILD);
+  console.log('[WORKER]    Concurrency: 1');
+  console.log('[WORKER]    Ready to process build jobs');
   console.log('='.repeat(80) + '\n');
-});
 
-buildEvents.on('failed', ({ jobId, failedReason }) => {
-  console.error('\n' + '='.repeat(80));
-  console.error(`[WORKER] ❌ Job ${jobId} failed`);
-  console.error(`[WORKER]    Reason: ${failedReason}`);
-  console.error('='.repeat(80) + '\n');
-});
-
-buildEvents.on('progress', ({ jobId, data }) => {
-  console.log(`[WORKER] 📊 Job ${jobId} progress:`, data);
-});
-
-console.log('='.repeat(80));
-console.log('[WORKER] 🚀 Build Worker Initialized');
-console.log('[WORKER]    Queue: ' + QUEUE_NAMES.BUILD);
-console.log('[WORKER]    Concurrency: 1');
-console.log('[WORKER]    Ready to process build jobs');
-console.log('='.repeat(80) + '\n');
+  return worker;
+}
