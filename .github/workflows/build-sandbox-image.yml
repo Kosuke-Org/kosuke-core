@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - fix-memory-issues
     paths:
       - 'sandbox/**'
       - '.github/workflows/build-sandbox-image.yml'
