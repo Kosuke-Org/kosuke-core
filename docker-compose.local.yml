@@ -21,7 +21,7 @@ services:
     networks:
       - kosuke_network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $POSTGRES_USER']
+      test: ['CMD-SHELL', 'pg_isready -U $POSTGRES_USER -d $POSTGRES_DB']
       interval: 3s
       timeout: 2s
       retries: 3

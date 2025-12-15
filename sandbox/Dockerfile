@@ -68,7 +68,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN uv --version
 
 # ============================================================
-# PLAYWRIGHT CHROMIUM (for kosuke test command)
+# PLAYWRIGHT CHROMIUM SYSTEM DEPENDENCIES (as root)
 # Optional: Set INSTALL_CHROMIUM=false to skip (saves ~500MB)
 # Usage: docker build --build-arg INSTALL_CHROMIUM=false .
 # ============================================================
@@ -76,9 +76,9 @@ RUN uv --version
 ARG INSTALL_CHROMIUM=true
 
 RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
-    echo "📦 Installing Chromium for browser automation..." && \
-    npx playwright@latest install chromium --with-deps && \
-    echo "✅ Chromium installed"; \
+    echo "📦 Installing Chromium system dependencies..." && \
+    npx playwright@latest install-deps chromium && \
+    echo "✅ System dependencies installed"; \
 else \
     echo "⏭️  Skipping Chromium installation"; \
 fi
@@ -167,6 +167,18 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 \
 # ============================================================
 
 USER kosuke
+
+# ============================================================
+# PLAYWRIGHT CHROMIUM BROWSERS (as kosuke user)
+# ============================================================
+
+RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
+    echo "📦 Installing Chromium browser..." && \
+    npx playwright@latest install chromium && \
+    echo "✅ Chromium installed for user kosuke"; \
+else \
+    echo "⏭️  Skipping Chromium browser installation"; \
+fi
 
 # ============================================================
 # ENTRYPOINT
