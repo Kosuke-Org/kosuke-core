@@ -68,6 +68,22 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN uv --version
 
 # ============================================================
+# PLAYWRIGHT CHROMIUM (for kosuke test command)
+# Optional: Set INSTALL_CHROMIUM=false to skip (saves ~500MB)
+# Usage: docker build --build-arg INSTALL_CHROMIUM=false .
+# ============================================================
+
+ARG INSTALL_CHROMIUM=true
+
+RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
+    echo "📦 Installing Chromium for browser automation..." && \
+    npx playwright@latest install chromium --with-deps && \
+    echo "✅ Chromium installed"; \
+else \
+    echo "⏭️  Skipping Chromium installation"; \
+fi
+
+# ============================================================
 # NON-ROOT USER
 # ============================================================
 

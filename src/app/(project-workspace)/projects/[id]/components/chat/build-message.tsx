@@ -157,7 +157,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
 
         {/* Task list */}
         {tasks.length > 0 && (
-          <div className="bg-background/50 rounded-md p-2.5 space-y-1.5 max-h-[400px] overflow-y-auto">
+          <div className="space-y-1.5">
             {tasks.map(task => (
               <div key={task.id} className="flex items-center gap-2 text-sm">
                 {getTaskIcon(task)}

@@ -34,9 +34,15 @@ export class SandboxClient {
    * List files in sandbox
    */
   async listFiles(): Promise<FileInfo[]> {
-    const response = await fetch(`${this.baseUrl}/files`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+    const response = await fetch(`${this.baseUrl}/api/files`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        cwd: '/app/project',
+      }),
     });
 
     if (!response.ok) {
