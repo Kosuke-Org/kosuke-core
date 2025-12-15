@@ -345,44 +345,53 @@ export class SandboxManager {
   }
 
   /**
-   * Restart a sandbox container and optionally pull latest code
+   * Update sandbox with latest code
+   *
+   * - Development mode: just pull (dev server has hot-reload)
+   * - Production mode: pull then restart (needs rebuild)
+   *
    * @param projectId - Project ID
    * @param sessionId - Session ID
-   * @param options - Optional: branch and githubToken to pull latest code after restart
+   * @param options - branch and githubToken to pull latest code
    */
-  async restartSandbox(
+  async updateSandbox(
     projectId: string,
     sessionId: string,
-    options?: { branch: string; githubToken: string }
+    options: { branch: string; githubToken: string }
   ): Promise<void> {
     const client = await this.ensureClient();
     const containerName = generateSandboxName(projectId, sessionId);
 
     try {
-      console.log(`🔄 Restarting sandbox ${containerName}...`);
-      await client.containerRestart(containerName, { timeout: 10 });
-      console.log(`✅ Sandbox ${containerName} restarted`);
+      // Get sandbox mode
+      const sandbox = await this.getSandboxInfo(containerName);
+      const isProduction = sandbox.mode === 'production';
 
-      // If token provided, wait for agent and pull latest code
-      if (options?.githubToken && options?.branch) {
-        console.log(`📥 Pulling latest code for branch ${options.branch}...`);
-        const agentReady = await this.waitForAgent(projectId, sessionId);
+      // Pull latest code
+      console.log(`📥 Pulling latest code for branch ${options.branch}...`);
+      const sandboxClient = new SandboxClient(projectId, sessionId);
+      const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
 
-        if (agentReady) {
-          const sandboxClient = new SandboxClient(projectId, sessionId);
-          const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
+      if (pullResult.success) {
+        console.log(
+          `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
+        );
+      } else {
+        console.warn(`⚠️ Pull failed: ${pullResult.error}`);
+        return;
+      }
 
-          if (pullResult.success) {
-            console.log(
-              `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
-            );
-          } else {
-            console.warn(`⚠️ Pull failed: ${pullResult.error}`);
-          }
-        }
+      // Production mode: restart to trigger rebuild
+      // Development mode: hot-reload picks up changes automatically
+      if (isProduction) {
+        console.log(`🔄 Restarting production sandbox ${containerName} for rebuild...`);
+        await client.containerRestart(containerName, { timeout: 10 });
+        console.log(`✅ Sandbox ${containerName} restarted`);
+      } else {
+        console.log(`✅ Development sandbox updated (hot-reload will pick up changes)`);
       }
     } catch (err) {
-      console.error(`Failed to restart sandbox ${containerName}:`, err);
+      console.error(`Failed to update sandbox ${containerName}:`, err);
       throw err;
     }
   }

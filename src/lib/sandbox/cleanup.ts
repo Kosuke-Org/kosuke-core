@@ -43,6 +43,13 @@ export async function cleanupInactiveSessions(thresholdMinutes: number) {
       // Check if sandbox exists before trying to stop
       const sandbox = await sandboxManager.getSandbox(session.projectId, session.sessionId);
       if (sandbox && sandbox.status === 'running') {
+        // Skip production sandboxes - they should keep running
+        if (sandbox.mode === 'production') {
+          console.log(`[CLEANUP] ⏭️ Skipping production sandbox ${session.sessionId}`);
+          skippedCount++;
+          continue;
+        }
+
         await sandboxManager.stopSandbox(session.projectId, session.sessionId);
         cleanedCount++;
         console.log(`[CLEANUP] 🛑 Stopped sandbox for session ${session.sessionId}`);

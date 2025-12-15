@@ -108,10 +108,12 @@ export class GitService {
       await this.git.remote(['set-url', 'origin', authUrl]);
 
       try {
-        // Fetch and reset
+        // Fetch the specific branch - result is stored in FETCH_HEAD
         console.log(`📥 Fetching ${branch} from remote...`);
         await this.git.fetch('origin', branch);
-        await this.git.reset(['--hard', `origin/${branch}`]);
+
+        // Reset to FETCH_HEAD (where fetch stores the result)
+        await this.git.reset(['--hard', 'FETCH_HEAD']);
       } finally {
         // Always restore original URL (without token)
         await this.git.remote(['set-url', 'origin', originalUrl]);
