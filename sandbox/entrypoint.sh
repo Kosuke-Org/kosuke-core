@@ -121,12 +121,14 @@ else
 fi
 
 # ============================================================
-# STEP 4: LOAD CHROMIUM PATH (defined in ~/.bashrc)
+# STEP 4: DETECT CHROMIUM PATH (for Playwright MCP)
 # ============================================================
 
-source ~/.bashrc
-if [ -n "$PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" ]; then
-    echo "🎭 Chromium: $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+    export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux/chrome 2>/dev/null | grep -v headless_shell | head -1)
+    if [ -n "$PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" ]; then
+        echo "🎭 Chromium: $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+    fi
 fi
 
 # ============================================================
