@@ -20,7 +20,7 @@ export function useChatSessions(projectId: string) {
       const data: ChatSessionListResponse = await response.json();
       return data.sessions;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds
     retry: 2,
   });
 }
@@ -127,8 +127,9 @@ export function useDeleteChatSession(projectId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (sessionId: string) => {
-      const response = await fetch(`/api/projects/${projectId}/chat-sessions/${sessionId}`, {
+    mutationFn: async (chatSessionId: string) => {
+      // chatSessionId here is the UUID id used for API routing
+      const response = await fetch(`/api/projects/${projectId}/chat-sessions/${chatSessionId}`, {
         method: 'DELETE',
       });
 

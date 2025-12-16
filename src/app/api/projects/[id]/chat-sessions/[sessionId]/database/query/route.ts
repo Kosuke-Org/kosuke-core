@@ -40,7 +40,7 @@ export async function POST(
       return ApiErrorHandler.badRequest('Only SELECT queries are allowed for security reasons');
     }
 
-    const result = await executeQuery(projectId, sessionId, query);
+    const result = await executeQuery(sessionId, query);
 
     return NextResponse.json(result);
   } catch (error) {

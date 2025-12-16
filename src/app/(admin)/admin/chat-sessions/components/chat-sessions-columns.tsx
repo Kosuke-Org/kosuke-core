@@ -1,6 +1,7 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
+import { formatDistanceToNow } from 'date-fns';
 import {
   Calendar,
   Eye,
@@ -11,7 +12,6 @@ import {
   Trash,
   User,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ export interface AdminChatSession {
   userId: string | null;
   title: string;
   description: string | null;
-  sessionId: string;
+  branchName: string;
   remoteId: string | null;
   status: string | null;
   createdAt: Date;

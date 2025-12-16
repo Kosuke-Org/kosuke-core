@@ -4,10 +4,10 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { verifyProjectAccess } from '@/lib/projects';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
 import type { PreviewHealthResponse } from '@/lib/types';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 /**
  * Check if the preview service is responding via HTTP
@@ -56,11 +56,8 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Look up the session
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    // Look up the session by ID or branchName
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -74,7 +71,7 @@ export async function GET(
 
     // Check if sandbox container exists
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (!sandbox) {
       const response: PreviewHealthResponse = {

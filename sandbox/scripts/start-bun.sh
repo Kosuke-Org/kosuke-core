@@ -27,21 +27,12 @@ if [ ! -f "package.json" ]; then
 fi
 
 # ============================================================
-# INSTALL DEPENDENCIES (if not already done)
+# INSTALL DEPENDENCIES
 # ============================================================
 
-DEPS_MARKER=".kosuke-deps-installed"
-
-if [ ! -f "$DEPS_MARKER" ]; then
-    echo "📦 Installing Bun dependencies..."
-
-    bun install --frozen-lockfile
-    echo "✅ Dependencies installed"
-
-    touch "$DEPS_MARKER"
-else
-    echo "✅ Dependencies already installed"
-fi
+echo "📦 Installing Bun dependencies..."
+bun install --frozen-lockfile
+echo "✅ Dependencies installed"
 
 # ============================================================
 # START SERVER

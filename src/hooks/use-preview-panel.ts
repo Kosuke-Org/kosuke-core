@@ -118,7 +118,7 @@ export function usePreviewPanel({
             `[Preview Panel] Health check attempt ${attempts}/${maxAttempts} failed (non-200), retrying in 3s`
           );
           // Use longer delays for more patient polling
-          const delay = attempts <= 3 ? 5000 : 3000; // 5s for first 3 attempts, then 3s
+          const delay = attempts <= 3 ? 2000 : 1000; // 2s for first 3 attempts, then 1s
           pollingTimeoutRef.current = setTimeout(poll, delay);
         }
       };

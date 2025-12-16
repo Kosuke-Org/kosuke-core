@@ -5,9 +5,9 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
 import { getGitHubToken } from '@/lib/github/client';
-import { verifyProjectAccess } from '@/lib/projects';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/preview
@@ -33,11 +33,8 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Look up the session
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    // Look up the session by ID or branchName
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -52,7 +49,7 @@ export async function GET(
     const sandboxManager = getSandboxManager();
 
     // Check if sandbox already exists
-    const existingSandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const existingSandbox = await sandboxManager.getSandbox(session.id);
 
     if (existingSandbox && existingSandbox.status === 'running') {
       // Sandbox is running - return URL, frontend will poll health endpoint
@@ -60,7 +57,7 @@ export async function GET(
         success: true,
         previewUrl: existingSandbox.url,
         projectId,
-        sessionId,
+        sessionId: session.id,
       });
     }
 
@@ -83,17 +80,12 @@ export async function GET(
       project.githubRepoUrl ||
       `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
 
-    // Build branch name: main session uses default branch, chat sessions use session branch
-    const branch = isMainSession
-      ? project.githubBranch || 'main'
-      : `${process.env.SESSION_BRANCH_PREFIX || 'kosuke/chat-'}${sessionId}`;
-
     // Create/start sandbox (database is created by the manager)
     const sandboxInfo = await sandboxManager.createSandbox({
       projectId,
-      sessionId,
+      sessionId: session.id,
+      branchName: session.branchName,
       repoUrl,
-      branch,
       githubToken,
       mode,
     });
@@ -102,7 +94,7 @@ export async function GET(
       success: true,
       previewUrl: sandboxInfo.url,
       projectId,
-      sessionId,
+      sessionId: session.id,
     });
   } catch (error: unknown) {
     console.error('Error in preview GET:', error);

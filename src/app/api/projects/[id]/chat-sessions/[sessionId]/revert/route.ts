@@ -1,9 +1,9 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { chatMessages, chatSessions } from '@/lib/db/schema';
+import { chatMessages } from '@/lib/db/schema';
 import { getGitHubToken } from '@/lib/github/client';
-import { verifyProjectAccess } from '@/lib/projects';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { SandboxClient } from '@/lib/sandbox/client';
 import type { RevertToMessageRequest } from '@/lib/types/chat';
 import { and, eq } from 'drizzle-orm';
@@ -15,23 +15,12 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 async function createSystemMessage(
   projectId: string,
-  sessionId: string,
+  chatSessionId: string,
   userId: string,
   content: string,
   metadata?: Record<string, unknown>
 ): Promise<string> {
-  console.log(`💬 Creating system message for session ${sessionId}`);
-
-  // Look up session integer ID from string session ID
-  const [session] = await db
-    .select({ id: chatSessions.id })
-    .from(chatSessions)
-    .where(eq(chatSessions.sessionId, sessionId))
-    .limit(1);
-
-  if (!session) {
-    throw new Error(`Chat session not found: ${sessionId}`);
-  }
+  console.log(`💬 Creating system message for session ${chatSessionId}`);
 
   // Create system message in database
   const [savedMessage] = await db
@@ -42,7 +31,7 @@ async function createSystemMessage(
       content,
       role: 'system',
       modelType: 'system',
-      chatSessionId: session.id,
+      chatSessionId,
       metadata: metadata || null,
     })
     .returning();
@@ -78,12 +67,8 @@ export async function POST(
       return ApiErrorHandler.projectNotFound();
     }
 
-    // Get session info
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)))
-      .limit(1);
+    // Get session info by ID or branchName
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.notFound('Chat session not found');
@@ -107,7 +92,7 @@ export async function POST(
     }
 
     console.log(
-      `🔄 Reverting project ${projectId} session ${session.sessionId} to commit ${message.commitSha.substring(0, 8)}`
+      `🔄 Reverting project ${projectId} session ${session.branchName} to commit ${message.commitSha.substring(0, 8)}`
     );
 
     // Get GitHub token based on project ownership (required for pushing to remote)
@@ -117,8 +102,8 @@ export async function POST(
       return ApiErrorHandler.badRequest('GitHub not connected');
     }
 
-    // Perform git revert operation via sandbox
-    const sandboxClient = new SandboxClient(projectId, sessionId);
+    // Perform git revert operation via sandbox - use session.id (UUID) for sandbox identification
+    const sandboxClient = new SandboxClient(session.id);
     const result = await sandboxClient.revert(message.commitSha, githubToken);
 
     if (!result.success) {
@@ -137,7 +122,7 @@ export async function POST(
     try {
       await createSystemMessage(
         projectId,
-        session.sessionId,
+        session.id,
         userId,
         'Project restored to the state when this assistant message was created',
         {
@@ -148,7 +133,7 @@ export async function POST(
           },
         }
       );
-      console.log(`✅ Sent revert system message for session ${session.sessionId}`);
+      console.log(`✅ Sent revert system message for session ${session.branchName}`);
     } catch (systemMessageError) {
       console.warn('Failed to create revert system message:', systemMessageError);
       // Don't fail the revert operation if system message fails

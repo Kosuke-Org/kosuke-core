@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
-import { ilike, eq, and, or, gte, lte, desc, asc, count } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * GET /api/admin/chat-sessions
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         or(
           ilike(chatSessions.title, `%${search}%`),
           ilike(chatSessions.description, `%${search}%`),
-          ilike(chatSessions.sessionId, `%${search}%`)
+          ilike(chatSessions.branchName, `%${search}%`)
         )
       );
     }
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         userId: chatSessions.userId,
         title: chatSessions.title,
         description: chatSessions.description,
-        sessionId: chatSessions.sessionId,
+        branchName: chatSessions.branchName,
         remoteId: chatSessions.remoteId,
         status: chatSessions.status,
         createdAt: chatSessions.createdAt,

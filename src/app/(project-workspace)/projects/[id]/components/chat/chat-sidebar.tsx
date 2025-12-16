@@ -1,14 +1,22 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Filter, Plus } from 'lucide-react';
 
 import { useChatSidebar } from '@/hooks/use-chat-sidebar';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+import type { ChatSessionStatus } from '@/lib/types/chat-sessions';
 import { cn } from '@/lib/utils';
-import { ChatArchivedSection } from './chat-archived-section';
 import { ChatSessionItem } from './chat-session-item';
 import { NewChatDialog } from './new-chat-dialog';
 import { RenameSessionDialog } from './rename-session-dialog';
@@ -20,6 +28,12 @@ interface ChatSidebarProps {
   className?: string;
 }
 
+const STATUS_OPTIONS: { value: ChatSessionStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'completed', label: 'Completed' },
+];
+
 export default function ChatSidebar({
   projectId,
   activeChatSessionId,
@@ -28,26 +42,22 @@ export default function ChatSidebar({
 }: ChatSidebarProps) {
   const {
     // State
-    activeSessions,
-    archivedSessions,
+    filteredSessions,
+    statusFilter,
     isNewChatModalOpen,
     editingSession,
     newChatTitle,
-    showArchived,
 
     // Actions
     setIsNewChatModalOpen,
     setEditingSession,
     setNewChatTitle,
-    setShowArchived,
+    setStatusFilter,
     handleCreateChat,
     handleUpdateSession,
     handleDeleteSession,
     handleDuplicateSession,
     handleViewGitHubBranch,
-
-    // Utilities
-    formatRelativeTime,
 
     // Loading states
     isCreating,
@@ -56,57 +66,81 @@ export default function ChatSidebar({
     onChatSessionChange,
   });
 
+  const handleStatusToggle = (status: ChatSessionStatus) => {
+    if (statusFilter.includes(status)) {
+      // Don't allow removing the last filter
+      if (statusFilter.length > 1) {
+        setStatusFilter(statusFilter.filter(s => s !== status));
+      }
+    } else {
+      setStatusFilter([...statusFilter, status]);
+    }
+  };
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Project Header */}
+      {/* Header with New Chat button and Filter */}
       <div className="p-4">
-        <Button
-          onClick={() => setIsNewChatModalOpen(true)}
-          className="w-full"
-          size="sm"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Chat
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsNewChatModalOpen(true)} className="flex-1" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Chat
+          </Button>
+
+          {/* Status Filter Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className={cn('h-8 w-8', statusFilter.length < 3 && 'text-primary')}
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Filter by status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {STATUS_OPTIONS.map(option => (
+                <DropdownMenuCheckboxItem
+                  key={option.value}
+                  checked={statusFilter.includes(option.value)}
+                  onCheckedChange={() => handleStatusToggle(option.value)}
+                >
+                  {option.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Chat Sessions List */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-2">
-          {/* Active Sessions */}
-          {activeSessions.map((session) => (
-            <ChatSessionItem
-              key={session.id}
-              session={session}
-              isActive={activeChatSessionId === session.id}
-              variant="active"
-              onClick={() => onChatSessionChange(session.id)}
-              onRename={setEditingSession}
-              onDuplicate={handleDuplicateSession}
-              onViewBranch={handleViewGitHubBranch}
-              onToggleArchive={(s) =>
-                handleUpdateSession(s, {
-                  status: s.status === 'archived' ? 'active' : 'archived',
-                })
-              }
-              onDelete={handleDeleteSession}
-              formatRelativeTime={formatRelativeTime}
-            />
-          ))}
-
-          <ChatArchivedSection
-            archivedSessions={archivedSessions}
-            showArchived={showArchived}
-            setShowArchived={setShowArchived}
-            activeChatSessionId={activeChatSessionId}
-            onChatSessionChange={onChatSessionChange}
-            onRename={setEditingSession}
-            onDuplicate={handleDuplicateSession}
-            onViewBranch={handleViewGitHubBranch}
-            onUnarchive={(s) => handleUpdateSession(s, { status: 'active' })}
-            onDelete={handleDeleteSession}
-            formatRelativeTime={formatRelativeTime}
-          />
+          {filteredSessions.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8">
+              No sessions match the selected filters
+            </div>
+          ) : (
+            filteredSessions.map(session => (
+              <ChatSessionItem
+                key={session.id}
+                session={session}
+                isActive={activeChatSessionId === session.id}
+                onClick={() => onChatSessionChange(session.id)}
+                onRename={setEditingSession}
+                onDuplicate={handleDuplicateSession}
+                onViewBranch={handleViewGitHubBranch}
+                onToggleArchive={s =>
+                  handleUpdateSession(s, {
+                    status: s.status === 'archived' ? 'active' : 'archived',
+                  })
+                }
+                onDelete={handleDeleteSession}
+              />
+            ))
+          )}
         </div>
       </ScrollArea>
 
@@ -121,7 +155,7 @@ export default function ChatSidebar({
 
       <RenameSessionDialog
         session={editingSession}
-        onOpenChange={(open) => !open && setEditingSession(null)}
+        onOpenChange={open => !open && setEditingSession(null)}
         onRename={(session, title) => handleUpdateSession(session, { title })}
       />
     </div>

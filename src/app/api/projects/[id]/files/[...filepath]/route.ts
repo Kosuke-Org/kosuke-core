@@ -54,7 +54,7 @@ export async function GET(
 
     // Check if sandbox is running
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, mainSession.sessionId);
+    const sandbox = await sandboxManager.getSandbox(mainSession.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
@@ -70,7 +70,7 @@ export async function GET(
     const filePath = path.join(...filepath);
 
     // Get file from sandbox
-    const client = new SandboxClient(projectId, mainSession.sessionId);
+    const client = new SandboxClient(mainSession.id);
 
     try {
       const fileContent = await client.readFile(filePath);
