@@ -127,7 +127,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               {isActive ? (
                 <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
               ) : hasFailed ? (
