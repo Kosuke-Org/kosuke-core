@@ -106,6 +106,7 @@ export default function ChatSidebar({
                   key={option.value}
                   checked={statusFilter.includes(option.value)}
                   onCheckedChange={() => handleStatusToggle(option.value)}
+                  onSelect={e => e.preventDefault()}
                 >
                   {option.label}
                 </DropdownMenuCheckboxItem>
