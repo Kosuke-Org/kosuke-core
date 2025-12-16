@@ -99,7 +99,6 @@ export function ChatSessionItem({
   onDelete,
 }: ChatSessionItemProps) {
   const statusBadge = getStatusBadgeProps(session.status);
-  const isMerged = !!session.branchMergedAt;
   const isArchived = session.status === 'archived';
   const isCompleted = session.status === 'completed';
 
@@ -154,7 +153,6 @@ export function ChatSessionItem({
               size="sm"
               className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 absolute top-2 right-2"
               onClick={e => e.stopPropagation()}
-              style={{ top: isMerged ? '32px' : '8px' }}
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
