@@ -116,6 +116,7 @@ export interface ChatInterfaceProps {
   activeChatSessionId?: string | null;
   currentBranch?: string;
   sessionId?: string; // Session ID for fetching session-specific messages
+  model?: string; // AI model name from server config
 }
 
 // Content Block Types (for streaming UI state)

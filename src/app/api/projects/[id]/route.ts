@@ -39,7 +39,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiErrorHandler.projectNotFound();
     }
 
-    return ApiResponseHandler.success(project);
+    return ApiResponseHandler.success(project, {
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+    });
   } catch (error) {
     return ApiErrorHandler.handle(error);
   }

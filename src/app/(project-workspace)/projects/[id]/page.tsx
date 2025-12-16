@@ -286,6 +286,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   activeChatSessionId={activeChatSessionId}
                   currentBranch={currentBranch}
                   sessionId={sessionId}
+                  model={project?.model}
                 />
               </div>
             )}

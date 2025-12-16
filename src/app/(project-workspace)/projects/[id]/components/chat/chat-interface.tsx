@@ -27,6 +27,7 @@ export default function ChatInterface({
   activeChatSessionId,
   currentBranch,
   sessionId,
+  model,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -198,7 +199,11 @@ export default function ChatInterface({
 
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
-      <ModelBanner currentBranch={currentBranch} chatSessionId={activeChatSessionId} />
+      <ModelBanner
+        currentBranch={currentBranch}
+        chatSessionId={activeChatSessionId}
+        model={model}
+      />
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
