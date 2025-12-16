@@ -96,6 +96,7 @@ export async function GET(
         estimatedEffort: t.estimatedEffort,
         status: t.status,
         error: t.error,
+        cost: t.cost,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       })),

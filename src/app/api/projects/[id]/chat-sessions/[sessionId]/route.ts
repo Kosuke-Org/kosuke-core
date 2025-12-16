@@ -624,7 +624,10 @@ export async function POST(
                 .from(chatMessages)
                 .where(eq(chatMessages.id, assistantMessage.id));
 
-              const currentMetadata = (currentMessage?.metadata as Record<string, unknown>) || {};
+              const currentMetadata =
+                typeof currentMessage?.metadata === 'object' && currentMessage?.metadata !== null
+                  ? (currentMessage.metadata as Record<string, unknown>)
+                  : {};
 
               await db
                 .update(chatMessages)

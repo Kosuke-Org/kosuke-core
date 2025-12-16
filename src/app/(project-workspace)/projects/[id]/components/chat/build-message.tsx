@@ -1,5 +1,6 @@
 'use client';
 
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { Circle, CircleCheck, CircleX, Loader2 } from 'lucide-react';
@@ -51,7 +52,7 @@ interface BuildJobResponse {
  */
 export function BuildMessage({ buildJobId, projectId, sessionId, className }: BuildMessageProps) {
   // Fetch build status with polling while active
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['build-job', buildJobId],
     queryFn: async (): Promise<BuildJobResponse> => {
       const response = await fetch(
@@ -78,11 +79,44 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
 
   const isActive = buildJob?.status === 'pending' || buildJob?.status === 'running';
 
+  // Error state
+  if (error) {
+    return (
+      <div className={cn('w-full', className)}>
+        <div className="text-sm text-destructive">Failed to load build status</div>
+      </div>
+    );
+  }
+
   // Loading state
   if (isLoading || !buildJob || !progress) {
     return (
       <div className={cn('w-full', className)}>
-        <div className="text-sm text-muted-foreground">Loading build status...</div>
+        <div className="bg-muted/30 border border-border/50 rounded-md p-4 space-y-3">
+          {/* Header skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+            <Skeleton className="h-3 w-16" />
+          </div>
+          {/* Task skeletons */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-56" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
