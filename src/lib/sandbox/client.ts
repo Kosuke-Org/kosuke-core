@@ -3,6 +3,7 @@
  * HTTP client for communicating with sandbox containers
  */
 
+import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
 import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
 
@@ -185,6 +186,11 @@ export class SandboxClient {
       resume?: string;
     }
   ): AsyncGenerator<Record<string, unknown>> {
+    const config = getSandboxConfig();
+
+    // Use env var config if noTest not explicitly provided
+    const noTest = options?.noTest ?? !config.planTest;
+
     const response = await fetch(`${this.baseUrl}/api/plan`, {
       method: 'POST',
       headers: {
@@ -194,7 +200,7 @@ export class SandboxClient {
       body: JSON.stringify({
         query,
         cwd,
-        noTest: options?.noTest,
+        noTest,
         resume: options?.resume,
       }),
     });

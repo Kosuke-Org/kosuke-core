@@ -24,6 +24,8 @@ interface SandboxConfig {
   pidsLimit: number;
   /** Agent port inside container */
   agentPort: number;
+  /** Whether to generate test tickets in plan phase */
+  planTest: boolean;
 }
 
 let sandboxConfig: SandboxConfig | null = null;
@@ -44,6 +46,7 @@ export function getSandboxConfig(): SandboxConfig {
       cpuShares: parseInt(process.env.SANDBOX_CPU_SHARES!, 10),
       pidsLimit: parseInt(process.env.SANDBOX_PIDS_LIMIT!, 10),
       agentPort: parseInt(process.env.SANDBOX_AGENT_PORT!, 10),
+      planTest: process.env.SANDBOX_PLAN_TEST === 'true',
     };
   }
   return sandboxConfig;
