@@ -10,6 +10,8 @@
 import { and, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
+import * as Sentry from '@sentry/nextjs';
+
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
 import { getGitHubToken } from '@/lib/github/client';
@@ -188,6 +190,23 @@ async function handlePullRequestEvent(
       if (!existingSession) {
         console.log(`ℹ️ No session found for branch ${branchName}, nothing to update`);
         return { success: true, message: 'No session found' };
+      }
+
+      // Destroy sandbox when PR is closed (free up resources)
+      try {
+        console.log(
+          `Destroying sandbox for closed PR session ${existingSession.id} in project ${projectId}`
+        );
+        const sandboxManager = getSandboxManager();
+        await sandboxManager.destroySandbox(existingSession.id);
+        console.log(`✅ Sandbox destroyed for session ${existingSession.id}`);
+      } catch (containerError) {
+        Sentry.captureException(containerError);
+        // Log but continue - we still want to update the session even if container cleanup fails
+        console.error(
+          `Error destroying sandbox for session ${existingSession.id}:`,
+          containerError
+        );
       }
 
       if (pr.merged) {

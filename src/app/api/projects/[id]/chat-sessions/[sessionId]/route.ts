@@ -216,6 +216,23 @@ export async function PUT(
       }
     }
 
+    // Destroy sandbox when archiving (free up resources)
+    if (updateData.status === 'archived' && session.status !== 'archived') {
+      try {
+        console.log(
+          `Destroying sandbox for archived session ${session.id} in project ${projectId}`
+        );
+        const sandboxManager = getSandboxManager();
+        await sandboxManager.destroySandbox(session.id);
+        console.log(`Sandbox destroyed successfully for session ${session.id}`);
+      } catch (containerError) {
+        Sentry.captureException(containerError);
+        // Log but continue - we still want to archive the session even if container cleanup fails
+        console.error(`Error destroying sandbox for session ${session.id}:`, containerError);
+        console.log(`Continuing with session archival despite container cleanup failure`);
+      }
+    }
+
     // Update chat session
     const [updatedSession] = await db
       .update(chatSessions)
