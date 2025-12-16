@@ -162,14 +162,19 @@ RUN mkdir -p /app/project /app/agent /app/scripts /var/log/supervisor && \
 # Build argument to control installation mode
 ARG KOSUKE_CLI_MODE=production
 
-# Setup based on mode
-RUN if [ "$KOSUKE_CLI_MODE" = "production" ]; then \
-    echo "📦 Installing @kosuke-org/cli from npm..." && \
-    npm install -g @kosuke-org/cli && \
-    kosuke --version; \
-else \
-    echo "💡 Local mode: kosuke-cli will be mounted at runtime"; \
-fi
+# Setup based on mode (uses BuildKit secret for npm token)
+RUN --mount=type=secret,id=npm_token \
+    if [ "$KOSUKE_CLI_MODE" = "production" ]; then \
+        echo "📦 Installing @kosuke-org/cli from GitHub Packages..." && \
+        npm config set @Kosuke-Org:registry https://npm.pkg.github.com && \
+        if [ -f /run/secrets/npm_token ]; then \
+            npm config set //npm.pkg.github.com/:_authToken $(cat /run/secrets/npm_token); \
+        fi && \
+        npm install -g @Kosuke-Org/cli && \
+        which kosuke && echo "✅ kosuke-cli installed"; \
+    else \
+        echo "💡 Local mode: kosuke-cli will be mounted at runtime"; \
+    fi
 
 # ============================================================
 # CONFIGURATION FILES

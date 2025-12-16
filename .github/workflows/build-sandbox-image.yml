@@ -57,6 +57,8 @@ jobs:
           build-args: |
             KOSUKE_CLI_MODE=production
             INSTALL_CHROMIUM=false
+          secrets: |
+            npm_token=${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Slack - Success
         if: success()
