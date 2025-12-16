@@ -166,7 +166,10 @@ export function ChatSessionItem({
               <Copy className="h-4 w-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewBranch(session)}>
+            <DropdownMenuItem
+              onClick={() => onViewBranch(session)}
+              disabled={!session.pullRequestNumber}
+            >
               <ExternalLink className="h-4 w-4 mr-2" />
               View on GitHub
             </DropdownMenuItem>

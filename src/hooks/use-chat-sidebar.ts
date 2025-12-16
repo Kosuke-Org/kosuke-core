@@ -6,6 +6,7 @@ import {
   useDeleteChatSession,
   useUpdateChatSession,
 } from '@/hooks/use-chat-sessions';
+import { useProject } from '@/hooks/use-projects';
 import type {
   ChatSession,
   ChatSessionStatus,
@@ -24,6 +25,7 @@ export function useChatSidebar({
   const [statusFilter, setStatusFilter] = useState<ChatSessionStatus[]>(['active']);
 
   // Hooks
+  const { data: project } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
   const createChatSession = useCreateChatSession(projectId);
   const updateChatSession = useUpdateChatSession(projectId);
@@ -127,12 +129,19 @@ export function useChatSidebar({
     [createChatSession]
   );
 
-  // Handle view GitHub branch
-  const handleViewGitHubBranch = useCallback((session: ChatSession) => {
-    // Placeholder implementation using sessionId as branch name
-    const githubUrl = `https://github.com/owner/repo/tree/${encodeURIComponent(session.branchName)}`;
-    window.open(githubUrl, '_blank');
-  }, []);
+  // Handle view GitHub pull request
+  const handleViewGitHubBranch = useCallback(
+    (session: ChatSession) => {
+      if (!project?.githubOwner || !project?.githubRepoName || !session.pullRequestNumber) {
+        console.warn('[Chat Sidebar] Cannot open PR: missing project GitHub info or PR number');
+        return;
+      }
+
+      const githubUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}/pull/${session.pullRequestNumber}`;
+      window.open(githubUrl, '_blank');
+    },
+    [project?.githubOwner, project?.githubRepoName]
+  );
 
   return {
     // State
