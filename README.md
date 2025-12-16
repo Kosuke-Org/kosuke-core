@@ -118,6 +118,17 @@ just migrate
 
 The `sandbox/` directory contains the infrastructure for preview environments and isolated development sandboxes:
 
+### Building the Sandbox Image
+
+For local development, build the sandbox Docker image:
+
+```bash
+# Build the local sandbox image
+just build-sandbox
+```
+
+This builds `kosuke-sandbox-local:latest`. The `.env.local` file is pre-configured to use this image via `SANDBOX_IMAGE=kosuke-sandbox-local:latest`.
+
 ### Kosuke CLI Development
 
 To work with **kosuke-cli** locally alongside kosuke-core with hot-reload:
