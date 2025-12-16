@@ -21,8 +21,10 @@ CREATE TABLE "tasks" (
 	"type" varchar(50),
 	"category" varchar(50),
 	"estimated_effort" integer DEFAULT 1 NOT NULL,
+	"order" integer NOT NULL,
 	"status" "task_status" DEFAULT 'todo' NOT NULL,
 	"error" text,
+	"cost" real DEFAULT 0,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );

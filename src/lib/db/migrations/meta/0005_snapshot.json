@@ -1,5 +1,5 @@
 {
-  "id": "7254dfbf-c09c-404d-bb81-e8097ed98edd",
+  "id": "02efc040-f487-410d-ac80-03b4b1ccc579",
   "prevId": "f201db6c-f67a-4a20-a1cf-c0de95393f30",
   "version": "7",
   "dialect": "postgresql",
@@ -72,8 +72,12 @@
           "name": "attachments_project_id_projects_id_fk",
           "tableFrom": "attachments",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -185,8 +189,12 @@
           "name": "build_jobs_chat_session_id_chat_sessions_id_fk",
           "tableFrom": "build_jobs",
           "tableTo": "chat_sessions",
-          "columnsFrom": ["chat_session_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -194,8 +202,12 @@
           "name": "build_jobs_project_id_projects_id_fk",
           "tableFrom": "build_jobs",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -303,8 +315,12 @@
           "name": "chat_messages_project_id_projects_id_fk",
           "tableFrom": "chat_messages",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -312,8 +328,12 @@
           "name": "chat_messages_chat_session_id_chat_sessions_id_fk",
           "tableFrom": "chat_messages",
           "tableTo": "chat_sessions",
-          "columnsFrom": ["chat_session_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -454,8 +474,12 @@
           "name": "chat_sessions_project_id_projects_id_fk",
           "tableFrom": "chat_sessions",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -465,7 +489,10 @@
         "chat_sessions_project_session_unique": {
           "name": "chat_sessions_project_session_unique",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "session_id"]
+          "columns": [
+            "project_id",
+            "session_id"
+          ]
         }
       },
       "policies": {},
@@ -534,8 +561,12 @@
           "name": "diffs_project_id_projects_id_fk",
           "tableFrom": "diffs",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -543,8 +574,12 @@
           "name": "diffs_chat_message_id_chat_messages_id_fk",
           "tableFrom": "diffs",
           "tableTo": "chat_messages",
-          "columnsFrom": ["chat_message_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -617,8 +652,12 @@
           "name": "github_sync_sessions_project_id_projects_id_fk",
           "tableFrom": "github_sync_sessions",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -666,8 +705,12 @@
           "name": "message_attachments_message_id_chat_messages_id_fk",
           "tableFrom": "message_attachments",
           "tableTo": "chat_messages",
-          "columnsFrom": ["message_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -675,8 +718,12 @@
           "name": "message_attachments_attachment_id_attachments_id_fk",
           "tableFrom": "message_attachments",
           "tableTo": "attachments",
-          "columnsFrom": ["attachment_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "attachment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -743,8 +790,12 @@
           "name": "project_commits_project_id_projects_id_fk",
           "tableFrom": "project_commits",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -818,8 +869,12 @@
           "name": "project_environment_variables_project_id_projects_id_fk",
           "tableFrom": "project_environment_variables",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -829,7 +884,10 @@
         "project_env_vars_unique_key": {
           "name": "project_env_vars_unique_key",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "key"]
+          "columns": [
+            "project_id",
+            "key"
+          ]
         }
       },
       "policies": {},
@@ -900,8 +958,12 @@
           "name": "project_integrations_project_id_projects_id_fk",
           "tableFrom": "project_integrations",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -911,7 +973,11 @@
         "project_integrations_unique_key": {
           "name": "project_integrations_unique_key",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "integration_type", "integration_name"]
+          "columns": [
+            "project_id",
+            "integration_type",
+            "integration_name"
+          ]
         }
       },
       "policies": {},
@@ -1095,6 +1161,12 @@
           "notNull": true,
           "default": 1
         },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
           "type": "task_status",
@@ -1108,6 +1180,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "cost": {
+          "name": "cost",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -1176,8 +1255,12 @@
           "name": "tasks_build_job_id_build_jobs_id_fk",
           "tableFrom": "tasks",
           "tableTo": "build_jobs",
-          "columnsFrom": ["build_job_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "build_job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1193,17 +1276,30 @@
     "public.build_status": {
       "name": "build_status",
       "schema": "public",
-      "values": ["pending", "running", "completed", "failed"]
+      "values": [
+        "pending",
+        "running",
+        "completed",
+        "failed"
+      ]
     },
     "public.file_type": {
       "name": "file_type",
       "schema": "public",
-      "values": ["image", "document"]
+      "values": [
+        "image",
+        "document"
+      ]
     },
     "public.task_status": {
       "name": "task_status",
       "schema": "public",
-      "values": ["todo", "in_progress", "done", "error"]
+      "values": [
+        "todo",
+        "in_progress",
+        "done",
+        "error"
+      ]
     }
   },
   "schemas": {},

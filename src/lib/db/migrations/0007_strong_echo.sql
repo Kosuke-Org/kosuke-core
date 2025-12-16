@@ -1,1 +1,0 @@
-ALTER TABLE "tasks" ADD COLUMN "cost" real DEFAULT 0;
