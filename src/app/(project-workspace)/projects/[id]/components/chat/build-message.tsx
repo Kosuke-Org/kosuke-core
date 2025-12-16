@@ -1,6 +1,7 @@
 'use client';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import type { BuildJobResponse, BuildTask } from '@/lib/types/chat';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { Circle, CircleCheck, CircleX, Loader2 } from 'lucide-react';
@@ -10,40 +11,6 @@ interface BuildMessageProps {
   projectId: string;
   sessionId: string;
   className?: string;
-}
-
-interface Task {
-  id: string;
-  taskId: string;
-  title: string;
-  description: string;
-  type: string | null;
-  category: string | null;
-  estimatedEffort: number;
-  status: 'todo' | 'in_progress' | 'done' | 'error';
-  error: string | null;
-  cost: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface BuildJobResponse {
-  buildJob: {
-    id: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
-    totalCost: number;
-    createdAt: string;
-    startedAt: string | null;
-    completedAt: string | null;
-    bullJobId: string | null;
-  };
-  progress: {
-    totalTasks: number;
-    completedTasks: number;
-    failedTasks: number;
-    inProgressTasks: number;
-  };
-  tasks: Task[];
 }
 
 /**
@@ -130,7 +97,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
       : 0;
 
   // Get task status icon
-  const getTaskIcon = (task: Task) => {
+  const getTaskIcon = (task: BuildTask) => {
     if (task.status === 'done') {
       return <CircleCheck className="h-4 w-4 text-green-500 fill-green-500/10 shrink-0" />;
     }

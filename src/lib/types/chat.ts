@@ -165,7 +165,7 @@ export interface Attachment {
 export interface StreamingEvent {
   // Event types from kosuke-cli
   type: // Plan phase events
-  | 'tool_call'
+    | 'tool_call'
     | 'message'
     | 'done'
     // Build phase events
@@ -197,4 +197,39 @@ export interface RevertToMessageResponse {
   success: boolean;
   reverted_to_commit: string;
   message: string;
+}
+
+// Build Job Types
+export interface BuildTask {
+  id: string;
+  taskId: string;
+  title: string;
+  description: string;
+  type: string | null;
+  category: string | null;
+  estimatedEffort: number;
+  status: 'todo' | 'in_progress' | 'done' | 'error';
+  error: string | null;
+  cost: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuildJobResponse {
+  buildJob: {
+    id: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    totalCost: number;
+    createdAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    bullJobId: string | null;
+  };
+  progress: {
+    totalTasks: number;
+    completedTasks: number;
+    failedTasks: number;
+    inProgressTasks: number;
+  };
+  tasks: BuildTask[];
 }
