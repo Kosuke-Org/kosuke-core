@@ -192,6 +192,18 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Preview should use session only when in chat interface view, not in sidebar list view
   const previewSessionId = showSidebar ? null : sessionId;
 
+  // Show template preview for new projects
+  const isNewProject = (() => {
+    if (!project) return false;
+    if (sessionFromUrl) return false;
+    if (project.isImported) return false;
+
+    const oneMinutesAgo = Date.now() - 60_000;
+    // Handle both Date object and string (from persisted cache)
+    const createdAtTime = new Date(project.createdAt).getTime();
+    return createdAtTime > oneMinutesAgo;
+  })();
+
   // Reference to the ChatInterface component to maintain its state
   const chatInterfaceRef = useRef<HTMLDivElement>(null);
 
@@ -306,6 +318,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               projectName={project.name}
               sessionId={previewSessionId ?? ''}
               branch={showSidebar ? undefined : currentBranch}
+              isNewProject={isNewProject}
             />
           ) : currentView === 'code' ? (
             <CodeExplorer projectId={projectId} />
