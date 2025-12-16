@@ -157,7 +157,7 @@ export function ChatSessionItem({
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
             <DropdownMenuItem onClick={() => onRename(session)}>
               <Edit className="h-4 w-4 mr-2" />
               Rename
