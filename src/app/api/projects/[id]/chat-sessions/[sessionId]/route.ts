@@ -469,7 +469,6 @@ export async function POST(
         try {
           // Stream events from kosuke serve /api/plan (plan phase only)
           const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
-            noTest: false, // TODO: Make configurable
             resume: claudeSessionId, // Resume previous conversation if exists
           });
 

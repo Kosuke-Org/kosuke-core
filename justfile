@@ -36,6 +36,7 @@ db-reset:
     @echo "Database reset complete!"
 
 build-sandbox kosuke-cli-mode="local" install-chromium="false" npm-token="":
+    @if [ "{{kosuke-cli-mode}}" = "production" ] && [ -z "{{npm-token}}" ]; then echo "❌ Error: npm-token is required when kosuke-cli-mode=production"; exit 1; fi
     @echo "Building kosuke-cli..."
     @cd sandbox/kosuke-cli && npm install && npm run build
     @echo "Building sandbox Docker image for {{kosuke-cli-mode}} with chromium={{install-chromium}}..."
