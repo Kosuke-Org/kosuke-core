@@ -40,7 +40,7 @@ echo "✅ Dependencies installed"
 
 if [ "$KOSUKE_MODE" = "production" ]; then
     echo "📦 Running production build..."
-    NODE_OPTIONS="--max-old-space-size=1024" bun run build
+    bun run build
     echo "▶️ Starting production server..."
     exec bun run start
 else

@@ -197,9 +197,10 @@ export class SandboxManager {
         : undefined,
       HostConfig: {
         NetworkMode: this.config.networkName,
-        Memory: this.config.memoryLimit,
-        CpuShares: this.config.cpuShares,
-        PidsLimit: this.config.pidsLimit,
+        // TODO: restore limits
+        // Memory: this.config.memoryLimit,
+        // CpuShares: this.config.cpuShares,
+        // PidsLimit: this.config.pidsLimit,
         PortBindings: hostPort
           ? {
               '3000/tcp': [{ HostPort: String(hostPort) }],
