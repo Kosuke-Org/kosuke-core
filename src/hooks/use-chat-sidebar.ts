@@ -31,11 +31,12 @@ export function useChatSidebar({
   const updateChatSession = useUpdateChatSession(projectId);
   const deleteChatSession = useDeleteChatSession(projectId);
 
-  // Filter sessions based on selected statuses (exclude default/main session from sidebar)
+  // Filter and sort sessions based on selected statuses (exclude default/main session from sidebar)
+  // Sort by createdAt descending (newest first) to ensure consistent ordering
   const filteredSessions = useMemo(() => {
-    return sessions.filter(
-      s => !s.isDefault && statusFilter.includes(s.status as ChatSessionStatus)
-    );
+    return sessions
+      .filter(s => !s.isDefault && statusFilter.includes(s.status as ChatSessionStatus))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [sessions, statusFilter]);
 
   // Format relative time
