@@ -66,8 +66,11 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
     // Poll every 5 seconds while build is active
     refetchInterval: query => {
       const buildJob = query.state.data?.buildJob;
-      if (!buildJob) return false;
-      if (buildJob.status === 'completed' || buildJob.status === 'failed') return false;
+      // Stop polling only when we have data AND build is done
+      if (buildJob?.status === 'completed' || buildJob?.status === 'failed') {
+        return false;
+      }
+      // Keep polling: no data yet, error recovery, or build in progress
       return 5000;
     },
     staleTime: 1000,
