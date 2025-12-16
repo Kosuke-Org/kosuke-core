@@ -71,7 +71,7 @@
     "@tryghost/content-api": "^1.12.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/marked": "^5.0.2",
-    "@types/node": "^24.9.1",
+    "@types/node": "^25.0.2",
     "@types/pg": "^8.16.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
