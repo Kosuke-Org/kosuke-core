@@ -81,7 +81,7 @@ export function useChatSidebar({
       setNewChatTitle('');
       setIsNewChatModalOpen(false);
 
-      // Redirect/select the newly created session in parent (updates URL ?session=...)
+      // Redirect/select the newly created session in parent
       if (onChatSessionChange) {
         onChatSessionChange(newSession.session.id);
       }
