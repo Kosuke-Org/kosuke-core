@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import type { ChatSessionStatus } from '@/lib/types/chat-sessions';
 import { cn } from '@/lib/utils';
 import { ChatSessionItem } from './chat-session-item';
+import { DeleteChatSessionDialog } from './delete-chat-session-dialog';
 import { NewChatDialog } from './new-chat-dialog';
 import { RenameSessionDialog } from './rename-session-dialog';
 
@@ -46,21 +47,25 @@ export default function ChatSidebar({
     statusFilter,
     isNewChatModalOpen,
     editingSession,
+    deletingSession,
     newChatTitle,
 
     // Actions
     setIsNewChatModalOpen,
     setEditingSession,
+    setDeletingSession,
     setNewChatTitle,
     setStatusFilter,
     handleCreateChat,
     handleUpdateSession,
     handleDeleteSession,
+    confirmDeleteSession,
     handleDuplicateSession,
     handleViewGitHubBranch,
 
     // Loading states
     isCreating,
+    isDeleting,
   } = useChatSidebar({
     projectId,
     onChatSessionChange,
@@ -158,6 +163,14 @@ export default function ChatSidebar({
         session={editingSession}
         onOpenChange={open => !open && setEditingSession(null)}
         onRename={(session, title) => handleUpdateSession(session, { title })}
+      />
+
+      <DeleteChatSessionDialog
+        session={deletingSession}
+        open={!!deletingSession}
+        onOpenChange={open => !open && setDeletingSession(null)}
+        onConfirm={confirmDeleteSession}
+        isDeleting={isDeleting}
       />
     </div>
   );

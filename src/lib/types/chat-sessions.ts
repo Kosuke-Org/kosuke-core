@@ -88,16 +88,19 @@ export interface UseChatSidebarReturn {
   statusFilter: ChatSessionStatus[];
   isNewChatModalOpen: boolean;
   editingSession: ChatSession | null;
+  deletingSession: ChatSession | null;
   newChatTitle: string;
 
   // Actions
   setIsNewChatModalOpen: (open: boolean) => void;
   setEditingSession: (session: ChatSession | null) => void;
+  setDeletingSession: (session: ChatSession | null) => void;
   setNewChatTitle: (title: string) => void;
   setStatusFilter: (statuses: ChatSessionStatus[]) => void;
   handleCreateChat: () => Promise<void>;
   handleUpdateSession: (session: ChatSession, updates: Partial<ChatSession>) => Promise<void>;
-  handleDeleteSession: (session: ChatSession) => Promise<void>;
+  handleDeleteSession: (session: ChatSession) => void;
+  confirmDeleteSession: (session: ChatSession) => Promise<void>;
   handleDuplicateSession: (session: ChatSession) => Promise<void>;
   handleViewGitHubBranch: (session: ChatSession) => void;
 
