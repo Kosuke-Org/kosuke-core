@@ -6,7 +6,7 @@
 
 import { clerkService } from '@/lib/clerk';
 import { db } from '@/lib/db/drizzle';
-import { projects } from '@/lib/db/schema';
+import { chatSessions, projects } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 
 export interface ProjectAccessResult {
@@ -53,3 +53,17 @@ export async function verifyProjectAccess(
   };
 }
 
+/**
+ * Find a chat session by ID (UUID)
+ *
+ * @param projectId - The project ID
+ * @param sessionId - The chat session UUID
+ * @returns The chat session or undefined if not found
+ */
+export async function findChatSession(projectId: string, sessionId: string) {
+  const [session] = await db
+    .select()
+    .from(chatSessions)
+    .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.id, sessionId)));
+  return session;
+}

@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { chatSessions } from '@/lib/db/schema';
-import { verifyProjectAccess } from '@/lib/projects';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
-import { and, eq } from 'drizzle-orm';
 
 /**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/files
@@ -32,10 +29,7 @@ export async function GET(
     }
 
     // Verify session exists
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -43,7 +37,7 @@ export async function GET(
 
     // Check if sandbox is running
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
@@ -56,7 +50,7 @@ export async function GET(
     }
 
     // Get files from sandbox
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(session.id);
 
     try {
       const files = await client.listFiles();
@@ -76,5 +70,3 @@ export async function GET(
     return ApiErrorHandler.handle(error);
   }
 }
-
-

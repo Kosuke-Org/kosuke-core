@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { usePreviewPanel } from '@/hooks/use-preview-panel';
-import { useDefaultBranchSettings } from '@/hooks/use-project-settings';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
 
@@ -42,9 +41,6 @@ export default function PreviewPanel({
   className,
   isNewProject = false,
 }: PreviewPanelProps) {
-  // Resolve effective session to use for preview: chat session if provided, else default branch
-  const { data: defaultBranchSettings } = useDefaultBranchSettings(projectId);
-  const effectiveSessionId = sessionId || defaultBranchSettings?.default_branch || '';
   const {
     // State
     status,
@@ -62,8 +58,8 @@ export default function PreviewPanel({
     // Status helpers
     getStatusMessage,
     getStatusIconType,
-  } = usePreviewPanel({ projectId, sessionId: effectiveSessionId, projectName, isNewProject });
-  const isPreviewEnabled = Boolean(effectiveSessionId);
+  } = usePreviewPanel({ projectId, sessionId, projectName, isNewProject });
+  const isPreviewEnabled = Boolean(sessionId);
 
   // Render status icon based on status type
   const renderStatusIcon = () => {
@@ -77,9 +73,6 @@ export default function PreviewPanel({
         return <Loader2 className="h-6 w-6 text-primary animate-spin" />;
     }
   };
-
-  // Determine branch name to display
-  const displayBranch = branch || effectiveSessionId || 'branch';
 
   return (
     <div
@@ -95,7 +88,7 @@ export default function PreviewPanel({
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-xs">
-              {displayBranch}
+              {branch}
             </Badge>
           )}
         </div>
@@ -154,9 +147,13 @@ export default function PreviewPanel({
         <div className="h-full w-full">
           {!isPreviewEnabled || status !== 'ready' ? (
             <div className="flex h-full items-center justify-center flex-col p-6">
-              {isPreviewEnabled ? renderStatusIcon() : null}
+              {isPreviewEnabled ? (
+                renderStatusIcon()
+              ) : (
+                <Loader2 className="h-6 w-6 text-primary animate-spin" />
+              )}
               <span className="text-sm font-medium mt-4 mb-2">
-                {isPreviewEnabled ? getStatusMessage() : 'Waiting for default branch settings...'}
+                {isPreviewEnabled ? getStatusMessage() : 'Loading session...'}
               </span>
               {status === 'loading' && (
                 <Progress value={progress} className="h-1.5 w-full max-w-xs mt-2" />

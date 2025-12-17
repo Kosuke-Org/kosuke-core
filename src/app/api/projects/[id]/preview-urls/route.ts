@@ -35,33 +35,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Get session info from database
     const sessions = await db
       .select({
-        sessionId: chatSessions.sessionId,
+        id: chatSessions.id,
+        branchName: chatSessions.branchName,
         createdAt: chatSessions.createdAt,
         isDefault: chatSessions.isDefault,
       })
       .from(chatSessions)
       .where(eq(chatSessions.projectId, projectId));
 
+    // Map session info by ID (UUID)
     const sessionInfoMap = new Map(
       sessions.map(s => [
-        s.sessionId,
-        { createdAt: s.createdAt.toISOString(), isDefault: s.isDefault },
+        s.id,
+        { branchName: s.branchName, createdAt: s.createdAt.toISOString(), isDefault: s.isDefault },
       ])
     );
 
-    const branchPrefix = process.env.SESSION_BRANCH_PREFIX;
-
     // Transform to PreviewUrl format
     const previewUrls: PreviewUrl[] = sandboxes.map(sandbox => {
+      // sandbox.sessionId is the chat session UUID
       const sessionInfo = sessionInfoMap.get(sandbox.sessionId);
-      const isMainSession = sessionInfo?.isDefault ?? false;
-
-      // Main session uses 'main' branch, others use prefix + sessionId
-      const branchName = isMainSession ? 'main' : `${branchPrefix}${sandbox.sessionId}`;
 
       return {
         id: sandbox.name,
-        branch_name: branchName,
+        branch_name: sessionInfo?.branchName || 'unknown',
         full_url: sandbox.url,
         container_status: sandbox.status,
         created_at: sessionInfo?.createdAt || new Date().toISOString(),

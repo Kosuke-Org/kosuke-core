@@ -36,7 +36,7 @@ export async function GET(
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
     const offset = Math.max(parseInt(url.searchParams.get('offset') || '0'), 0);
 
-    const tableData = await getTableData(projectId, sessionId, tableName, limit, offset);
+    const tableData = await getTableData(sessionId, tableName, limit, offset);
 
     return NextResponse.json(tableData);
   } catch (error) {

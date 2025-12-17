@@ -35,28 +35,28 @@ export async function cleanupInactiveSessions(thresholdMinutes: number) {
         .limit(1);
 
       if (current[0] && current[0].lastActivityAt >= cutoffTime) {
-        console.log(`[CLEANUP] ⏭️ Skipping ${session.sessionId} (recently active)`);
+        console.log(`[CLEANUP] ⏭️ Skipping ${session.id} (recently active)`);
         skippedCount++;
         continue;
       }
 
       // Check if sandbox exists before trying to stop
-      const sandbox = await sandboxManager.getSandbox(session.projectId, session.sessionId);
+      const sandbox = await sandboxManager.getSandbox(session.id);
       if (sandbox && sandbox.status === 'running') {
         // Skip production sandboxes - they should keep running
         if (sandbox.mode === 'production') {
-          console.log(`[CLEANUP] ⏭️ Skipping production sandbox ${session.sessionId}`);
+          console.log(`[CLEANUP] ⏭️ Skipping production sandbox ${session.id}`);
           skippedCount++;
           continue;
         }
 
-        await sandboxManager.stopSandbox(session.projectId, session.sessionId);
+        await sandboxManager.stopSandbox(session.id);
         cleanedCount++;
-        console.log(`[CLEANUP] 🛑 Stopped sandbox for session ${session.sessionId}`);
+        console.log(`[CLEANUP] 🛑 Stopped sandbox for session ${session.id}`);
       }
     } catch (error) {
       console.error(
-        `[CLEANUP] ❌ Failed to cleanup session ${session.sessionId}:`,
+        `[CLEANUP] ❌ Failed to cleanup session ${session.id}:`,
         error instanceof Error ? error.message : 'Unknown error'
       );
     }

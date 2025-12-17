@@ -61,7 +61,7 @@ export async function createGitHubWebhook(project: Project): Promise<number | nu
         secret,
         insecure_ssl: '0', // Require SSL
       },
-      events: ['push'], // Only listen to push events
+      events: ['push', 'pull_request'], // Listen to push and pull request events
       active: true,
     });
 
@@ -163,4 +163,48 @@ export interface GitHubPushPayload {
       email: string;
     };
   }>;
+}
+
+/**
+ * Type for GitHub pull request webhook payload (simplified)
+ */
+export interface GitHubPullRequestPayload {
+  action: 'opened' | 'closed' | 'reopened' | 'edited' | 'synchronize' | string;
+  number: number;
+  pull_request: {
+    id: number;
+    number: number;
+    title: string;
+    state: 'open' | 'closed';
+    merged: boolean;
+    merged_at: string | null;
+    merged_by: {
+      login: string;
+    } | null;
+    merge_commit_sha: string | null;
+    head: {
+      ref: string; // Branch name (e.g., "kosuke/chat-abc123")
+      sha: string;
+    };
+    base: {
+      ref: string; // Target branch (e.g., "main")
+      sha: string;
+    };
+    user: {
+      login: string;
+    };
+    created_at: string;
+    updated_at: string;
+  };
+  repository: {
+    id: number;
+    name: string;
+    full_name: string;
+    owner: {
+      login: string;
+    };
+  };
+  sender: {
+    login: string;
+  };
 }

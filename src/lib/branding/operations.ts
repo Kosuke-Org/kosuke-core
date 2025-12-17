@@ -41,7 +41,7 @@ export async function extractExistingColors(
   sessionId: string
 ): Promise<CssVariable[]> {
   try {
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(sessionId);
     const globalsPath = await findGlobalsCss(client);
 
     if (!globalsPath) {
@@ -270,7 +270,7 @@ export async function updateSingleColor(
   try {
     console.log(`🎨 Updating single color ${name} for project ${projectId}, session ${sessionId}`);
 
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(sessionId);
 
     // Find globals.css
     const globalsPath = await findGlobalsCss(client);
@@ -357,7 +357,7 @@ export async function applyColorPalette(
       `🎨 Applying ${colors.length} colors to project ${projectId}, session ${sessionId}`
     );
 
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(sessionId);
 
     // Find globals.css
     const globalsPath = await findGlobalsCss(client);
@@ -417,7 +417,7 @@ export async function getSessionFonts(
   sessionId: string
 ): Promise<Array<{ name: string }>> {
   try {
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(sessionId);
 
     // Look for layout.tsx file
     const layoutPath = 'app/layout.tsx';
