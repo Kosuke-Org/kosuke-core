@@ -179,7 +179,7 @@ export class SandboxClient {
     cwd: string,
     options?: {
       noTest?: boolean;
-      resume?: string;
+      resume?: string | null;
     }
   ): AsyncGenerator<Record<string, unknown>> {
     const config = getSandboxConfig();

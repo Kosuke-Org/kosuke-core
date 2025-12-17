@@ -450,7 +450,7 @@ export async function POST(
     }
 
     // Get Claude session ID from chat session (for resuming clarification conversations)
-    const claudeSessionId = chatSession.claudeSessionId ?? undefined;
+    const claudeSessionId = chatSession.claudeSessionId;
 
     if (claudeSessionId) {
       console.log(`🔄 Resuming Claude session: ${claudeSessionId}`);
