@@ -148,10 +148,9 @@ fi
 WORKDIR /app
 
 # /app/project     - Cloned repository (working directory)
-# /app/agent       - Fastify agent server
 # /app/scripts     - Helper scripts
 
-RUN mkdir -p /app/project /app/agent /app/scripts /var/log/supervisor && \
+RUN mkdir -p /app/project /app/scripts /var/log/supervisor && \
     chown -R kosuke:kosuke /app /var/log/supervisor
 
 # ============================================================
