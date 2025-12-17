@@ -1,6 +1,6 @@
 'use client';
 
-import { useClerk } from '@clerk/nextjs';
+import { useClerk, useOrganization } from '@clerk/nextjs';
 import {
   ArrowLeft,
   CircleIcon,
@@ -62,8 +62,16 @@ export default function Navbar({
 }: NavbarProps) {
   const { clerkUser, user, isLoaded, isSignedIn, imageUrl, displayName, initials } = useUser();
   const { signOut } = useClerk();
+  const { organization, isLoaded: isOrgLoaded } = useOrganization();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Get organization display name
+  const orgDisplayName = organization
+    ? organization.publicMetadata?.isPersonal
+      ? 'Personal Workspace'
+      : organization.name
+    : 'No workspace';
 
   const handleLogout = async () => {
     try {
@@ -87,10 +95,18 @@ export default function Navbar({
         <div className="flex items-center gap-3">
           <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
-                <Avatar className="h-8 w-8 cursor-pointer transition-all">
+              <Button
+                variant="ghost"
+                className="relative h-10 min-w-[200px] rounded-lg pl-3 pr-2 bg-muted/50 hover:bg-muted border border-border/50"
+              >
+                {isOrgLoaded && (
+                  <span className="flex-1 text-sm font-medium text-muted-foreground truncate text-center max-w-[140px]">
+                    {orgDisplayName}
+                  </span>
+                )}
+                <Avatar className="h-7 w-7 cursor-pointer transition-all">
                   {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
-                  <AvatarFallback className="bg-primary text-primary-foreground">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
