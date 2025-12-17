@@ -202,7 +202,7 @@ export interface RevertToMessageResponse {
 // Build Job Types
 export interface BuildTask {
   id: string;
-  taskId: string;
+  externalId: string;
   title: string;
   description: string;
   type: string | null;

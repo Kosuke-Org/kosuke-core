@@ -152,7 +152,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                     status: 'in_progress',
                     updatedAt: new Date(),
                   })
-                  .where(eq(tasks.taskId, event.data.ticket.id));
+                  .where(eq(tasks.externalId, event.data.ticket.id));
                 break;
 
               case 'ticket_phase':
@@ -344,7 +344,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                     cost: currentTicketCost,
                     updatedAt: new Date(),
                   })
-                  .where(eq(tasks.taskId, event.data.ticket.id));
+                  .where(eq(tasks.externalId, event.data.ticket.id));
                 break;
 
               case 'ticket_committed':

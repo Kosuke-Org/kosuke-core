@@ -88,7 +88,7 @@ export async function GET(
       },
       tasks: allTasks.map(t => ({
         id: t.id,
-        taskId: t.taskId,
+        externalId: t.externalId,
         title: t.title,
         description: t.description,
         type: t.type,

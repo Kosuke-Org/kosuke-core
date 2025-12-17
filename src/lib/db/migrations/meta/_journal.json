@@ -43,6 +43,13 @@
       "when": 1765895225481,
       "tag": "0005_quick_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765971457146,
+      "tag": "0006_lively_human_torch",
+      "breakpoints": true
     }
   ]
 }

@@ -254,7 +254,7 @@ export const tasks = pgTable(
       .notNull(),
 
     // Task details
-    taskId: varchar('task_id', { length: 100 }).notNull(), // From kosuke-cli
+    externalId: varchar('external_id', { length: 100 }).notNull(), // From kosuke-cli (ticket.id)
     title: text('title').notNull(),
     description: text('description').notNull(),
     type: varchar('type', { length: 50 }),
@@ -277,7 +277,7 @@ export const tasks = pgTable(
   table => ({
     buildJobIdx: index('idx_tasks_build_job').on(table.buildJobId),
     statusIdx: index('idx_tasks_status').on(table.status),
-    taskIdIdx: index('idx_tasks_task_id').on(table.taskId),
+    externalIdIdx: index('idx_tasks_external_id').on(table.externalId),
   })
 );
 

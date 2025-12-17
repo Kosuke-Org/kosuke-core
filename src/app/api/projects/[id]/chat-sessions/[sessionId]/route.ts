@@ -581,7 +581,7 @@ export async function POST(
                     index: number
                   ) => ({
                     buildJobId: buildJob.id,
-                    taskId: ticket.id,
+                    externalId: ticket.id,
                     title: ticket.title,
                     description: ticket.description,
                     type: ticket.type || null,
