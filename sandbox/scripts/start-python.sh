@@ -21,16 +21,9 @@ echo "   Mode: $KOSUKE_MODE"
 # INSTALL DEPENDENCIES
 # ============================================================
 
-DEPS_MARKER=".kosuke-deps-installed"
-
-if [ ! -f "$DEPS_MARKER" ]; then
-    echo "📦 Installing Python dependencies with uv..."
-    uv sync --frozen
-    touch "$DEPS_MARKER"
-    echo "✅ Python dependencies installed"
-else
-    echo "✅ Dependencies already installed"
-fi
+echo "📦 Installing Python dependencies with uv..."
+uv sync --frozen
+echo "✅ Python dependencies installed"
 
 # Activate virtual environment (created by uv sync)
 source .venv/bin/activate

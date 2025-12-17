@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import {
   useChatSessions,
@@ -6,7 +6,13 @@ import {
   useDeleteChatSession,
   useUpdateChatSession,
 } from '@/hooks/use-chat-sessions';
-import type { ChatSession, UseChatSidebarOptions, UseChatSidebarReturn } from '@/lib/types';
+import { useProject } from '@/hooks/use-projects';
+import type {
+  ChatSession,
+  ChatSessionStatus,
+  UseChatSidebarOptions,
+  UseChatSidebarReturn,
+} from '@/lib/types';
 
 export function useChatSidebar({
   projectId,
@@ -16,17 +22,22 @@ export function useChatSidebar({
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<ChatSession | null>(null);
   const [newChatTitle, setNewChatTitle] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<ChatSessionStatus[]>(['active']);
 
   // Hooks
+  const { data: project } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
   const createChatSession = useCreateChatSession(projectId);
   const updateChatSession = useUpdateChatSession(projectId);
   const deleteChatSession = useDeleteChatSession(projectId);
 
-  // Separate sessions by status
-  const activeSessions = sessions.filter(s => s.status === 'active');
-  const archivedSessions = sessions.filter(s => s.status === 'archived');
+  // Filter and sort sessions based on selected statuses (exclude default/main session from sidebar)
+  // Sort by createdAt descending (newest first) to ensure consistent ordering
+  const filteredSessions = useMemo(() => {
+    return sessions
+      .filter(s => !s.isDefault && statusFilter.includes(s.status as ChatSessionStatus))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [sessions, statusFilter]);
 
   // Format relative time
   const formatRelativeTime = useCallback((dateString: string) => {
@@ -51,16 +62,16 @@ export function useChatSidebar({
 
       // Trigger session container creation immediately
       console.log(
-        `[Chat Sidebar] Creating container for new session: ${newSession.session.sessionId}`
+        `[Chat Sidebar] Creating container for new session: ${newSession.session.branchName}`
       );
 
       // Use a simple fetch call to trigger container creation without waiting for response
       // This allows the user to continue while the container starts in the background
-      fetch(`/api/projects/${projectId}/chat-sessions/${newSession.session.sessionId}/preview`, {
+      fetch(`/api/projects/${projectId}/chat-sessions/${newSession.session.id}/preview`, {
         method: 'GET',
       }).catch(error => {
         console.warn(
-          `[Chat Sidebar] Failed to start container for session ${newSession.session.sessionId}:`,
+          `[Chat Sidebar] Failed to start container for session ${newSession.session.branchName}:`,
           error
         );
         // Don't throw error - container creation failure shouldn't prevent session creation
@@ -84,7 +95,7 @@ export function useChatSidebar({
   const handleUpdateSession = useCallback(
     async (session: ChatSession, updates: Partial<ChatSession>) => {
       await updateChatSession.mutateAsync({
-        sessionId: session.sessionId,
+        sessionId: session.id,
         data: updates,
       });
       setEditingSession(null);
@@ -102,7 +113,7 @@ export function useChatSidebar({
       );
 
       if (confirmed) {
-        await deleteChatSession.mutateAsync(session.sessionId);
+        await deleteChatSession.mutateAsync(session.id);
       }
     },
     [deleteChatSession]
@@ -119,28 +130,33 @@ export function useChatSidebar({
     [createChatSession]
   );
 
-  // Handle view GitHub branch
-  const handleViewGitHubBranch = useCallback((session: ChatSession) => {
-    // Placeholder implementation using sessionId as branch name
-    const githubUrl = `https://github.com/owner/repo/tree/${session.sessionId}`;
-    window.open(githubUrl, '_blank');
-  }, []);
+  // Handle view GitHub pull request
+  const handleViewGitHubBranch = useCallback(
+    (session: ChatSession) => {
+      if (!project?.githubOwner || !project?.githubRepoName || !session.pullRequestNumber) {
+        console.warn('[Chat Sidebar] Cannot open PR: missing project GitHub info or PR number');
+        return;
+      }
+
+      const githubUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}/pull/${session.pullRequestNumber}`;
+      window.open(githubUrl, '_blank');
+    },
+    [project?.githubOwner, project?.githubRepoName]
+  );
 
   return {
     // State
-    sessions,
-    activeSessions,
-    archivedSessions,
+    filteredSessions,
+    statusFilter,
     isNewChatModalOpen,
     editingSession,
     newChatTitle,
-    showArchived,
 
     // Actions
     setIsNewChatModalOpen,
     setEditingSession,
     setNewChatTitle,
-    setShowArchived,
+    setStatusFilter,
     handleCreateChat,
     handleUpdateSession,
     handleDeleteSession,

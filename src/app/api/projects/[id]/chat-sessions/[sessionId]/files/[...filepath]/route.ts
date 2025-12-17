@@ -4,11 +4,8 @@ import path from 'path';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { chatSessions } from '@/lib/db/schema';
-import { verifyProjectAccess } from '@/lib/projects';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
-import { and, eq } from 'drizzle-orm';
 
 /**
  * GET /api/projects/[id]/chat-sessions/[sessionId]/files/[...filepath]
@@ -34,18 +31,15 @@ export async function GET(
     }
 
     // Verify session exists
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
     }
 
-    // Check if sandbox is running
+    // Check if sandbox is running - use session.id (UUID) for sandbox identification
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
@@ -61,7 +55,7 @@ export async function GET(
     const filePath = path.join(...filepath);
 
     // Get file from sandbox
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(session.id);
 
     try {
       const fileContent = await client.readFile(filePath);
@@ -109,18 +103,15 @@ export async function POST(
     }
 
     // Verify session exists
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
     }
 
-    // Check if sandbox is running
+    // Check if sandbox is running - use session.id (UUID) for sandbox identification
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
@@ -144,7 +135,7 @@ export async function POST(
     const filePath = path.join(...filepath);
 
     // Write file to sandbox
-    const client = new SandboxClient(projectId, sessionId);
+    const client = new SandboxClient(session.id);
 
     try {
       await client.writeFile(filePath, content);
@@ -164,5 +155,3 @@ export async function POST(
     return ApiErrorHandler.handle(error);
   }
 }
-
-

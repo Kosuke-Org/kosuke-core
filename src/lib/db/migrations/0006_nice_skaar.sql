@@ -15,7 +15,7 @@ CREATE TABLE "build_jobs" (
 CREATE TABLE "tasks" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"build_job_id" uuid NOT NULL,
-	"task_id" varchar(100) NOT NULL,
+	"external_id" varchar(100) NOT NULL,
 	"title" text NOT NULL,
 	"description" text NOT NULL,
 	"type" varchar(50),
@@ -37,5 +37,5 @@ CREATE INDEX "idx_build_jobs_session" ON "build_jobs" USING btree ("chat_session
 CREATE INDEX "idx_build_jobs_status" ON "build_jobs" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_tasks_build_job" ON "tasks" USING btree ("build_job_id");--> statement-breakpoint
 CREATE INDEX "idx_tasks_status" ON "tasks" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "idx_tasks_task_id" ON "tasks" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "idx_tasks_external_id" ON "tasks" USING btree ("external_id");--> statement-breakpoint
 ALTER TABLE "chat_sessions" DROP COLUMN "remote_id";

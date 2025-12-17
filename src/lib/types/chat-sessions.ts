@@ -7,14 +7,14 @@ export interface ChatSession {
   userId: string;
   title: string;
   description?: string;
-  sessionId: string; // Used for GitHub branch naming
+  branchName: string;
   status: 'active' | 'archived' | 'completed';
   createdAt: string;
   updatedAt: string;
   lastActivityAt: string;
   messageCount: number;
   isDefault: boolean;
-  // GitHub merge status
+  // GitHub PR/merge status
   branchMergedAt?: string;
   branchMergedBy?: string;
   mergeCommitSha?: string;
@@ -41,7 +41,7 @@ export interface ChatSessionMessagesResponse {
   messages: ChatMessage[];
   sessionInfo: {
     id: string;
-    sessionId: string;
+    branchName: string;
     title: string;
     status: string;
     messageCount: number;
@@ -73,6 +73,9 @@ export interface CreatePullRequestResponse {
   success: boolean;
 }
 
+// Chat Session Status Type
+export type ChatSessionStatus = 'active' | 'archived' | 'completed';
+
 // Chat Sidebar Hook Types
 export interface UseChatSidebarOptions {
   projectId: string;
@@ -81,19 +84,17 @@ export interface UseChatSidebarOptions {
 
 export interface UseChatSidebarReturn {
   // State
-  sessions: ChatSession[];
-  activeSessions: ChatSession[];
-  archivedSessions: ChatSession[];
+  filteredSessions: ChatSession[];
+  statusFilter: ChatSessionStatus[];
   isNewChatModalOpen: boolean;
   editingSession: ChatSession | null;
   newChatTitle: string;
-  showArchived: boolean;
 
   // Actions
   setIsNewChatModalOpen: (open: boolean) => void;
   setEditingSession: (session: ChatSession | null) => void;
   setNewChatTitle: (title: string) => void;
-  setShowArchived: (show: boolean) => void;
+  setStatusFilter: (statuses: ChatSessionStatus[]) => void;
   handleCreateChat: () => Promise<void>;
   handleUpdateSession: (session: ChatSession, updates: Partial<ChatSession>) => Promise<void>;
   handleDeleteSession: (session: ChatSession) => Promise<void>;

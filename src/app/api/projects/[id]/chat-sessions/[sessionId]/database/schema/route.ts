@@ -27,7 +27,7 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    const schema = await getDatabaseSchema(projectId, sessionId);
+    const schema = await getDatabaseSchema(sessionId);
 
     return NextResponse.json(schema);
   } catch (error) {

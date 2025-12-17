@@ -45,7 +45,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     })
     .where(eq(buildJobs.id, buildJobId));
 
-  const sandboxClient = new SandboxClient(projectId, sessionId);
+  const sandboxClient = new SandboxClient(sessionId);
   let totalCost = 0;
   let currentTicketCost = 0; // Track cost for current ticket
 

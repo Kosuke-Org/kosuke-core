@@ -97,7 +97,7 @@ export default function AdminChatSessionDetailPage({
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">
                   Internal Session ID
                 </h4>
-                <p className="text-sm font-mono">{chatSession.sessionId}</p>
+                <p className="text-sm font-mono">{chatSession.id}</p>
               </div>
 
               {chatSession.remoteId && (

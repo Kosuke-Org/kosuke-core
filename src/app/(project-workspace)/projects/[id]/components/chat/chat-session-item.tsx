@@ -1,25 +1,25 @@
 'use client';
 
 import {
-    Archive,
-    Clock,
-    Copy,
-    Edit,
-    ExternalLink,
-    GitBranch,
-    GitMerge,
-    MoreVertical,
-    Trash2,
+  Calendar,
+  Check,
+  Copy,
+  Edit,
+  ExternalLink,
+  GitBranch,
+  MoreVertical,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { ChatSession } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -27,114 +27,137 @@ import { cn } from '@/lib/utils';
 interface ChatSessionItemProps {
   session: ChatSession;
   isActive: boolean;
-  variant: 'active' | 'archived';
   onClick: () => void;
   onRename: (session: ChatSession) => void;
   onDuplicate: (session: ChatSession) => void | Promise<void>;
   onViewBranch: (session: ChatSession) => void;
   onToggleArchive: (session: ChatSession) => void | Promise<void>;
   onDelete: (session: ChatSession) => void | Promise<void>;
-  formatRelativeTime: (dateString: string) => string;
+}
+
+/**
+ * Format date for display
+ */
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Get status badge props based on session status
+ */
+function getStatusBadgeProps(status: ChatSession['status']): {
+  label: string;
+  variant: 'default' | 'secondary' | 'outline' | 'destructive';
+  className: string;
+  icon: React.ReactNode;
+} {
+  switch (status) {
+    case 'active':
+      return {
+        label: 'Active',
+        variant: 'default',
+        className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+        icon: <GitBranch className="h-3 w-3" />,
+      };
+    case 'archived':
+      return {
+        label: 'Archived',
+        variant: 'secondary',
+        className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+        icon: <XCircle className="h-3 w-3" />,
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        variant: 'secondary',
+        className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        icon: <Check className="h-3 w-3" />,
+      };
+    default:
+      return {
+        label: status,
+        variant: 'outline',
+        className: '',
+        icon: null,
+      };
+  }
 }
 
 export function ChatSessionItem({
   session,
   isActive,
-  variant,
   onClick,
   onRename,
   onDuplicate,
   onViewBranch,
   onToggleArchive,
   onDelete,
-  formatRelativeTime,
 }: ChatSessionItemProps) {
-  const containerClass =
-    variant === 'active'
-      ? cn(
-          'group relative rounded-lg border p-3 cursor-pointer transition-colors',
-          'hover:bg-accent/50',
-          isActive ? 'bg-accent border-accent-foreground/20' : 'bg-background'
-        )
-      : cn(
-          'group relative rounded-lg border p-3 cursor-pointer transition-colors opacity-75',
-          'hover:bg-accent/50 hover:opacity-100',
-          isActive ? 'bg-accent border-accent-foreground/20 opacity-100' : 'bg-background'
-        );
+  const statusBadge = getStatusBadgeProps(session.status);
+  const isArchived = session.status === 'archived';
+  const isCompleted = session.status === 'completed';
 
-  const archiveLabel = session.status === 'archived' ? 'Unarchive' : 'Archive';
+  const containerClass = cn(
+    'group relative rounded-lg border p-3 cursor-pointer transition-colors',
+    'hover:bg-accent/50',
+    isActive ? 'bg-accent border-accent-foreground/20' : 'bg-background',
+    (isArchived || isCompleted) && 'opacity-75 hover:opacity-100'
+  );
 
   return (
     <div className={containerClass} onClick={onClick}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {variant === 'archived' && (
-              <Archive className="h-4 w-4 text-muted-foreground" />
-            )}
-            <h3
-              className={cn(
-                'text-sm font-medium truncate',
-                isActive && 'font-semibold'
-              )}
+      <div className="flex items-start justify-between pr-16">
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* Title */}
+          <h3 className={cn('text-sm font-medium truncate pr-2', isActive && 'font-semibold')}>
+            {session.title}
+          </h3>
+
+          {/* Branch Name */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <GitBranch className="h-3 w-3 shrink-0" />
+            <span className="truncate font-mono">{session.branchName}</span>
+          </div>
+
+          {/* Creation Date */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Calendar className="h-3 w-3 shrink-0" />
+            <span>Created {formatDate(session.createdAt)}</span>
+          </div>
+
+          {/* Status Badge */}
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={statusBadge.variant}
+              className={cn('text-xs px-2 py-0 flex items-center gap-1', statusBadge.className)}
             >
-              {session.title}
-            </h3>
-            {variant === 'archived' && session.isDefault && (
-              <Badge variant="secondary" className="text-xs px-1 py-0">
-                Main
-              </Badge>
+              {statusBadge.icon}
+              {statusBadge.label}
+            </Badge>
+            {session.pullRequestNumber && (
+              <span className="text-xs text-muted-foreground">PR #{session.pullRequestNumber}</span>
             )}
-            {session.branchMergedAt && (
-              variant === 'active' ? (
-                <Badge className="text-xs px-2 py-0">
-                  <GitMerge className="h-3 w-3 mr-1" />
-                  merged
-                </Badge>
-              ) : (
-                <Badge
-                  variant="secondary"
-                  className="text-xs px-2 py-0 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                >
-                  <GitMerge className="h-3 w-3 mr-1" />
-                  Merged
-                </Badge>
-              )
-            )}
-            {variant === 'archived' && (
-              <GitBranch className="h-3 w-3 text-muted-foreground" />
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            <span>{formatRelativeTime(session.lastActivityAt)}</span>
-            {session.messageCount > 0 && (
-              <>
-                <span>•</span>
-                <span>{session.messageCount} messages</span>
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-            <GitBranch className="h-3 w-3" />
-            <span className="truncate">{session.sessionId}</span>
           </div>
         </div>
 
+        {/* Dropdown Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
+              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+              onClick={e => e.stopPropagation()}
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
             <DropdownMenuItem onClick={() => onRename(session)}>
               <Edit className="h-4 w-4 mr-2" />
               Rename
@@ -143,20 +166,31 @@ export function ChatSessionItem({
               <Copy className="h-4 w-4 mr-2" />
               Duplicate
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewBranch(session)}>
+            <DropdownMenuItem
+              onClick={() => onViewBranch(session)}
+              disabled={!session.pullRequestNumber}
+            >
               <ExternalLink className="h-4 w-4 mr-2" />
-              View Branch
+              View on GitHub
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onToggleArchive(session)}>
-              <Archive className="h-4 w-4 mr-2" />
-              {archiveLabel}
-            </DropdownMenuItem>
+            {!isCompleted && (
+              <DropdownMenuItem onClick={() => onToggleArchive(session)}>
+                {isArchived ? (
+                  <>
+                    <GitBranch className="h-4 w-4 mr-2" />
+                    Unarchive
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Archive
+                  </>
+                )}
+              </DropdownMenuItem>
+            )}
             {!session.isDefault && (
-              <DropdownMenuItem
-                onClick={() => onDelete(session)}
-                className="text-destructive"
-              >
+              <DropdownMenuItem onClick={() => onDelete(session)} className="text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </DropdownMenuItem>
@@ -167,5 +201,3 @@ export function ChatSessionItem({
     </div>
   );
 }
-
-

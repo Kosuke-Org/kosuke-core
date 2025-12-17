@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
         or(
           ilike(chatSessions.title, `%${search}%`),
           ilike(chatSessions.description, `%${search}%`),
-          ilike(chatSessions.sessionId, `%${search}%`)
+          ilike(chatSessions.branchName, `%${search}%`)
         )
       );
     }
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         userId: chatSessions.userId,
         title: chatSessions.title,
         description: chatSessions.description,
-        sessionId: chatSessions.sessionId,
+        branchName: chatSessions.branchName,
         status: chatSessions.status,
         createdAt: chatSessions.createdAt,
         updatedAt: chatSessions.updatedAt,

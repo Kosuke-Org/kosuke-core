@@ -61,14 +61,14 @@ export const chatSessions = pgTable(
     userId: text('user_id'), // No FK
     title: varchar('title', { length: 100 }).notNull(),
     description: text('description'),
-    sessionId: varchar('session_id', { length: 50 }).notNull(), // Unique per project, not globally
+    branchName: varchar('branch_name', { length: 255 }).notNull(), // Full GitHub branch name (e.g., "kosuke/chat-abc123" or "feature/my-feature")
     status: varchar('status', { length: 20 }).default('active'), // active, archived, completed
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     lastActivityAt: timestamp('last_activity_at').notNull().defaultNow(),
     messageCount: integer('message_count').default(0),
     isDefault: boolean('is_default').default(false),
-    // GitHub merge status
+    // GitHub PR/merge status
     branchMergedAt: timestamp('branch_merged_at'),
     branchMergedBy: varchar('branch_merged_by', { length: 100 }),
     mergeCommitSha: varchar('merge_commit_sha', { length: 40 }),
@@ -76,10 +76,10 @@ export const chatSessions = pgTable(
   },
   table => ({
     lastActivityAtIdx: index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
-    // Session ID is unique within a project (allows "main" for each project)
-    projectSessionUnique: unique('chat_sessions_project_session_unique').on(
+    // Branch name is unique within a project
+    projectBranchUnique: unique('chat_sessions_project_branch_unique').on(
       table.projectId,
-      table.sessionId
+      table.branchName
     ),
   })
 );

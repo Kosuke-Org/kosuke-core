@@ -12,8 +12,8 @@ import {
   messageAttachments,
   tasks,
 } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
-import { verifyProjectAccess } from '@/lib/projects';
+import { getGitHubToken, getOctokit } from '@/lib/github/client';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
@@ -103,8 +103,56 @@ async function processFormDataRequest(
 }
 
 /**
+ * Close a GitHub PR
+ */
+async function closePullRequest(
+  github: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  pullNumber: number
+): Promise<boolean> {
+  try {
+    await github.rest.pulls.update({
+      owner,
+      repo,
+      pull_number: pullNumber,
+      state: 'closed',
+    });
+    console.log(`✅ Closed PR #${pullNumber}`);
+    return true;
+  } catch (error) {
+    console.error(`Error closing PR #${pullNumber}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Reopen a GitHub PR
+ */
+async function reopenPullRequest(
+  github: Awaited<ReturnType<typeof getOctokit>>,
+  owner: string,
+  repo: string,
+  pullNumber: number
+): Promise<boolean> {
+  try {
+    await github.rest.pulls.update({
+      owner,
+      repo,
+      pull_number: pullNumber,
+      state: 'open',
+    });
+    console.log(`✅ Reopened PR #${pullNumber}`);
+    return true;
+  } catch (error) {
+    console.error(`Error reopening PR #${pullNumber}:`, error);
+    return false;
+  }
+}
+
+/**
  * PUT /api/projects/[id]/chat-sessions/[sessionId]
- * Update a chat session
+ * Update a chat session (archive/unarchive will close/reopen PR)
  */
 export async function PUT(
   request: NextRequest,
@@ -126,10 +174,7 @@ export async function PUT(
     }
 
     // Verify chat session exists and belongs to project
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -145,13 +190,64 @@ export async function PUT(
 
     const updateData = parseResult.data;
 
+    // Handle status changes that affect GitHub PR
+    if (
+      updateData.status &&
+      updateData.status !== session.status &&
+      project.githubOwner &&
+      project.githubRepoName &&
+      session.pullRequestNumber
+    ) {
+      try {
+        const github = await getOctokit(project.isImported, userId);
+
+        if (updateData.status === 'archived' && session.status === 'active') {
+          // Archiving: close the PR
+          await closePullRequest(
+            github,
+            project.githubOwner,
+            project.githubRepoName,
+            session.pullRequestNumber
+          );
+        } else if (updateData.status === 'active' && session.status === 'archived') {
+          // Unarchiving: reopen the PR
+          await reopenPullRequest(
+            github,
+            project.githubOwner,
+            project.githubRepoName,
+            session.pullRequestNumber
+          );
+        }
+        // Note: 'completed' status is set by webhook when PR is merged, shouldn't be set manually
+      } catch (error) {
+        console.error('Error updating PR status:', error);
+        // Continue with session update even if PR update fails
+      }
+    }
+
+    // Destroy sandbox when archiving (free up resources)
+    if (updateData.status === 'archived' && session.status !== 'archived') {
+      try {
+        console.log(
+          `Destroying sandbox for archived session ${session.id} in project ${projectId}`
+        );
+        const sandboxManager = getSandboxManager();
+        await sandboxManager.destroySandbox(session.id);
+        console.log(`Sandbox destroyed successfully for session ${session.id}`);
+      } catch (containerError) {
+        Sentry.captureException(containerError);
+        // Log but continue - we still want to archive the session even if container cleanup fails
+        console.error(`Error destroying sandbox for session ${session.id}:`, containerError);
+        console.log(`Continuing with session archival despite container cleanup failure`);
+      }
+    }
+
     // Update chat session
     const [updatedSession] = await db
       .update(chatSessions)
       .set({
         ...updateData,
         updatedAt: new Date(),
-        lastActivityAt: new Date(),
       })
       .where(eq(chatSessions.id, session.id))
       .returning();
@@ -189,10 +285,7 @@ export async function DELETE(
     }
 
     // Verify chat session exists and belongs to project
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -205,14 +298,14 @@ export async function DELETE(
 
     // Step 1: Destroy the sandbox container for this session
     try {
-      console.log(`Destroying sandbox for session ${sessionId} in project ${projectId}`);
+      console.log(`Destroying sandbox for session ${session.id} in project ${projectId}`);
       const sandboxManager = getSandboxManager();
-      await sandboxManager.destroySandbox(projectId, sessionId);
-      console.log(`Sandbox destroyed successfully for session ${sessionId}`);
+      await sandboxManager.destroySandbox(session.id);
+      console.log(`Sandbox destroyed successfully for session ${session.id}`);
     } catch (containerError) {
       Sentry.captureException(containerError);
       // Log but continue - we still want to delete the session even if container cleanup fails
-      console.error(`Error destroying sandbox for session ${sessionId}:`, containerError);
+      console.error(`Error destroying sandbox for session ${session.id}:`, containerError);
       console.log(`Continuing with session deletion despite container cleanup failure`);
     }
 
@@ -255,10 +348,7 @@ export async function POST(
     }
 
     // Get the chat session and verify it belongs to this project
-    const [chatSession] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    const chatSession = await findChatSession(projectId, sessionId);
 
     if (!chatSession) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -415,11 +505,11 @@ export async function POST(
       );
     }
 
-    console.log(`🔗 GitHub integration enabled for session: ${chatSession.sessionId}`);
+    console.log(`🔗 GitHub integration enabled for session: ${chatSession.id}`);
 
-    // Check if sandbox is running
+    // Check if sandbox is running - use session.id (UUID) for sandbox identification
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, sessionId);
+    const sandbox = await sandboxManager.getSandbox(chatSession.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return new Response(
@@ -434,11 +524,11 @@ export async function POST(
       );
     }
 
-    console.log(`✅ Sandbox running for session ${chatSession.sessionId}`);
-    console.log(`🚀 Starting conversation stream for session ${chatSession.sessionId}`);
+    console.log(`✅ Sandbox running for session ${chatSession.id}`);
+    console.log(`🚀 Starting conversation stream for session ${chatSession.id}`);
 
     // Create SandboxClient to communicate with kosuke serve
-    const sandboxClient = new SandboxClient(projectId, sessionId);
+    const sandboxClient = new SandboxClient(chatSession.id);
 
     // Create a ReadableStream that proxies the sandbox stream
     const stream = new ReadableStream({
@@ -583,10 +673,10 @@ export async function POST(
                 buildJobId: buildJob.id,
                 chatSessionId: chatSession.id,
                 projectId,
-                sessionId,
+                sessionId: chatSession.id, // Use UUID for sandbox identification
                 ticketsPath: relativeTicketsPath,
                 cwd: '/app/project',
-                dbUrl: getSandboxDatabaseUrl(projectId, sessionId),
+                dbUrl: getSandboxDatabaseUrl(chatSession.id),
                 githubToken,
                 enableReview: false, // TODO: Make configurable
                 enableTest: false, // TODO: Make configurable

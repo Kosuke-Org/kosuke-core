@@ -28,10 +28,10 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 
-    // Get the chat session
+    // Get the chat session - sessionId from URL is the UUID id
     const chatSession = await db.query.chatSessions.findFirst({
       where: (chatSessions, { and, eq }) =>
-        and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)),
+        and(eq(chatSessions.projectId, projectId), eq(chatSessions.id, sessionId)),
     });
 
     if (!chatSession) {

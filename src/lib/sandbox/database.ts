@@ -56,9 +56,9 @@ function validateTableName(tableName: string): string {
 /**
  * Get a database connection for a specific sandbox
  */
-async function getConnection(projectId: string, sessionId: string): Promise<Client> {
+async function getConnection(sessionId: string): Promise<Client> {
   const config = getPostgresConfig();
-  const dbName = generatePreviewDatabaseName(projectId, sessionId);
+  const dbName = generatePreviewDatabaseName(sessionId);
 
   const client = new Client({
     host: config.host,
@@ -80,9 +80,9 @@ async function getConnection(projectId: string, sessionId: string): Promise<Clie
  * Create Postgres database for a sandbox
  * Returns the connection URL for the new database
  */
-export async function createSandboxDatabase(projectId: string, sessionId: string): Promise<string> {
+export async function createSandboxDatabase(sessionId: string): Promise<string> {
   const config = getPostgresConfig();
-  const dbName = generatePreviewDatabaseName(projectId, sessionId);
+  const dbName = generatePreviewDatabaseName(sessionId);
 
   const client = new Client({
     host: config.host,
@@ -116,18 +116,18 @@ export async function createSandboxDatabase(projectId: string, sessionId: string
 /**
  * Get the database URL for a sandbox (without creating it)
  */
-export function getSandboxDatabaseUrl(projectId: string, sessionId: string): string {
+export function getSandboxDatabaseUrl(sessionId: string): string {
   const config = getPostgresConfig();
-  const dbName = generatePreviewDatabaseName(projectId, sessionId);
+  const dbName = generatePreviewDatabaseName(sessionId);
   return `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${dbName}`;
 }
 
 /**
  * Drop Postgres database for a sandbox
  */
-export async function dropSandboxDatabase(projectId: string, sessionId: string): Promise<void> {
+export async function dropSandboxDatabase(sessionId: string): Promise<void> {
   const config = getPostgresConfig();
-  const dbName = generatePreviewDatabaseName(projectId, sessionId);
+  const dbName = generatePreviewDatabaseName(sessionId);
 
   const client = new Client({
     host: config.host,
@@ -163,14 +163,14 @@ export async function dropSandboxDatabase(projectId: string, sessionId: string):
 /**
  * Get basic database information
  */
-export async function getDatabaseInfo(projectId: string, sessionId: string): Promise<DatabaseInfo> {
+export async function getDatabaseInfo(sessionId: string): Promise<DatabaseInfo> {
   const config = getPostgresConfig();
-  const dbName = generatePreviewDatabaseName(projectId, sessionId);
+  const dbName = generatePreviewDatabaseName(sessionId);
 
   let client: Client | null = null;
 
   try {
-    client = await getConnection(projectId, sessionId);
+    client = await getConnection(sessionId);
 
     // Get table count
     const tablesResult = await client.query(`
@@ -210,14 +210,11 @@ export async function getDatabaseInfo(projectId: string, sessionId: string): Pro
 /**
  * Get database schema information
  */
-export async function getDatabaseSchema(
-  projectId: string,
-  sessionId: string
-): Promise<DatabaseSchema> {
+export async function getDatabaseSchema(sessionId: string): Promise<DatabaseSchema> {
   let client: Client | null = null;
 
   try {
-    client = await getConnection(projectId, sessionId);
+    client = await getConnection(sessionId);
 
     // Get all tables in public schema
     const tableRows = await client.query(`
@@ -318,7 +315,6 @@ export async function getDatabaseSchema(
  * Get data from a specific table
  */
 export async function getTableData(
-  projectId: string,
   sessionId: string,
   tableName: string,
   limit: number = 100,
@@ -328,7 +324,7 @@ export async function getTableData(
 
   try {
     const validatedTableName = validateTableName(tableName);
-    client = await getConnection(projectId, sessionId);
+    client = await getConnection(sessionId);
 
     // Validate table exists
     const tableExists = await client.query(
@@ -375,11 +371,7 @@ export async function getTableData(
 /**
  * Execute a SELECT query safely
  */
-export async function executeQuery(
-  projectId: string,
-  sessionId: string,
-  query: string
-): Promise<QueryResult> {
+export async function executeQuery(sessionId: string, query: string): Promise<QueryResult> {
   let client: Client | null = null;
 
   try {
@@ -389,7 +381,7 @@ export async function executeQuery(
       throw new Error('Only SELECT queries are allowed');
     }
 
-    client = await getConnection(projectId, sessionId);
+    client = await getConnection(sessionId);
 
     const result = await client.query(query);
 

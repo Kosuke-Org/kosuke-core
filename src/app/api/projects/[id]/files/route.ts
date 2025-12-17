@@ -15,10 +15,7 @@ import { and, eq } from 'drizzle-orm';
  * NOTE: This endpoint now uses the main session sandbox.
  * For session-specific files, use /api/projects/[id]/chat-sessions/[sessionId]/files
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -50,9 +47,9 @@ export async function GET(
       );
     }
 
-    // Check if sandbox is running
+    // Check if sandbox is running - use session.id (UUID) for sandbox identification
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(projectId, mainSession.sessionId);
+    const sandbox = await sandboxManager.getSandbox(mainSession.id);
 
     if (!sandbox || sandbox.status !== 'running') {
       return NextResponse.json(
@@ -65,7 +62,7 @@ export async function GET(
     }
 
     // Get files from sandbox
-    const client = new SandboxClient(projectId, mainSession.sessionId);
+    const client = new SandboxClient(mainSession.id);
 
     try {
       const files = await client.listFiles();

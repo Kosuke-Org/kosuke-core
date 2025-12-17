@@ -27,21 +27,12 @@ if [ ! -f "package.json" ]; then
 fi
 
 # ============================================================
-# INSTALL DEPENDENCIES (if not already done)
+# INSTALL DEPENDENCIES
 # ============================================================
 
-DEPS_MARKER=".kosuke-deps-installed"
-
-if [ ! -f "$DEPS_MARKER" ]; then
-    echo "📦 Installing Bun dependencies..."
-
-    bun install --frozen-lockfile
-    echo "✅ Dependencies installed"
-
-    touch "$DEPS_MARKER"
-else
-    echo "✅ Dependencies already installed"
-fi
+echo "📦 Installing Bun dependencies..."
+bun install --frozen-lockfile
+echo "✅ Dependencies installed"
 
 # ============================================================
 # DATABASE SETUP
@@ -73,7 +64,7 @@ fi
 
 if [ "$KOSUKE_MODE" = "production" ]; then
     echo "📦 Running production build..."
-    NODE_OPTIONS="--max-old-space-size=1024" bun run build
+    bun run build
     echo "▶️ Starting production server..."
     exec bun run start
 else

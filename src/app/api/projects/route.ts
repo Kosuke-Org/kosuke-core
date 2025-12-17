@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a transaction to ensure atomicity
-    const createdProject = await db.transaction(async tx => {
+    const txResult = await db.transaction(async tx => {
       // First create the project
       const [project] = await tx
         .insert(projects)
@@ -177,14 +177,17 @@ export async function POST(request: NextRequest) {
 
       // Create the default "main" session for this project
       // This allows cleanup job to track activity for the main branch preview
-      await tx.insert(chatSessions).values({
-        projectId: project.id,
-        userId: userId,
-        title: 'Main',
-        sessionId: 'main',
-        isDefault: true,
-        status: 'active',
-      });
+      const [mainSession] = await tx
+        .insert(chatSessions)
+        .values({
+          projectId: project.id,
+          userId: userId,
+          title: 'Main',
+          branchName: 'main',
+          isDefault: true,
+          status: 'active',
+        })
+        .returning();
 
       // Handle GitHub operations based on type
       if (github.type === 'create') {
@@ -204,7 +207,7 @@ export async function POST(request: NextRequest) {
           .where(eq(projects.id, project.id))
           .returning();
 
-        return updatedProject;
+        return { project: updatedProject, mainSession };
       } else {
         // Import mode - requires user GitHub connection
         const { repoInfo } = await importGitHubRepository(
@@ -226,9 +229,11 @@ export async function POST(request: NextRequest) {
           .where(eq(projects.id, project.id))
           .returning();
 
-        return updatedProject;
+        return { project: updatedProject, mainSession };
       }
     });
+
+    const { project: createdProject, mainSession: createdMainSession } = txResult;
 
     // Create GitHub webhook for push events to main branch (non-blocking)
     // This is done outside the transaction so webhook failures don't roll back project creation
@@ -249,7 +254,7 @@ export async function POST(request: NextRequest) {
       console.error(`⚠️ Failed to create webhook for project ${createdProject.id}:`, webhookError);
     }
 
-    return ApiResponseHandler.created({ project: createdProject });
+    return ApiResponseHandler.created({ project: createdProject, mainSession: createdMainSession });
   } catch (error) {
     console.error('Error creating project with GitHub integration:', error);
 

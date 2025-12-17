@@ -5,14 +5,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 // Hook for generating color palettes (session-specific)
 export function useGenerateColorPalette(projectId: string, sessionId: string) {
   const { toast } = useToast();
-  const effectiveSessionId = sessionId || 'main';
 
   return useMutation({
     mutationFn: async ({
       keywords,
     }: PaletteGenerationRequest): Promise<PaletteGenerationResponse> => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+
       const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${effectiveSessionId}/branding/generate-palette`,
+        `/api/projects/${projectId}/chat-sessions/${sessionId}/branding/generate-palette`,
         {
           method: 'POST',
           headers: {
@@ -51,7 +54,6 @@ export function useGenerateColorPalette(projectId: string, sessionId: string) {
 export function useApplyColorPalette(projectId: string, sessionId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const effectiveSessionId = sessionId || 'main';
 
   return useMutation({
     mutationFn: async (
@@ -63,8 +65,12 @@ export function useApplyColorPalette(projectId: string, sessionId: string) {
         description?: string;
       }>
     ) => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+
       const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${effectiveSessionId}/branding/apply-palette`,
+        `/api/projects/${projectId}/chat-sessions/${sessionId}/branding/apply-palette`,
         {
           method: 'POST',
           headers: {
@@ -91,7 +97,7 @@ export function useApplyColorPalette(projectId: string, sessionId: string) {
       });
 
       // Refresh the colors
-      queryClient.invalidateQueries({ queryKey: ['brand-colors', projectId, effectiveSessionId] });
+      queryClient.invalidateQueries({ queryKey: ['brand-colors', projectId, sessionId] });
     },
     onError: error => {
       toast({

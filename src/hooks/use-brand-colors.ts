@@ -12,13 +12,11 @@ interface ColorsResponse {
 
 // Hook for fetching brand colors (session-specific)
 export function useBrandColors(projectId: string, sessionId: string) {
-  const effectiveSessionId = sessionId || 'main';
-
   return useQuery({
-    queryKey: ['brand-colors', projectId, effectiveSessionId],
+    queryKey: ['brand-colors', projectId, sessionId],
     queryFn: async (): Promise<ColorsResponse> => {
       const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${effectiveSessionId}/branding/colors`
+        `/api/projects/${projectId}/chat-sessions/${sessionId}/branding/colors`
       );
 
       if (!response.ok) {
@@ -29,6 +27,7 @@ export function useBrandColors(projectId: string, sessionId: string) {
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
+    enabled: !!sessionId, // Don't fetch if no sessionId
   });
 }
 
@@ -36,15 +35,18 @@ export function useBrandColors(projectId: string, sessionId: string) {
 export function useUpdateBrandColor(projectId: string, sessionId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const effectiveSessionId = sessionId || 'main';
 
   return useMutation({
     mutationFn: async ({ name, value, mode }: ColorUpdateRequest) => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+
       // Convert the color to HSL format before sending to API
       const hslValue = convertToHsl(value);
 
       const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${effectiveSessionId}/branding/colors`,
+        `/api/projects/${projectId}/chat-sessions/${sessionId}/branding/colors`,
         {
           method: 'POST',
           headers: {
@@ -67,14 +69,14 @@ export function useUpdateBrandColor(projectId: string, sessionId: string) {
     onMutate: async ({ name, value, mode }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: ['brand-colors', projectId, effectiveSessionId],
+        queryKey: ['brand-colors', projectId, sessionId],
       });
 
       // Snapshot the previous value
       const previousColors = queryClient.getQueryData<ColorsResponse>([
         'brand-colors',
         projectId,
-        effectiveSessionId,
+        sessionId,
       ]);
 
       // Optimistically update the cache
@@ -92,7 +94,7 @@ export function useUpdateBrandColor(projectId: string, sessionId: string) {
           }),
         };
 
-        queryClient.setQueryData(['brand-colors', projectId, effectiveSessionId], updatedColors);
+        queryClient.setQueryData(['brand-colors', projectId, sessionId], updatedColors);
       }
 
       return { previousColors };
@@ -106,10 +108,7 @@ export function useUpdateBrandColor(projectId: string, sessionId: string) {
     onError: (error, __, context) => {
       // Revert optimistic update on error
       if (context?.previousColors) {
-        queryClient.setQueryData(
-          ['brand-colors', projectId, effectiveSessionId],
-          context.previousColors
-        );
+        queryClient.setQueryData(['brand-colors', projectId, sessionId], context.previousColors);
       }
 
       toast({
@@ -120,7 +119,7 @@ export function useUpdateBrandColor(projectId: string, sessionId: string) {
     },
     onSettled: () => {
       // Always refetch after error or success
-      queryClient.invalidateQueries({ queryKey: ['brand-colors', projectId, effectiveSessionId] });
+      queryClient.invalidateQueries({ queryKey: ['brand-colors', projectId, sessionId] });
     },
   });
 }

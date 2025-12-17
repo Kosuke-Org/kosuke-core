@@ -44,12 +44,11 @@ export class SandboxManager {
    * Prepare routing configuration based on mode (Traefik vs local port)
    */
   private prepareRouting(
-    projectId: string,
     sessionId: string,
     containerName: string
   ): { externalUrl: string; hostPort: number | null; labels: Record<string, string> } {
     if (this.config.traefikEnabled) {
-      const previewHost = generatePreviewHost(projectId, sessionId, this.config.previewDomain);
+      const previewHost = generatePreviewHost(sessionId, this.config.previewDomain);
 
       return {
         externalUrl: `https://${previewHost}`,
@@ -81,12 +80,13 @@ export class SandboxManager {
    */
   async createSandbox(options: SandboxCreateOptions): Promise<SandboxInfo> {
     const client = await this.ensureClient();
-    const containerName = generateSandboxName(options.projectId, options.sessionId);
+    const containerName = generateSandboxName(options.sessionId);
 
     console.log(`🚀 Creating sandbox: ${containerName}`);
+    console.log(`   Session: ${options.sessionId}`);
     console.log(`   Mode: ${options.mode}`);
     console.log(`   Repo: ${options.repoUrl}`);
-    console.log(`   Branch: ${options.branch}`);
+    console.log(`   Branch: ${options.branchName}`);
 
     // Check if container already exists
     try {
@@ -112,12 +112,12 @@ export class SandboxManager {
           console.log(`✅ Sandbox ${containerName} restarted`);
 
           // Pull latest code with fresh token
-          console.log(`📥 Pulling latest code for branch ${options.branch}...`);
-          const agentReady = await this.waitForAgent(options.projectId, options.sessionId);
+          console.log(`📥 Pulling latest code for branch ${options.branchName}...`);
+          const agentReady = await this.waitForAgent(options.sessionId);
 
           if (agentReady) {
-            const sandboxClient = new SandboxClient(options.projectId, options.sessionId);
-            const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
+            const sandboxClient = new SandboxClient(options.sessionId);
+            const pullResult = await sandboxClient.pull(options.branchName, options.githubToken);
 
             if (pullResult.success) {
               console.log(
@@ -148,28 +148,28 @@ export class SandboxManager {
     }
 
     // Create Postgres database for this sandbox
-    const postgresUrl = await createSandboxDatabase(options.projectId, options.sessionId);
+    const postgresUrl = await createSandboxDatabase(options.sessionId);
 
     // Prepare routing configuration (Traefik vs local port)
     const {
       externalUrl,
       hostPort,
       labels: routingLabels,
-    } = this.prepareRouting(options.projectId, options.sessionId, containerName);
+    } = this.prepareRouting(options.sessionId, containerName);
 
     const labels: Record<string, string> = {
       'kosuke.type': 'sandbox',
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
-      'kosuke.branch': options.branch,
+      'kosuke.branch': options.branchName,
       ...routingLabels,
     };
 
     // Build environment variables
     const envVars: string[] = [
       `KOSUKE_REPO_URL=${options.repoUrl}`,
-      `KOSUKE_BRANCH=${options.branch}`,
+      `KOSUKE_BRANCH=${options.branchName}`,
       `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
       `KOSUKE_MODE=${options.mode}`,
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
@@ -199,9 +199,10 @@ export class SandboxManager {
         : undefined,
       HostConfig: {
         NetworkMode: this.config.networkName,
-        Memory: this.config.memoryLimit,
-        CpuShares: this.config.cpuShares,
-        PidsLimit: this.config.pidsLimit,
+        // TODO: restore limits
+        // Memory: this.config.memoryLimit,
+        // CpuShares: this.config.cpuShares,
+        // PidsLimit: this.config.pidsLimit,
         PortBindings: hostPort
           ? {
               '3000/tcp': [{ HostPort: String(hostPort) }],
@@ -238,7 +239,6 @@ export class SandboxManager {
     const client = await this.ensureClient();
     const container = await client.containerInspect(containerName);
 
-    const projectId = container.Config?.Labels?.['kosuke.project_id'] || '';
     const sessionId = container.Config?.Labels?.['kosuke.session_id'] || '';
     const mode = (container.Config?.Labels?.['kosuke.mode'] || 'development') as
       | 'development'
@@ -247,7 +247,7 @@ export class SandboxManager {
     const hostPort = container.Config?.Labels?.['kosuke.host_port'];
 
     const url = this.config.traefikEnabled
-      ? `https://${generatePreviewHost(projectId, sessionId, this.config.previewDomain)}`
+      ? `https://${generatePreviewHost(sessionId, this.config.previewDomain)}`
       : `http://localhost:${hostPort}`;
 
     return {
@@ -262,10 +262,10 @@ export class SandboxManager {
   }
 
   /**
-   * Get sandbox info by project and session ID
+   * Get sandbox info by session ID
    */
-  async getSandbox(projectId: string, sessionId: string): Promise<SandboxInfo | null> {
-    const containerName = generateSandboxName(projectId, sessionId);
+  async getSandbox(sessionId: string): Promise<SandboxInfo | null> {
+    const containerName = generateSandboxName(sessionId);
 
     try {
       return await this.getSandboxInfo(containerName);
@@ -277,9 +277,9 @@ export class SandboxManager {
   /**
    * Stop a sandbox container (can be restarted)
    */
-  async stopSandbox(projectId: string, sessionId: string): Promise<void> {
+  async stopSandbox(sessionId: string): Promise<void> {
     const client = await this.ensureClient();
-    const containerName = generateSandboxName(projectId, sessionId);
+    const containerName = generateSandboxName(sessionId);
 
     try {
       console.log(`⏹️ Stopping sandbox ${containerName}...`);
@@ -294,9 +294,9 @@ export class SandboxManager {
   /**
    * Destroy a sandbox container (removes container, volumes, and database)
    */
-  async destroySandbox(projectId: string, sessionId: string): Promise<void> {
+  async destroySandbox(sessionId: string): Promise<void> {
     const client = await this.ensureClient();
-    const containerName = generateSandboxName(projectId, sessionId);
+    const containerName = generateSandboxName(sessionId);
 
     try {
       console.log(`🗑️ Destroying sandbox ${containerName}...`);
@@ -313,7 +313,7 @@ export class SandboxManager {
       console.log(`✅ Sandbox ${containerName} destroyed`);
 
       // Drop the database
-      await dropSandboxDatabase(projectId, sessionId);
+      await dropSandboxDatabase(sessionId);
     } catch (err) {
       console.error(`Failed to destroy sandbox ${containerName}:`, err);
       throw err;
@@ -323,12 +323,8 @@ export class SandboxManager {
   /**
    * Wait for the sandbox agent to be ready
    */
-  private async waitForAgent(
-    projectId: string,
-    sessionId: string,
-    maxAttempts: number = 30
-  ): Promise<boolean> {
-    const agentUrl = this.getSandboxAgentUrl(projectId, sessionId);
+  private async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
+    const agentUrl = this.getSandboxAgentUrl(sessionId);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -359,17 +355,15 @@ export class SandboxManager {
    * - Development mode: just pull (dev server has hot-reload)
    * - Production mode: pull then restart (needs rebuild)
    *
-   * @param projectId - Project ID
    * @param sessionId - Session ID
    * @param options - branch and githubToken to pull latest code
    */
   async updateSandbox(
-    projectId: string,
     sessionId: string,
     options: { branch: string; githubToken: string }
   ): Promise<void> {
     const client = await this.ensureClient();
-    const containerName = generateSandboxName(projectId, sessionId);
+    const containerName = generateSandboxName(sessionId);
 
     try {
       // Get sandbox mode
@@ -378,7 +372,7 @@ export class SandboxManager {
 
       // Pull latest code
       console.log(`📥 Pulling latest code for branch ${options.branch}...`);
-      const sandboxClient = new SandboxClient(projectId, sessionId);
+      const sandboxClient = new SandboxClient(sessionId);
       const pullResult = await sandboxClient.pull(options.branch, options.githubToken);
 
       if (pullResult.success) {
@@ -408,8 +402,8 @@ export class SandboxManager {
   /**
    * Get sandbox agent URL for API calls
    */
-  getSandboxAgentUrl(projectId: string, sessionId: string): string {
-    const containerName = generateSandboxName(projectId, sessionId);
+  getSandboxAgentUrl(sessionId: string): string {
+    const containerName = generateSandboxName(sessionId);
     return `http://${containerName}:${this.config.agentPort}`;
   }
 
@@ -453,8 +447,7 @@ export class SandboxManager {
 
     for (const sandbox of sandboxes) {
       try {
-        const sessionId = sandbox.name.split('_').slice(-1)[0] || '';
-        await this.destroySandbox(projectId, sessionId);
+        await this.destroySandbox(sandbox.sessionId);
         destroyed++;
       } catch {
         failed++;

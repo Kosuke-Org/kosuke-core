@@ -27,7 +27,7 @@ export async function GET(
       return ApiErrorHandler.projectNotFound();
     }
 
-    const info = await getDatabaseInfo(projectId, sessionId);
+    const info = await getDatabaseInfo(sessionId);
 
     return NextResponse.json(info);
   } catch (error) {

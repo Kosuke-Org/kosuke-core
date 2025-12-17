@@ -7,13 +7,11 @@ interface FontsResponse {
 
 // Hook for fetching brand fonts (session-specific)
 export function useBrandFonts(projectId: string, sessionId: string) {
-  const effectiveSessionId = sessionId || 'main';
-
   return useQuery({
-    queryKey: ['brand-fonts', projectId, effectiveSessionId],
+    queryKey: ['brand-fonts', projectId, sessionId],
     queryFn: async (): Promise<FontsResponse> => {
       const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${effectiveSessionId}/branding/fonts`
+        `/api/projects/${projectId}/chat-sessions/${sessionId}/branding/fonts`
       );
 
       if (!response.ok) {
@@ -24,5 +22,6 @@ export function useBrandFonts(projectId: string, sessionId: string) {
     },
     staleTime: 1000 * 60 * 10, // 10 minutes (fonts change less frequently)
     retry: 1,
+    enabled: !!sessionId, // Don't fetch if no sessionId
   });
 }

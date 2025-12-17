@@ -155,7 +155,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
       if (sessionFromUrl) {
         // Try to find session from URL
-        sessionToSelect = sessions.find(session => session.sessionId === sessionFromUrl);
+        sessionToSelect = sessions.find(session => session.id === sessionFromUrl);
         if (sessionToSelect) {
           setShowSidebar(false); // Show chat interface when coming from URL
         }
@@ -179,18 +179,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       setActiveChatSessionId(sessionId);
       setShowSidebar(false); // Switch to chat interface
       // Update URL to reflect selected session using query params
-      router.push(`/projects/${projectId}?session=${session.sessionId}`, { scroll: false });
+      router.push(`/projects/${projectId}?session=${session.id}`, { scroll: false });
     }
   };
 
   // Get current session information
   const currentSession = sessions.find(session => session.id === activeChatSessionId);
-  // Branch label is just the sessionId now
-  const currentBranch = currentSession?.sessionId;
-  const sessionId = currentSession?.sessionId;
+  const mainSession = sessions.find(session => session.isDefault);
+  const currentBranch = currentSession?.branchName;
+  const sessionId = currentSession?.id;
 
-  // Preview should use session only when in chat interface view, not in sidebar list view
-  const previewSessionId = showSidebar ? null : sessionId;
+  // Preview uses current session when in chat view, or main session when in sidebar view
+  const previewSessionId = showSidebar ? mainSession?.id : sessionId;
+  const previewBranch = showSidebar ? mainSession?.branchName : currentBranch;
 
   // Show template preview for new projects
   const isNewProject = (() => {
@@ -233,16 +234,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // Handle creating pull request from active chat session
   const handleCreatePullRequest = () => {
-    if (!activeChatSessionId || !currentSession?.sessionId) {
+    if (!activeChatSessionId || !currentSession?.id) {
       console.error('No active chat session for pull request creation');
       return;
     }
 
     createPullRequestMutation.mutate({
-      sessionId: currentSession.sessionId,
+      sessionId: currentSession.id,
       data: {
-        title: `Updates from chat session: ${currentSession.title}`,
-        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nSession ID: ${currentSession.sessionId}`,
+        title: currentSession.title,
+        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`,
       },
     });
   };
@@ -317,7 +318,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               projectId={projectId}
               projectName={project.name}
               sessionId={previewSessionId ?? ''}
-              branch={showSidebar ? undefined : currentBranch}
+              branch={previewBranch}
               isNewProject={isNewProject}
             />
           ) : currentView === 'code' ? (

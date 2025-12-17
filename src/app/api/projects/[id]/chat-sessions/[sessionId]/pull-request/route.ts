@@ -3,11 +3,8 @@ import { z } from 'zod';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db/drizzle';
-import { chatSessions } from '@/lib/db/schema';
 import { getOctokit } from '@/lib/github/client';
-import { verifyProjectAccess } from '@/lib/projects';
-import { and, eq } from 'drizzle-orm';
+import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 
 // Schema for creating pull request
 const createPullRequestSchema = z.object({
@@ -25,11 +22,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string; sessionId: string }> }
 ) {
   try {
-    const sessionBranchPrefix = process.env.SESSION_BRANCH_PREFIX;
-    if (!sessionBranchPrefix) {
-      throw new Error('SESSION_BRANCH_PREFIX environment variable is required');
-    }
-
     const { userId } = await auth();
     if (!userId) {
       return ApiErrorHandler.unauthorized();
@@ -49,11 +41,8 @@ export async function POST(
       return ApiErrorHandler.badRequest('Project is not connected to a GitHub repository');
     }
 
-    // Get chat session
-    const [session] = await db
-      .select()
-      .from(chatSessions)
-      .where(and(eq(chatSessions.projectId, projectId), eq(chatSessions.sessionId, sessionId)));
+    // Get chat session by ID or branchName
+    const session = await findChatSession(projectId, sessionId);
 
     if (!session) {
       return ApiErrorHandler.chatSessionNotFound();
@@ -69,13 +58,13 @@ export async function POST(
 
     const { title, description, target_branch } = parseResult.data;
 
-    // Set defaults
-    const sourceBranch = `${sessionBranchPrefix}${session.sessionId}`;
+    // Use the session's branchName directly
+    const sourceBranch = session.branchName;
     const targetBranch = target_branch || project.defaultBranch || 'main';
-    const prTitle = title || `Updates from chat session: ${session.title}`;
+    const prTitle = title || session.title;
     const prDescription =
       description ||
-      `Automated changes from Kosuke chat session: ${session.title}\n\nSession ID: ${sessionId}`;
+      `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
 
     try {
       // Get GitHub client based on project ownership
@@ -109,7 +98,7 @@ export async function POST(
       const encodedTitle = encodeURIComponent(prTitle);
       const encodedBody = encodeURIComponent(prDescription);
 
-      const githubPrUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}/compare/${targetBranch}...${sourceBranch}?quick_pull=1&title=${encodedTitle}&body=${encodedBody}`;
+      const githubPrUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}/compare/${targetBranch}...${encodeURIComponent(sourceBranch)}?quick_pull=1&title=${encodedTitle}&body=${encodedBody}`;
 
       return NextResponse.json({
         pull_request_url: githubPrUrl,

@@ -10,8 +10,8 @@
 export interface SandboxCreateOptions {
   projectId: string;
   sessionId: string;
+  branchName: string;
   repoUrl: string;
-  branch: string;
   githubToken: string;
   mode: 'development' | 'production';
 }

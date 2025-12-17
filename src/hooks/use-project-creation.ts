@@ -1,10 +1,15 @@
 import { useToast } from '@/hooks/use-toast';
 import type { Project } from '@/lib/db/schema';
-import type { ApiSuccess } from '@/lib/types';
+import type { ApiSuccess, ChatSession } from '@/lib/types';
 import type { CreateProjectData, ProjectCreationStep } from '@/lib/types/project';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+
+interface CreateProjectResponse {
+  project: Project;
+  mainSession: ChatSession;
+}
 
 export function useProjectCreation() {
   const [currentStep, setCurrentStep] = useState<ProjectCreationStep>({
@@ -15,7 +20,7 @@ export function useProjectCreation() {
   const { toast } = useToast();
 
   const createProjectMutation = useMutation({
-    mutationFn: async (data: CreateProjectData): Promise<Project> => {
+    mutationFn: async (data: CreateProjectData): Promise<CreateProjectResponse> => {
       setCurrentStep({ step: 'creating', data });
 
       const response = await fetch('/api/projects', {
@@ -29,12 +34,15 @@ export function useProjectCreation() {
         throw new Error(errorData.error || 'Failed to create project');
       }
 
-      const result: ApiSuccess<{ project: Project }> = await response.json();
-      return result.data.project;
+      const result: ApiSuccess<CreateProjectResponse> = await response.json();
+      return result.data;
     },
-    onSuccess: project => {
+    onSuccess: ({ project, mainSession }) => {
       setCurrentStep({ step: 'complete', data: currentStep.data });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+
+      // Pre-populate the chat-sessions cache so the project page has data immediately
+      queryClient.setQueryData(['chat-sessions', project.id], [mainSession]);
 
       toast({
         title: 'Project Created',

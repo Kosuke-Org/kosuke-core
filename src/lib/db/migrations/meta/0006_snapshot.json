@@ -1,6 +1,6 @@
 {
-  "id": "ed8f3076-1e96-4787-837f-9257bd694609",
-  "prevId": "02efc040-f487-410d-ac80-03b4b1ccc579",
+  "id": "d72ba0bb-f088-43dd-abeb-ae80d605cecc",
+  "prevId": "e843caef-3f2e-4db9-b6ae-b78dc39cfcad",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -359,9 +359,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "session_id": {
-          "name": "session_id",
-          "type": "varchar(50)",
+        "branch_name": {
+          "name": "branch_name",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
@@ -462,10 +462,10 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "chat_sessions_project_session_unique": {
-          "name": "chat_sessions_project_session_unique",
+        "chat_sessions_project_branch_unique": {
+          "name": "chat_sessions_project_branch_unique",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "session_id"]
+          "columns": ["project_id", "branch_name"]
         }
       },
       "policies": {},

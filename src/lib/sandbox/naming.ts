@@ -15,30 +15,26 @@ function sanitizeUUID(uuid: string): string {
 
 /**
  * Generate sandbox container name
- * Format: kosuke-sandbox_{projectId}_{sessionId}
+ * Format: kosuke-sandbox_{sessionId}
  */
-export function generateSandboxName(projectId: string, sessionId: string): string {
-  const sanitizedProjectId = sanitizeUUID(projectId);
-  const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9]/g, '');
-  return `${SANDBOX_PREFIX}_${sanitizedProjectId}_${sanitizedSessionId}`;
+export function generateSandboxName(sessionId: string): string {
+  const sanitizedId = sanitizeUUID(sessionId);
+  return `${SANDBOX_PREFIX}_${sanitizedId}`;
 }
 
 /**
  * Generate preview host for Traefik routing
- * Format: project-{projectId}-{sessionId}.{domain}
+ * Format: {sanitizedSessionId}.{domain}
  */
-export function generatePreviewHost(projectId: string, sessionId: string, domain: string): string {
-  const sanitizedProjectId = sanitizeUUID(projectId).replace(/_/g, '');
-  const sanitizedSessionId = sessionId.replace(/[^a-zA-Z0-9]/g, '');
-  return `project-${sanitizedProjectId.substring(0, 8)}-${sanitizedSessionId}.${domain}`;
+export function generatePreviewHost(sessionId: string, domain: string): string {
+  const sanitizedId = sanitizeUUID(sessionId).replace(/_/g, '');
+  return `${sanitizedId}.${domain}`;
 }
 
 /**
  * Generate Postgres database name for preview environment
- * Format: preview_{projectId}_{sessionId}
+ * Format: {sanitizedSessionId}
  */
-export function generatePreviewDatabaseName(projectId: string, sessionId: string): string {
-  const sanitizedProjectId = sanitizeUUID(projectId);
-  const sanitizedSessionId = sanitizeUUID(sessionId);
-  return `preview_${sanitizedProjectId}_${sanitizedSessionId}`;
+export function generatePreviewDatabaseName(sessionId: string): string {
+  return sanitizeUUID(sessionId);
 }
