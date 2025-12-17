@@ -767,12 +767,10 @@ export default function TermsPage() {
 
 When fixing Knip errors:
 
-- ✅ **ONLY fix unused exports and imports** - Remove or mark as used
+- ✅ **Fix unused exports and imports** - Remove or mark as used
 - ✅ **Fix unused internal code** - Remove dead functions, variables, types
 - ✅ **Fix duplicate exports** - Consolidate or remove duplicates
-- ❌ **NEVER modify package.json** - Ignore dependency-related warnings
-- ❌ **NEVER add or remove packages** - Only fix code-level issues
-- ❌ **NEVER update dependencies** - Leave package versions unchanged
+- ❌ **NEVER modify package.json** - Run bun remove <dependency>
 
 ```bash
 # ✅ CORRECT - Fix unused exports
