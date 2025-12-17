@@ -28,8 +28,10 @@ export class SandboxClient {
   }
 
   // ============================================================
-  // FILE OPERATIONS
+  // KOSUKE SERVE API
   // ============================================================
+
+  // --- File Operations ---
 
   /**
    * List files in sandbox
@@ -125,9 +127,7 @@ export class SandboxClient {
     }
   }
 
-  // ============================================================
-  // GIT OPERATIONS
-  // ============================================================
+  // --- Git Operations ---
 
   /**
    * Pull latest changes in sandbox
@@ -171,9 +171,7 @@ export class SandboxClient {
     return response.json();
   }
 
-  // ============================================================
-  // KOSUKE SERVE API
-  // ============================================================
+  // --- Plan/Build Streaming ---
 
   /**
    * Stream plan phase from kosuke serve (SSE)
