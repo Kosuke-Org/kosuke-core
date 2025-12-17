@@ -150,7 +150,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // Auto-select session based on URL or default session when sessions are loaded
   useEffect(() => {
-    console.log('sessions', sessions);
     if (sessions.length > 0 && activeChatSessionId === null) {
       let sessionToSelect = null;
 
