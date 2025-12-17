@@ -15,7 +15,7 @@ import {
 import { getGitHubToken, getOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
-import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import * as Sentry from '@sentry/nextjs';
@@ -595,8 +595,9 @@ export async function POST(
               const ticketsJson = await sandboxClient.readFile(eventData.ticketsFile);
               const ticketsData = JSON.parse(ticketsJson);
               const tickets = ticketsData.tickets || [];
-              // Convert localhost to host.docker.internal for container access
-              const testUrl = sandbox?.url?.replace('localhost', 'host.docker.internal');
+              // Use internal sandbox URL (bun service runs on localhost inside container)
+              const sandboxConfig = getSandboxConfig();
+              const testUrl = `http://localhost:${sandboxConfig.bunPort}`;
 
               console.log(`📝 Found ${tickets.length} tickets to save`);
 

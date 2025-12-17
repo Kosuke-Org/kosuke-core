@@ -18,10 +18,10 @@ import { readFileSync, writeFileSync } from 'fs';
 const CONFIG_FILE = '/app/project/kosuke.config.json';
 const OUTPUT_FILE = '/tmp/kosuke.env';
 
-// Default ports for services inside the sandbox
+// Service ports from environment variables
 const SERVICE_PORTS = {
-  bun: 3000,
-  python: 8000,
+  bun: parseInt(process.env.SANDBOX_BUN_PORT, 10),
+  python: parseInt(process.env.SANDBOX_PYTHON_PORT, 10),
 };
 
 function escapeEnvValue(value) {

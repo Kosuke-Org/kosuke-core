@@ -65,9 +65,9 @@ fi
 if [ "$KOSUKE_MODE" = "production" ]; then
     echo "📦 Running production build..."
     bun run build
-    echo "▶️ Starting production server..."
-    exec bun run start
+    echo "▶️ Starting production server on port $SANDBOX_BUN_PORT..."
+    exec bun run start -- -p $SANDBOX_BUN_PORT
 else
-    echo "▶️ Starting development server..."
-    exec bun run dev
+    echo "▶️ Starting development server on port $SANDBOX_BUN_PORT..."
+    exec bun run dev -- -p $SANDBOX_BUN_PORT
 fi

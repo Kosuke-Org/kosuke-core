@@ -58,7 +58,9 @@ export class SandboxManager {
           [`traefik.http.routers.${containerName}.rule`]: `Host(\`${previewHost}\`)`,
           [`traefik.http.routers.${containerName}.entrypoints`]: 'websecure',
           [`traefik.http.routers.${containerName}.tls.certresolver`]: 'letsencrypt',
-          [`traefik.http.services.${containerName}.loadbalancer.server.port`]: '3000',
+          [`traefik.http.services.${containerName}.loadbalancer.server.port`]: String(
+            this.config.bunPort
+          ),
         },
       };
     }
@@ -175,6 +177,8 @@ export class SandboxManager {
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
+      `SANDBOX_BUN_PORT=${this.config.bunPort}`,
+      `SANDBOX_PYTHON_PORT=${this.config.pythonPort}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
       `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}`,
       `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
@@ -194,7 +198,7 @@ export class SandboxManager {
       Labels: labels,
       ExposedPorts: hostPort
         ? {
-            '3000/tcp': {},
+            [`${this.config.bunPort}/tcp`]: {},
           }
         : undefined,
       HostConfig: {
@@ -205,7 +209,7 @@ export class SandboxManager {
         // PidsLimit: this.config.pidsLimit,
         PortBindings: hostPort
           ? {
-              '3000/tcp': [{ HostPort: String(hostPort) }],
+              [`${this.config.bunPort}/tcp`]: [{ HostPort: String(hostPort) }],
             }
           : undefined,
         Binds:
