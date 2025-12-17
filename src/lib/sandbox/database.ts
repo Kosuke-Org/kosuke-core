@@ -114,6 +114,15 @@ export async function createSandboxDatabase(sessionId: string): Promise<string> 
 }
 
 /**
+ * Get the database URL for a sandbox (without creating it)
+ */
+export function getSandboxDatabaseUrl(sessionId: string): string {
+  const config = getPostgresConfig();
+  const dbName = generatePreviewDatabaseName(sessionId);
+  return `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${dbName}`;
+}
+
+/**
  * Drop Postgres database for a sandbox
  */
 export async function dropSandboxDatabase(sessionId: string): Promise<void> {

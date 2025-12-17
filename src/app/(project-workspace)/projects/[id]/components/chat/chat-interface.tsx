@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Import types and hooks
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
@@ -26,8 +27,8 @@ export default function ChatInterface({
   activeChatSessionId,
   currentBranch,
   sessionId,
+  model,
 }: ChatInterfaceProps) {
-
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -45,10 +46,7 @@ export default function ChatInterface({
   const chatState = useChatState(projectId, sessionId);
 
   // Extract data from hooks
-  const {
-    data: messagesData,
-    isLoading: isLoadingMessages,
-  } = messagesQuery;
+  const { data: messagesData, isLoading: isLoadingMessages } = messagesQuery;
 
   const messages = useMemo(() => {
     const msgs = messagesData?.messages || [];
@@ -104,7 +102,7 @@ export default function ChatInterface({
       if (messagesEndRef.current) {
         messagesEndRef.current.scrollIntoView({
           behavior: 'smooth',
-          block: 'end'
+          block: 'end',
         });
       }
     }, 100);
@@ -124,7 +122,8 @@ export default function ChatInterface({
 
   // Keep streaming UI visible while waiting for webhook-saved message
   const showStreamingAssistant = Boolean(
-    (isStreaming || expectingWebhookUpdate) && (!streamingAssistantMessageId || !hasSavedStreamedMessage)
+    (isStreaming || expectingWebhookUpdate) &&
+      (!streamingAssistantMessageId || !hasSavedStreamedMessage)
   );
 
   // Handle sending messages
@@ -155,13 +154,30 @@ export default function ChatInterface({
   const filteredMessages = messages.filter(message => {
     // If there are user messages, filter out the system welcome message
     const hasUserMessages = messages.some(m => m.role === 'user');
-    if (hasUserMessages &&
-        message.role === 'system' &&
-        message.content?.includes('Project created successfully')) {
+    if (
+      hasUserMessages &&
+      message.role === 'system' &&
+      message.content?.includes('Project created successfully')
+    ) {
       return false;
     }
     return true;
   });
+
+  // Check if any build is currently active by checking query cache
+  const queryClient = useQueryClient();
+  const hasBuildInProgress = useMemo(() => {
+    const buildMessages = messages.filter(msg => msg.metadata?.buildJobId);
+    return buildMessages.some(msg => {
+      const buildJobId = String(msg.metadata?.buildJobId);
+      const cachedData = queryClient.getQueryData<{
+        buildJob: { status: string };
+      }>(['build-job', buildJobId]);
+      return (
+        cachedData?.buildJob?.status === 'pending' || cachedData?.buildJob?.status === 'running'
+      );
+    });
+  }, [messages, queryClient]);
 
   // Enhance messages with showAvatar property
   const enhancedMessages = filteredMessages.map((message, index) => {
@@ -186,6 +202,7 @@ export default function ChatInterface({
       <ModelBanner
         currentBranch={currentBranch}
         chatSessionId={activeChatSessionId}
+        model={model}
       />
 
       <ScrollArea className="flex-1 overflow-y-auto">
@@ -209,11 +226,15 @@ export default function ChatInterface({
                   role={message.role}
                   timestamp={message.timestamp}
                   isLoading={(message as { isLoading?: boolean }).isLoading || false}
-                  user={user ? {
-                    name: user.name || undefined,
-                    email: user.email,
-                    imageUrl: user.imageUrl || undefined
-                  } : undefined}
+                  user={
+                    user
+                      ? {
+                          name: user.name || undefined,
+                          email: user.email,
+                          imageUrl: user.imageUrl || undefined,
+                        }
+                      : undefined
+                  }
                   showAvatar={message.showAvatar}
                   hasError={message.hasError}
                   errorType={message.errorType}
@@ -228,15 +249,26 @@ export default function ChatInterface({
 
               {/* Removed pre-stream immediate loading state */}
 
-                            {/* Real-time streaming assistant response - use same layout as stored messages */}
+              {/* Real-time streaming assistant response - use same layout as stored messages */}
               {showStreamingAssistant && (
                 <div className="animate-in fade-in-0 duration-300">
                   <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4" role="listitem">
                     {/* Avatar column - same as ChatMessage */}
                     <div className="relative flex items-center justify-center h-8 w-8">
                       <div className="bg-muted border-primary rounded-md flex items-center justify-center h-full w-full">
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-primary">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-6 w-6 text-primary"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            fill="none"
+                          />
                         </svg>
                       </div>
                     </div>
@@ -286,9 +318,7 @@ export default function ChatInterface({
                       <h4 className="text-sm font-medium text-destructive mb-1">
                         Something went wrong
                       </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {getErrorMessage(errorType)}
-                      </p>
+                      <p className="text-sm text-muted-foreground">{getErrorMessage(errorType)}</p>
                     </div>
                     <button
                       onClick={handleRegenerate}
@@ -313,8 +343,6 @@ export default function ChatInterface({
             </div>
           )}
 
-
-
           <div ref={messagesEndRef} className="pb-6" />
         </div>
       </ScrollArea>
@@ -325,7 +353,8 @@ export default function ChatInterface({
           isLoading={isSending || isRegenerating}
           isStreaming={isStreaming}
           onStop={cancelStream}
-          placeholder="Type your message..."
+          placeholder={hasBuildInProgress ? 'Build in progress...' : 'Type your message...'}
+          disabled={hasBuildInProgress}
           data-testid="chat-input"
           className="chat-input"
         />

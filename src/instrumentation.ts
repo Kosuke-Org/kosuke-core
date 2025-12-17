@@ -45,6 +45,8 @@ function validateEnvironmentVariables() {
     { key: 'SANDBOX_CPU_SHARES', description: 'CPU shares for sandbox containers' },
     { key: 'SANDBOX_PIDS_LIMIT', description: 'PIDs limit for sandbox containers' },
     { key: 'SANDBOX_AGENT_PORT', description: 'Port for sandbox agent communication' },
+    { key: 'SANDBOX_BUN_PORT', description: 'Bun service port inside sandbox container' },
+    { key: 'SANDBOX_PYTHON_PORT', description: 'Python service port inside sandbox container' },
     { key: 'SANDBOX_BASE_DOMAIN', description: 'Base domain for preview deployments' },
     { key: 'SANDBOX_GIT_EMAIL', description: 'Git email for sandbox commits' },
 

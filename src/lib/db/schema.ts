@@ -6,6 +6,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  real,
   text,
   timestamp,
   unique,
@@ -16,6 +17,19 @@ import {
 // File type enum for attachments
 export const fileTypeEnum = pgEnum('file_type', ['image', 'document']);
 export type FileType = (typeof fileTypeEnum.enumValues)[number];
+
+// Build status enum
+export const buildStatusEnum = pgEnum('build_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
+
+// Task status enum
+export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done', 'error']);
+export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -48,13 +62,14 @@ export const chatSessions = pgTable(
     title: varchar('title', { length: 100 }).notNull(),
     description: text('description'),
     branchName: varchar('branch_name', { length: 255 }).notNull(), // Full GitHub branch name (e.g., "kosuke/chat-abc123" or "feature/my-feature")
-    remoteId: varchar('remote_id', { length: 255 }).unique(), // Claude Agent SDK session ID for resuming conversations
     status: varchar('status', { length: 20 }).default('active'), // active, archived, completed
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     lastActivityAt: timestamp('last_activity_at').notNull().defaultNow(),
     messageCount: integer('message_count').default(0),
     isDefault: boolean('is_default').default(false),
+    // Claude AI session ID for maintaining conversation context during plan clarifications
+    claudeSessionId: varchar('claude_session_id', { length: 100 }),
     // GitHub PR/merge status
     branchMergedAt: timestamp('branch_merged_at'),
     branchMergedBy: varchar('branch_merged_by', { length: 100 }),
@@ -199,6 +214,78 @@ export const projectIntegrations = pgTable(
   })
 );
 
+// Build jobs - tracks build execution per session
+export const buildJobs = pgTable(
+  'build_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chatSessionId: uuid('chat_session_id')
+      .references(() => chatSessions.id, { onDelete: 'cascade' })
+      .notNull(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Claude planning session that produced this build (for audit trail)
+    claudeSessionId: varchar('claude_session_id', { length: 100 }),
+
+    // Status
+    status: buildStatusEnum('status').notNull().default('pending'),
+
+    // Cost
+    totalCost: real('total_cost').default(0),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+
+    // BullMQ reference
+    bullJobId: varchar('bull_job_id', { length: 100 }),
+  },
+  table => ({
+    sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),
+    statusIdx: index('idx_build_jobs_status').on(table.status),
+  })
+);
+
+// Tasks - individual task records for builds
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    buildJobId: uuid('build_job_id')
+      .references(() => buildJobs.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Task details
+    externalId: varchar('external_id', { length: 100 }).notNull(), // From kosuke-cli (ticket.id)
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    type: varchar('type', { length: 50 }),
+    category: varchar('category', { length: 50 }),
+    estimatedEffort: integer('estimated_effort').notNull().default(1),
+    order: integer('order').notNull(),
+    // Status
+    status: taskStatusEnum('status').notNull().default('todo'),
+
+    // Error details
+    error: text('error'),
+
+    // Cost tracking
+    cost: real('cost').default(0),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  table => ({
+    buildJobIdx: index('idx_tasks_build_job').on(table.buildJobId),
+    statusIdx: index('idx_tasks_status').on(table.status),
+    externalIdIdx: index('idx_tasks_external_id').on(table.externalId),
+  })
+);
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
@@ -213,6 +300,7 @@ export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => 
     references: [projects.id],
   }),
   messages: many(chatMessages),
+  buildJobs: many(buildJobs),
 }));
 
 export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => ({
@@ -289,6 +377,25 @@ export const projectIntegrationsRelations = relations(projectIntegrations, ({ on
   }),
 }));
 
+export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
+  chatSession: one(chatSessions, {
+    fields: [buildJobs.chatSessionId],
+    references: [chatSessions.id],
+  }),
+  project: one(projects, {
+    fields: [buildJobs.projectId],
+    references: [projects.id],
+  }),
+  tasks: many(tasks),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  buildJob: one(buildJobs, {
+    fields: [tasks.buildJobId],
+    references: [buildJobs.id],
+  }),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -309,3 +416,7 @@ export type ProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inf
 export type NewProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferInsert;
 export type ProjectIntegration = typeof projectIntegrations.$inferSelect;
 export type NewProjectIntegration = typeof projectIntegrations.$inferInsert;
+export type BuildJob = typeof buildJobs.$inferSelect;
+export type NewBuildJob = typeof buildJobs.$inferInsert;
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;

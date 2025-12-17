@@ -53,7 +53,7 @@ echo "▶️ Starting uvicorn with module: $MAIN_MODULE"
 # ============================================================
 
 if [ "$KOSUKE_MODE" = "production" ]; then
-    exec uvicorn $MAIN_MODULE --host 0.0.0.0 --port 8000
+    exec uvicorn $MAIN_MODULE --host 0.0.0.0 --port $SANDBOX_PYTHON_PORT
 else
-    exec uvicorn $MAIN_MODULE --host 0.0.0.0 --port 8000 --reload
+    exec uvicorn $MAIN_MODULE --host 0.0.0.0 --port $SANDBOX_PYTHON_PORT --reload
 fi

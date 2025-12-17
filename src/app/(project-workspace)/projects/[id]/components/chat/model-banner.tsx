@@ -5,27 +5,28 @@ import { GitBranch } from 'lucide-react';
 
 interface ModelBannerProps {
   className?: string;
-  currentBranch?: string; // NEW: Display current branch
-  chatSessionId?: string | null; // NEW: Track active session
+  currentBranch?: string;
+  chatSessionId?: string | null;
+  model?: string;
 }
 
-export default function ModelBanner({ className, currentBranch, chatSessionId }: ModelBannerProps) {
-  // Get model name from environment variable
-  const model = process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'claude-haiku-4-5';
-
+export default function ModelBanner({
+  className,
+  currentBranch,
+  chatSessionId,
+  model,
+}: ModelBannerProps) {
   // Format model name for display
-  const getModelDisplayName = (modelId: string) => {
-    if (modelId.includes('claude-3-7-sonnet')) return 'Claude 3.7 Sonnet';
-    if (modelId.includes('claude-3-5-sonnet')) return 'Claude 3.5 Sonnet';
-    if (modelId.includes('gemini-2.5-pro')) return 'Gemini 2.5 Pro';
-    if (modelId.includes('gemini-2.0-flash')) return 'Gemini 2.0 Flash';
-    return modelId; // fallback to raw model ID
+  const getModelDisplayName = (modelId?: string) => {
+    if (!modelId) return 'Unknown';
+    if (modelId.includes('claude-sonnet-4')) return 'Claude Sonnet 4';
+    if (modelId.includes('claude-haiku-4')) return 'Claude Haiku 4';
+    if (modelId.includes('claude-opus-4')) return 'Claude Opus 4';
+    return modelId;
   };
 
-  const modelName = getModelDisplayName(model);
-
-  // Determine branch to display
   const displayBranch = currentBranch || 'main';
+  const modelName = getModelDisplayName(model);
 
   return (
     <div className={cn('px-4', className)}>
@@ -38,12 +39,8 @@ export default function ModelBanner({ className, currentBranch, chatSessionId }:
         {/* Branch Display */}
         <div className="flex items-center gap-1.5">
           <GitBranch className="h-3 w-3 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground">
-            {displayBranch}
-          </span>
-          {!chatSessionId && (
-            <span className="text-xs text-muted-foreground/70">(default)</span>
-          )}
+          <span className="text-xs font-medium text-muted-foreground">{displayBranch}</span>
+          {!chatSessionId && <span className="text-xs text-muted-foreground/70">(default)</span>}
         </div>
       </div>
     </div>

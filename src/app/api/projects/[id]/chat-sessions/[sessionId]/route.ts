@@ -4,10 +4,19 @@ import { z } from 'zod';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { attachments, chatMessages, chatSessions, messageAttachments } from '@/lib/db/schema';
+import {
+  attachments,
+  buildJobs,
+  chatMessages,
+  chatSessions,
+  messageAttachments,
+  tasks,
+} from '@/lib/db/schema';
 import { getGitHubToken, getOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
-import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import { buildQueue } from '@/lib/queue';
+import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
@@ -367,7 +376,6 @@ export async function POST(
       // Process JSON request for text messages
       console.log('Processing JSON request for streaming');
       const body = await req.json();
-      console.log('Request body:', JSON.stringify(body));
 
       const parseResult = sendMessageSchema.safeParse(body);
 
@@ -441,6 +449,15 @@ export async function POST(
       }
     }
 
+    // Get Claude session ID from chat session (for resuming clarification conversations)
+    const claudeSessionId = chatSession.claudeSessionId;
+
+    if (claudeSessionId) {
+      console.log(`🔄 Resuming Claude session: ${claudeSessionId}`);
+    } else {
+      console.log(`🆕 Starting new Claude session`);
+    }
+
     // Create assistant message placeholder for streaming
     const [assistantMessage] = await db
       .insert(chatMessages)
@@ -491,56 +508,192 @@ export async function POST(
     }
 
     console.log(`✅ Sandbox running for session ${chatSession.id}`);
+    console.log(`🚀 Starting conversation stream for session ${chatSession.id}`);
 
-    // Create sandbox client and stream messages - use session.id (UUID) for sandbox identification
-    const client = new SandboxClient(chatSession.id);
+    // Create SandboxClient to communicate with kosuke serve
+    const sandboxClient = new SandboxClient(chatSession.id);
 
-    console.log(`🚀 Starting agent stream via sandbox for session ${chatSession.id}`);
-
-    // Transform attachments to sandbox format
-    const sandboxAttachments = attachmentPayloads.map(a => ({
-      upload: {
-        filename: a.upload.filename,
-        fileUrl: a.upload.fileUrl,
-        fileType: a.upload.fileType,
-        mediaType: a.upload.mediaType,
-        fileSize: a.upload.fileSize,
-      },
-    }));
-
-    // Create a ReadableStream that proxies the sandbox SSE stream
+    // Create a ReadableStream that proxies the sandbox stream
     const stream = new ReadableStream({
       async start(controller) {
+        // Track accumulated content and blocks for final database save
+        let accumulatedContent = '';
+        const accumulatedBlocks: Array<
+          | { type: 'text'; content: string }
+          | {
+              type: 'tool';
+              name: string;
+              input: Record<string, unknown>;
+              result?: string;
+              status: 'running' | 'completed' | 'error';
+            }
+        > = [];
+
         try {
-          // Stream events from sandbox agent
-          for await (const event of client.streamMessage(
-            messageContent,
-            sandboxAttachments.length > 0 ? sandboxAttachments : undefined,
-            githubToken,
-            chatSession.remoteId
-          )) {
-            // Check if this is the message_complete event with a captured remoteId
-            if (event.type === 'message_complete' && event.remoteId && !chatSession.remoteId) {
-              // Save the captured remoteId to the database
-              await db
-                .update(chatSessions)
-                .set({ remoteId: event.remoteId as string })
-                .where(eq(chatSessions.id, chatSession.id));
-              console.log(
-                `✅ Saved remoteId to database for session ${chatSession.id}: ${event.remoteId}`
-              );
+          // Stream events from kosuke serve /api/plan (plan phase only)
+          const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
+            resume: claudeSessionId, // Resume previous conversation if exists
+          });
+
+          for await (const event of planStream) {
+            const eventData = event.data as Record<string, unknown> | undefined;
+
+            // Accumulate message content and blocks for database storage
+            if (event.type === 'tool_call') {
+              // Track tool calls as blocks
+              const toolData = eventData as
+                | { action?: string; params?: Record<string, unknown> }
+                | undefined;
+              if (toolData?.action) {
+                accumulatedBlocks.push({
+                  type: 'tool',
+                  name: toolData.action,
+                  input: toolData.params || {},
+                  status: 'completed',
+                });
+              }
+            } else if (event.type === 'message') {
+              const messageData = eventData as { text?: string } | undefined;
+              if (messageData?.text) {
+                accumulatedContent += messageData.text + '\n\n';
+                // Also add text as a block
+                accumulatedBlocks.push({
+                  type: 'text',
+                  content: messageData.text,
+                });
+              }
             }
 
-            // Check if this is the complete event with commit info
-            if (event.type === 'complete' && event.commitSha) {
-              // Save the commitSha to the assistant message for revert functionality
+            // Check if this is a done event with input_required (clarification needed)
+            if (
+              event.type === 'done' &&
+              eventData &&
+              eventData.status === 'input_required' &&
+              typeof eventData.sessionId === 'string'
+            ) {
+              // Save Claude session ID to chat session for resuming clarification conversations
+              const savedSessionId = eventData.sessionId;
+
+              await db
+                .update(chatSessions)
+                .set({ claudeSessionId: savedSessionId })
+                .where(eq(chatSessions.id, chatSession.id));
+
+              console.log(`💾 Saved Claude session ID to chat session: ${savedSessionId}`);
+            }
+
+            // Check if plan succeeded with tickets → save tasks and enqueue build
+            if (
+              event.type === 'done' &&
+              eventData &&
+              eventData.status === 'success' &&
+              typeof eventData.ticketsFile === 'string'
+            ) {
+              console.log(`📋 Plan succeeded, reading tickets from: ${eventData.ticketsFile}`);
+
+              // Read tickets.json from sandbox
+              const ticketsJson = await sandboxClient.readFile(eventData.ticketsFile);
+              const ticketsData = JSON.parse(ticketsJson);
+              const tickets = ticketsData.tickets || [];
+              // Use internal sandbox URL (bun service runs on localhost inside container)
+              const sandboxConfig = getSandboxConfig();
+              const testUrl = `http://localhost:${sandboxConfig.bunPort}`;
+
+              console.log(`📝 Found ${tickets.length} tickets to save`);
+
+              // Create build job (capture claudeSessionId for audit trail)
+              const buildJobResult = await db
+                .insert(buildJobs)
+                .values({
+                  projectId,
+                  chatSessionId: chatSession.id,
+                  claudeSessionId: claudeSessionId ?? null,
+                  status: 'pending',
+                })
+                .returning();
+
+              const buildJob = buildJobResult[0];
+
+              // Save tasks to database
+              await db.insert(tasks).values(
+                tickets.map(
+                  (
+                    ticket: {
+                      id: string;
+                      title: string;
+                      description: string;
+                      type?: string;
+                      category?: string;
+                      estimatedEffort?: number;
+                    },
+                    index: number
+                  ) => ({
+                    buildJobId: buildJob.id,
+                    externalId: ticket.id,
+                    title: ticket.title,
+                    description: ticket.description,
+                    type: ticket.type || null,
+                    category: ticket.category || null,
+                    estimatedEffort: ticket.estimatedEffort || 1,
+                    order: index, // Preserve tickets.json order
+                    status: 'todo' as const,
+                  })
+                )
+              );
+
+              console.log(`✅ Saved ${tickets.length} tasks to database`);
+
+              // Enqueue build job with relative tickets path
+              // Remove /app/project prefix from ticketsFile to make it relative
+              const relativeTicketsPath = eventData.ticketsFile.startsWith('/app/project/')
+                ? eventData.ticketsFile.slice('/app/project/'.length)
+                : eventData.ticketsFile;
+
+              await buildQueue.add('build', {
+                buildJobId: buildJob.id,
+                chatSessionId: chatSession.id,
+                projectId,
+                sessionId: chatSession.id, // Use UUID for sandbox identification
+                ticketsPath: relativeTicketsPath,
+                cwd: '/app/project',
+                dbUrl: getSandboxDatabaseUrl(chatSession.id),
+                githubToken,
+                enableReview: false, // TODO: Make configurable
+                enableTest: false, // TODO: Make configurable
+                testUrl,
+              });
+
+              console.log(`🚀 Enqueued build job ${buildJob.id}`);
+
+              // Save buildJobId to message metadata so BuildMessage component shows
               await db
                 .update(chatMessages)
-                .set({ commitSha: event.commitSha as string })
+                .set({ metadata: { buildJobId: buildJob.id } })
                 .where(eq(chatMessages.id, assistantMessage.id));
-              console.log(
-                `✅ Saved commitSha to assistant message ${assistantMessage.id}: ${event.commitSha}`
-              );
+
+              console.log(`💾 Saved buildJobId to message metadata: ${buildJob.id}`);
+
+              // Clear claudeSessionId since plan is complete (build is starting)
+              await db
+                .update(chatSessions)
+                .set({ claudeSessionId: null })
+                .where(eq(chatSessions.id, chatSession.id));
+
+              console.log(`🧹 Cleared claudeSessionId from chat session (plan complete)`);
+
+              // Add buildJobId to done event
+              const enhancedEvent = {
+                ...event,
+                data: {
+                  ...eventData,
+                  buildJobId: buildJob.id,
+                },
+              };
+
+              // Send enhanced event with buildJobId
+              const data = JSON.stringify(enhancedEvent);
+              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
+              continue;
             }
 
             // Format as Server-Sent Events
@@ -548,11 +701,37 @@ export async function POST(
             controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`));
           }
 
+          // Save accumulated content and blocks to database before completing
+          // Note: metadata (claudeSessionId) was already saved immediately when received
+          if (accumulatedContent.trim() || accumulatedBlocks.length > 0) {
+            const updateData: {
+              content?: string | null;
+              blocks?: typeof accumulatedBlocks | null;
+            } = {};
+
+            if (accumulatedContent.trim()) {
+              updateData.content = accumulatedContent.trim();
+            }
+
+            if (accumulatedBlocks.length > 0) {
+              updateData.blocks = accumulatedBlocks;
+            }
+
+            await db
+              .update(chatMessages)
+              .set(updateData)
+              .where(eq(chatMessages.id, assistantMessage.id));
+
+            console.log(
+              `💾 Saved to DB: ${accumulatedContent.length} chars, ${accumulatedBlocks.length} blocks`
+            );
+          }
+
           // Send completion marker
           controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
-          console.error('❌ Error in agent stream:', error);
+          console.error('❌ Error in conversation stream:', error);
 
           // Send error event
           const errorEvent = {

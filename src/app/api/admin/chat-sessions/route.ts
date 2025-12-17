@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
         title: chatSessions.title,
         description: chatSessions.description,
         branchName: chatSessions.branchName,
-        remoteId: chatSessions.remoteId,
         status: chatSessions.status,
         createdAt: chatSessions.createdAt,
         updatedAt: chatSessions.updatedAt,

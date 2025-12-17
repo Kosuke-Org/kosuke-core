@@ -22,6 +22,8 @@ const knipConfig: KnipConfig = {
         'src/hooks/use-mobile.ts',
         // Data migration scripts - run manually when needed
         'src/lib/db/scripts/**',
+        // Sandbox scripts - used in Docker containers
+        'sandbox/scripts/**',
       ],
       ignoreDependencies: [
         // Shadcn/UI dependencies (only used in components/ui/** which is ignored)

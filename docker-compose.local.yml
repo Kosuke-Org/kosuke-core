@@ -21,7 +21,7 @@ services:
     networks:
       - kosuke_network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $POSTGRES_USER']
+      test: ['CMD-SHELL', 'pg_isready -U $POSTGRES_USER -d $POSTGRES_DB']
       interval: 3s
       timeout: 2s
       retries: 3
@@ -48,6 +48,8 @@ services:
     container_name: kosuke_nextjs
     ports:
       - '3000:3000'
+    environment:
+      - HOST_PROJECT_PATH=${PWD}
     volumes:
       - .:/app:cached
       - /app/node_modules
@@ -62,6 +64,8 @@ services:
     container_name: kosuke_worker
     ports: []
     command: npx tsx watch src/worker.ts
+    environment:
+      - HOST_PROJECT_PATH=${PWD}
     volumes:
       - .:/app:cached
       - /app/node_modules

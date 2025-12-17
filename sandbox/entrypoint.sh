@@ -121,7 +121,18 @@ else
 fi
 
 # ============================================================
-# STEP 4: START SERVICES VIA SUPERVISOR
+# STEP 4: DETECT CHROMIUM PATH (for Playwright MCP)
+# ============================================================
+
+if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+    export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux/chrome 2>/dev/null | grep -v headless_shell | head -1)
+    if [ -n "$PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" ]; then
+        echo "🎭 Chromium: $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+    fi
+fi
+
+# ============================================================
+# STEP 5: START SERVICES VIA SUPERVISOR
 # ============================================================
 
 echo "🚀 Starting services via supervisor..."

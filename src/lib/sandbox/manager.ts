@@ -58,7 +58,9 @@ export class SandboxManager {
           [`traefik.http.routers.${containerName}.rule`]: `Host(\`${previewHost}\`)`,
           [`traefik.http.routers.${containerName}.entrypoints`]: 'websecure',
           [`traefik.http.routers.${containerName}.tls.certresolver`]: 'letsencrypt',
-          [`traefik.http.services.${containerName}.loadbalancer.server.port`]: '3000',
+          [`traefik.http.services.${containerName}.loadbalancer.server.port`]: String(
+            this.config.bunPort
+          ),
         },
       };
     }
@@ -175,8 +177,12 @@ export class SandboxManager {
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
+      `SANDBOX_BUN_PORT=${this.config.bunPort}`,
+      `SANDBOX_PYTHON_PORT=${this.config.pythonPort}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
-      `CLAUDE_MODEL=${process.env.NEXT_PUBLIC_DEFAULT_MODEL || 'claude-sonnet-4-20250514'}`,
+      `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}`,
+      `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
+      `GOOGLE_MODEL=${process.env.GOOGLE_MODEL}`,
       `AGENT_MAX_TURNS=${process.env.AGENT_MAX_TURNS || '25'}`,
       // Git identity for sandbox commits
       `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
@@ -192,7 +198,7 @@ export class SandboxManager {
       Labels: labels,
       ExposedPorts: hostPort
         ? {
-            '3000/tcp': {},
+            [`${this.config.bunPort}/tcp`]: {},
           }
         : undefined,
       HostConfig: {
@@ -203,9 +209,16 @@ export class SandboxManager {
         // PidsLimit: this.config.pidsLimit,
         PortBindings: hostPort
           ? {
-              '3000/tcp': [{ HostPort: String(hostPort) }],
+              [`${this.config.bunPort}/tcp`]: [{ HostPort: String(hostPort) }],
             }
           : undefined,
+        Binds:
+          !this.config.traefikEnabled && process.env.HOST_PROJECT_PATH
+            ? [
+                // Mount kosuke-cli source for hot-reload in local development (rw for npm link)
+                `${process.env.HOST_PROJECT_PATH}/sandbox/kosuke-cli:/app/kosuke-cli`,
+              ]
+            : undefined,
       },
     };
 

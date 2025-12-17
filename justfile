@@ -35,9 +35,22 @@ db-reset:
     @docker exec kosuke_nextjs npm run db:migrate
     @echo "Database reset complete!"
 
-build-sandbox:
-    @echo "Building sandbox agent..."
-    @cd sandbox/agent && bun install --frozen-lockfile && bun run build
-    @echo "Building sandbox Docker image..."
-    @cd sandbox && docker build -t kosuke-sandbox-local:latest .
-    @echo "Sandbox build complete! Update the SANDBOX_IMAGE in .env to use the new image."
+build-sandbox kosuke-cli-mode="local" install-chromium="false" npm-token="":
+    @if [ "{{kosuke-cli-mode}}" = "production" ] && [ -z "{{npm-token}}" ]; then echo "❌ Error: npm-token is required when kosuke-cli-mode=production"; exit 1; fi
+    @echo "Building kosuke-cli..."
+    @cd sandbox/kosuke-cli && npm install && npm run build
+    @echo "Building sandbox Docker image for {{kosuke-cli-mode}} with chromium={{install-chromium}}..."
+    @export NPM_TOKEN="{{npm-token}}" && docker build \
+        --file sandbox/Dockerfile \
+        --tag kosuke-sandbox-local:latest \
+        --build-arg KOSUKE_CLI_MODE={{kosuke-cli-mode}} \
+        --build-arg INSTALL_CHROMIUM={{install-chromium}} \
+        --secret id=npm_token,env=NPM_TOKEN \
+        sandbox
+    @echo "✅ Sandbox build complete! Update SANDBOX_IMAGE=kosuke-sandbox-local:latest in .env"
+    @echo "💡 kosuke-cli will be mounted from sandbox/kosuke-cli/ at runtime"
+
+watch-agent:
+    @echo "👀 Starting kosuke-cli watch mode..."
+    @echo "   Edit .ts files → Auto-rebuild → Auto-restart in container"
+    @cd sandbox/kosuke-cli && npm run build:watch

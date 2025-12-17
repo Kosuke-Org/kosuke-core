@@ -23,15 +23,12 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'sandbox/agent/bun.lock') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install dependencies
         run: bun install
-
-      - name: Install agent dependencies
-        run: cd sandbox/agent && bun install
 
       - name: Copy environment variables
         run: cp .env.local .env

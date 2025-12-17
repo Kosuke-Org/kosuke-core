@@ -39,16 +39,6 @@ export interface FileInfo {
   children?: FileInfo[];
 }
 
-export interface MessageAttachment {
-  upload: {
-    filename: string;
-    fileUrl: string;
-    fileType: string;
-    mediaType: string;
-    fileSize: number;
-  };
-}
-
 export interface GitPullResponse {
   success: boolean;
   changed: boolean;

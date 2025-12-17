@@ -35,15 +35,39 @@ bun install --frozen-lockfile
 echo "✅ Dependencies installed"
 
 # ============================================================
+# DATABASE SETUP
+# ============================================================
+
+if [ "$KOSUKE_MODE" = "production" ]; then
+    echo "🗄️ Running database migrations..."
+    bun run db:migrate
+else
+    echo "🗄️ Setting up development database..."
+
+    # Run migrations first
+    bun run db:migrate
+
+    # Seed database (only if not already seeded)
+    SEED_MARKER=".kosuke-db-seeded"
+    if [ ! -f "$SEED_MARKER" ]; then
+        echo "🌱 Seeding database..."
+        bun run db:seed
+        touch "$SEED_MARKER"
+    else
+        echo "✅ Database already seeded"
+    fi
+fi
+
+# ============================================================
 # START SERVER
 # ============================================================
 
 if [ "$KOSUKE_MODE" = "production" ]; then
     echo "📦 Running production build..."
     bun run build
-    echo "▶️ Starting production server..."
-    exec bun run start
+    echo "▶️ Starting production server on port $SANDBOX_BUN_PORT..."
+    exec bun run start -- -p $SANDBOX_BUN_PORT
 else
-    echo "▶️ Starting development server..."
-    exec bun run dev
+    echo "▶️ Starting development server on port $SANDBOX_BUN_PORT..."
+    exec bun run dev -- -p $SANDBOX_BUN_PORT
 fi

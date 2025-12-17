@@ -37,8 +37,12 @@ export function useProjects({ userId }: UseProjectsOptions) {
   });
 }
 
+interface ProjectWithMeta extends Project {
+  model?: string;
+}
+
 export function useProject(projectId: string) {
-  return useQuery<Project, Error>({
+  return useQuery<ProjectWithMeta, Error>({
     queryKey: ['project', projectId],
     queryFn: async () => {
       const response = await fetch(`/api/projects/${projectId}`);
@@ -50,12 +54,13 @@ export function useProject(projectId: string) {
       }
 
       const responseData = await response.json();
-      const { data } = responseData;
+      const { data, meta } = responseData;
 
       return {
         ...data,
         createdAt: new Date(data.createdAt),
         updatedAt: new Date(data.updatedAt),
+        model: meta?.model,
       };
     },
     staleTime: 1000 * 60 * 2, // Consider data stale after 2 minutes

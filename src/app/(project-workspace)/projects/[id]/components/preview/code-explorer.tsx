@@ -20,10 +20,7 @@ interface CodeExplorerProps {
   className?: string;
 }
 
-export default function CodeExplorer({
-  projectId,
-  className,
-}: CodeExplorerProps) {
+export default function CodeExplorer({ projectId, className }: CodeExplorerProps) {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +37,10 @@ export default function CodeExplorer({
         const response = await fetch(`/api/projects/${projectId}/files`);
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch project files: ${response.statusText}`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || `Failed to fetch project files: ${response.statusText}`
+          );
         }
 
         const data = await response.json();
@@ -56,6 +56,7 @@ export default function CodeExplorer({
         }
       } catch (error) {
         console.error('Error fetching project files:', error);
+        setFiles([]); // Set empty files to show error state
       } finally {
         setIsLoading(false);
       }
@@ -78,7 +79,9 @@ export default function CodeExplorer({
 
       try {
         // Fetch the file content from the API
-        const response = await fetch(`/api/projects/${projectId}/files/${encodeURIComponent(selectedFile)}`);
+        const response = await fetch(
+          `/api/projects/${projectId}/files/${encodeURIComponent(selectedFile)}`
+        );
 
         if (!response.ok) {
           throw new Error(`Failed to fetch file content: ${response.statusText}`);
@@ -122,11 +125,19 @@ export default function CodeExplorer({
   }, [selectedFile, projectId]);
 
   return (
-    <div className={cn('flex h-full w-full overflow-hidden', className)} data-testid="code-explorer">
+    <div
+      className={cn('flex h-full w-full overflow-hidden', className)}
+      data-testid="code-explorer"
+    >
       <div className="w-64 border-r border-border overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : files.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full p-4 text-center text-sm text-muted-foreground">
+            <p className="mb-2">No files available</p>
+            <p className="text-xs">Start the preview to view files</p>
           </div>
         ) : (
           <FileTree
@@ -140,11 +151,7 @@ export default function CodeExplorer({
       <div className="flex-1 overflow-hidden">
         {selectedFile ? (
           // Use the new minimal editor component with directly passed content
-          <CodeEditor
-            code={fileContent}
-            language={fileLanguage}
-            filePath={selectedFile}
-          />
+          <CodeEditor code={fileContent} language={fileLanguage} filePath={selectedFile} />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             {isLoading ? (

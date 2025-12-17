@@ -1,5 +1,5 @@
 // Tool Input Types
-type ToolInput = Record<string, unknown>;
+export type ToolInput = Record<string, unknown>;
 
 // Assistant Response Block Types
 export type AssistantBlock =
@@ -97,6 +97,8 @@ export interface ChatInputProps {
   onStop?: () => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
+  'data-testid'?: string;
 }
 
 export interface ChatInputAttachmentsProps {
@@ -114,6 +116,7 @@ export interface ChatInterfaceProps {
   activeChatSessionId?: string | null;
   currentBranch?: string;
   sessionId?: string; // Session ID for fetching session-specific messages
+  model?: string; // AI model name from server config
 }
 
 // Content Block Types (for streaming UI state)
@@ -158,38 +161,31 @@ export interface Attachment {
   createdAt: Date;
 }
 
-// Streaming Event Types
+// Streaming Event Types (kosuke-cli format)
 export interface StreamingEvent {
-  // Event type from Anthropic API
-  type:
-    | 'message_start'
-    | 'content_block_start'
-    | 'content_block_delta'
-    | 'content_block_stop'
-    | 'message_delta'
-    | 'message_stop'
-    | 'tool_start'
-    | 'tool_stop'
-    | 'task_summary'
-    | 'message_complete'
-    | 'error'
-    | 'text'
-    | 'completed';
+  // Event types from kosuke-cli
+  type: // Plan phase events
+    | 'tool_call'
+    | 'message'
+    | 'done'
+    // Build phase events
+    | 'build_started'
+    | 'ticket_started'
+    | 'ticket_phase'
+    | 'ticket_completed'
+    | 'ticket_committed'
+    | 'progress'
+    | 'ship_tool_call'
+    | 'ship_message'
+    | 'test_tool_call'
+    | 'test_message'
+    | 'migrate_tool_call'
+    | 'migrate_message'
+    // Error handling
+    | 'error';
 
-  // Content delta fields
-  text?: string; // For text content deltas
-  thinking?: string; // For thinking content deltas
-  delta_type?: 'text_delta' | 'thinking_delta' | 'input_json_delta' | 'signature_delta';
-  index?: number; // Content block index
-
-  // Tool-related fields
-  tool_name?: string; // Name of the tool being executed
-  tool_input?: ToolInput; // Tool input parameters (for tool_start events)
-  tool_id?: string; // Tool ID (for tool_start and tool_stop events)
-  tool_result?: string; // Tool execution result (for tool_stop events)
-  is_error?: boolean; // Whether the tool execution failed (for tool_stop events)
-  result?: string; // Legacy tool execution result
-  summary?: string; // Task completion summary
+  // Event payload from kosuke-cli
+  data?: Record<string, unknown>;
 }
 
 // Revert Operation Types
@@ -201,4 +197,39 @@ export interface RevertToMessageResponse {
   success: boolean;
   reverted_to_commit: string;
   message: string;
+}
+
+// Build Job Types
+export interface BuildTask {
+  id: string;
+  externalId: string;
+  title: string;
+  description: string;
+  type: string | null;
+  category: string | null;
+  estimatedEffort: number;
+  status: 'todo' | 'in_progress' | 'done' | 'error';
+  error: string | null;
+  cost: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuildJobResponse {
+  buildJob: {
+    id: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    totalCost: number;
+    createdAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    bullJobId: string | null;
+  };
+  progress: {
+    totalTasks: number;
+    completedTasks: number;
+    failedTasks: number;
+    inProgressTasks: number;
+  };
+  tasks: BuildTask[];
 }
