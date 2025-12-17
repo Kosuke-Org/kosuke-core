@@ -344,7 +344,7 @@ export async function POST(
 
     if (!project) {
       console.warn(`Project ${projectId} not found for webhook`);
-      return NextResponse.json({ message: 'Project not found' }, { status: 404 });
+      return NextResponse.json({ message: 'Project not found' });
     }
 
     // Route to appropriate handler based on event type
