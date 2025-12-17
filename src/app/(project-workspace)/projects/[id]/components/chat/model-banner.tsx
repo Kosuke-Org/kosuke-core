@@ -14,10 +14,11 @@ export default function ModelBanner({
   className,
   currentBranch,
   chatSessionId,
-  model = 'claude-sonnet-4-20250514',
+  model,
 }: ModelBannerProps) {
   // Format model name for display
-  const getModelDisplayName = (modelId: string) => {
+  const getModelDisplayName = (modelId?: string) => {
+    if (!modelId) return 'Unknown';
     if (modelId.includes('claude-sonnet-4')) return 'Claude Sonnet 4';
     if (modelId.includes('claude-haiku-4')) return 'Claude Haiku 4';
     if (modelId.includes('claude-opus-4')) return 'Claude Opus 4';
