@@ -370,17 +370,7 @@ export async function POST(
       .orderBy(desc(chatMessages.timestamp))
       .limit(1);
 
-    console.log(
-      `🔍 Previous assistant messages found: ${previousMessages.length}`,
-      previousMessages[0]
-        ? {
-            id: previousMessages[0].id,
-            hasMetadata: !!previousMessages[0].metadata,
-            metadataType: typeof previousMessages[0].metadata,
-            metadata: previousMessages[0].metadata,
-          }
-        : 'none'
-    );
+    console.log(`🔍 Previous assistant messages: ${previousMessages.length}`);
 
     const claudeSessionId =
       previousMessages[0]?.metadata &&
@@ -522,18 +512,6 @@ export async function POST(
               console.log(
                 `💾 Saved Claude session ID immediately: ${savedSessionId} to message ${assistantMessage.id}`
               );
-
-              // Verify it was saved by reading it back
-              const [verifyMessage] = await db
-                .select()
-                .from(chatMessages)
-                .where(eq(chatMessages.id, assistantMessage.id));
-
-              console.log(`✅ Verified metadata saved:`, {
-                messageId: verifyMessage.id,
-                hasMetadata: !!verifyMessage.metadata,
-                metadata: verifyMessage.metadata,
-              });
             }
 
             // Check if plan succeeded with tickets → save tasks and enqueue build
