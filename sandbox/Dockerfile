@@ -96,7 +96,6 @@ RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
         libxrandr2 \
         libgbm1 \
         libasound2 \
-        libpango-1.0-0 \
         libcairo2 \
         libatspi2.0-0 \
         # Fonts
@@ -105,14 +104,12 @@ RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
         # Additional
         libxshmfence1 \
         libglib2.0-0 \
-        libnss3 \
         libx11-6 \
         libx11-xcb1 \
         libxcb1 \
         libxext6 \
         libxrender1 \
         libxtst6 \
-        ca-certificates \
         && rm -rf /var/lib/apt/lists/*; \
 fi
 
