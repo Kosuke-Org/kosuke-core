@@ -19,7 +19,7 @@ import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import * as Sentry from '@sentry/nextjs';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -449,30 +449,13 @@ export async function POST(
       }
     }
 
-    // Check if previous assistant message has claudeSessionId (for resuming)
-    // IMPORTANT: Query BEFORE creating the new placeholder to get the actual previous message
-    const previousMessages = await db
-      .select()
-      .from(chatMessages)
-      .where(
-        and(eq(chatMessages.chatSessionId, chatSession.id), eq(chatMessages.role, 'assistant'))
-      )
-      .orderBy(desc(chatMessages.timestamp))
-      .limit(1);
-
-    console.log(`🔍 Previous assistant messages: ${previousMessages.length}`);
-
-    const claudeSessionId =
-      previousMessages[0]?.metadata &&
-      typeof previousMessages[0].metadata === 'object' &&
-      'claudeSessionId' in previousMessages[0].metadata
-        ? (previousMessages[0].metadata.claudeSessionId as string)
-        : undefined;
+    // Get Claude session ID from chat session (for resuming clarification conversations)
+    const claudeSessionId = chatSession.claudeSessionId ?? undefined;
 
     if (claudeSessionId) {
       console.log(`🔄 Resuming Claude session: ${claudeSessionId}`);
     } else {
-      console.log(`❌ No Claude session ID found to resume`);
+      console.log(`🆕 Starting new Claude session`);
     }
 
     // Create assistant message placeholder for streaming
@@ -588,20 +571,15 @@ export async function POST(
               eventData.status === 'input_required' &&
               typeof eventData.sessionId === 'string'
             ) {
-              // Save Claude session ID IMMEDIATELY to avoid race conditions
-              // (user might send next message before stream ends)
+              // Save Claude session ID to chat session for resuming clarification conversations
               const savedSessionId = eventData.sessionId;
 
               await db
-                .update(chatMessages)
-                .set({
-                  metadata: { claudeSessionId: savedSessionId },
-                })
-                .where(eq(chatMessages.id, assistantMessage.id));
+                .update(chatSessions)
+                .set({ claudeSessionId: savedSessionId })
+                .where(eq(chatSessions.id, chatSession.id));
 
-              console.log(
-                `💾 Saved Claude session ID immediately: ${savedSessionId} to message ${assistantMessage.id}`
-              );
+              console.log(`💾 Saved Claude session ID to chat session: ${savedSessionId}`);
             }
 
             // Check if plan succeeded with tickets → save tasks and enqueue build
@@ -622,12 +600,13 @@ export async function POST(
 
               console.log(`📝 Found ${tickets.length} tickets to save`);
 
-              // Create build job
+              // Create build job (capture claudeSessionId for audit trail)
               const buildJobResult = await db
                 .insert(buildJobs)
                 .values({
                   projectId,
                   chatSessionId: chatSession.id,
+                  claudeSessionId: claudeSessionId ?? null,
                   status: 'pending',
                 })
                 .returning();
@@ -685,26 +664,21 @@ export async function POST(
 
               console.log(`🚀 Enqueued build job ${buildJob.id}`);
 
-              // Save buildJobId to metadata immediately so BuildMessage component shows
-              // Fetch current metadata to merge with existing data (e.g., claudeSessionId)
-              const [currentMessage] = await db
-                .select({ metadata: chatMessages.metadata })
-                .from(chatMessages)
-                .where(eq(chatMessages.id, assistantMessage.id));
-
-              const currentMetadata =
-                typeof currentMessage?.metadata === 'object' && currentMessage?.metadata !== null
-                  ? (currentMessage?.metadata as Record<string, unknown>)
-                  : {};
-
+              // Save buildJobId to message metadata so BuildMessage component shows
               await db
                 .update(chatMessages)
-                .set({
-                  metadata: { ...currentMetadata, buildJobId: buildJob.id },
-                })
+                .set({ metadata: { buildJobId: buildJob.id } })
                 .where(eq(chatMessages.id, assistantMessage.id));
 
-              console.log(`💾 Saved buildJobId to metadata: ${buildJob.id}`);
+              console.log(`💾 Saved buildJobId to message metadata: ${buildJob.id}`);
+
+              // Clear claudeSessionId since plan is complete (build is starting)
+              await db
+                .update(chatSessions)
+                .set({ claudeSessionId: null })
+                .where(eq(chatSessions.id, chatSession.id));
+
+              console.log(`🧹 Cleared claudeSessionId from chat session (plan complete)`);
 
               // Add buildJobId to done event
               const enhancedEvent = {
@@ -748,7 +722,7 @@ export async function POST(
               .where(eq(chatMessages.id, assistantMessage.id));
 
             console.log(
-              `💾 Saved to DB: ${accumulatedContent.length} chars, ${accumulatedBlocks.length} blocks (sessionId already saved)`
+              `💾 Saved to DB: ${accumulatedContent.length} chars, ${accumulatedBlocks.length} blocks`
             );
           }
 

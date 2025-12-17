@@ -1,5 +1,5 @@
 {
-  "id": "d72ba0bb-f088-43dd-abeb-ae80d605cecc",
+  "id": "92f9f68a-3720-424b-ac12-3a3afe206bf6",
   "prevId": "e843caef-3f2e-4db9-b6ae-b78dc39cfcad",
   "version": "7",
   "dialect": "postgresql",
@@ -106,6 +106,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "claude_session_id": {
+          "name": "claude_session_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -406,6 +412,12 @@
           "primaryKey": false,
           "notNull": false,
           "default": false
+        },
+        "claude_session_id": {
+          "name": "claude_session_id",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
         },
         "branch_merged_at": {
           "name": "branch_merged_at",

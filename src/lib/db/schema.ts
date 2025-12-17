@@ -68,6 +68,8 @@ export const chatSessions = pgTable(
     lastActivityAt: timestamp('last_activity_at').notNull().defaultNow(),
     messageCount: integer('message_count').default(0),
     isDefault: boolean('is_default').default(false),
+    // Claude AI session ID for maintaining conversation context during plan clarifications
+    claudeSessionId: varchar('claude_session_id', { length: 100 }),
     // GitHub PR/merge status
     branchMergedAt: timestamp('branch_merged_at'),
     branchMergedBy: varchar('branch_merged_by', { length: 100 }),
@@ -223,6 +225,9 @@ export const buildJobs = pgTable(
     projectId: uuid('project_id')
       .references(() => projects.id, { onDelete: 'cascade' })
       .notNull(),
+
+    // Claude planning session that produced this build (for audit trail)
+    claudeSessionId: varchar('claude_session_id', { length: 100 }),
 
     // Status
     status: buildStatusEnum('status').notNull().default('pending'),
