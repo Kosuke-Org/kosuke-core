@@ -12,15 +12,6 @@ echo "   Port: ${PORT}"
 echo "   Project: ${PROJECT_DIR}"
 
 # ============================================================
-# WAIT FOR PROJECT DIRECTORY
-# ============================================================
-
-if [ ! -d "${PROJECT_DIR}" ]; then
-    echo "⚠️ Project directory not found, waiting..."
-    sleep 5
-fi
-
-# ============================================================
 # START KOSUKE SERVE
 # ============================================================
 
