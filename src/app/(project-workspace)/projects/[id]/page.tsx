@@ -174,13 +174,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // Handle session selection and URL updates
   const handleSessionSelect = (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setActiveChatSessionId(sessionId);
-      setShowSidebar(false); // Switch to chat interface
-      // Update URL to reflect selected session using query params
-      router.push(`/projects/${projectId}?session=${session.id}`, { scroll: false });
-    }
+    setActiveChatSessionId(sessionId);
+    setShowSidebar(false); // Switch to chat interface
+    // Update URL to reflect selected session using query params
+    router.push(`/projects/${projectId}?session=${sessionId}`, { scroll: false });
   };
 
   // Get current session information

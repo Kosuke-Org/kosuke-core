@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertCircle, Loader2, Trash } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Loader2, Trash } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -124,15 +123,17 @@ export default function DeleteProjectDialog({
     }
   };
 
-  const isRepoConfirmationValid =
-    !deleteRepo || repoConfirmationText === project.name;
+  const isRepoConfirmationValid = !deleteRepo || repoConfirmationText === project.name;
 
   return (
-    <Dialog open={open} onOpenChange={(value) => {
-      // Prevent closing while operation is in progress
-      if (isPending || isCompleting) return;
-      onOpenChange(value);
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={value => {
+        // Prevent closing while operation is in progress
+        if (isPending || isCompleting) return;
+        onOpenChange(value);
+      }}
+    >
       <DialogContent className="sm:max-w-[425px] border border-border bg-card">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -142,63 +143,74 @@ export default function DeleteProjectDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <DialogDescription>
-            {!isPending && !isSuccess ? (
-              <>Are you sure you want to delete &quot;{project.name}&quot;? This action cannot be undone and all project files will be permanently removed.</>
-            ) : (
-              <>Deleting project files. This may take a moment, please don&apos;t close this window.</>
-            )}
-          </DialogDescription>
-
-          {!isPending && !isSuccess && (
+          {!isPending && !isSuccess ? (
             <>
+              <p className="text-sm text-foreground">
+                Are you sure you want to delete project{' '}
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
+                  {project.name}
+                </code>
+                ?
+              </p>
+
+              <div className="flex gap-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  This action cannot be undone. All project files will be permanently removed.
+                </p>
+              </div>
+
               {!project.isImported && (
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id="delete-repo"
-                        checked={deleteRepo}
-                        onCheckedChange={v => {
-                          setDeleteRepo(Boolean(v));
-                          if (!v) setRepoConfirmationText('');
-                        }}
-                        className="mt-1"
-                      />
-                      <Label
-                        htmlFor="delete-repo"
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        Also delete GitHub repository
-                      </Label>
-                    </div>
-
-                    {deleteRepo && (
-                      <div className="ml-6 space-y-3">
-                        <div className="bg-destructive/5 rounded p-3 border border-destructive/20">
-                          <p className="text-xs text-destructive flex items-start gap-1.5">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                            <span>The GitHub repository will also be permanently deleted and cannot be undone.</span>
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="repo-confirm" className="text-xs font-medium">
-                            Type project name to confirm
-                          </Label>
-                          <Input
-                            id="repo-confirm"
-                            placeholder={project.name}
-                            value={repoConfirmationText}
-                            onChange={(e) => setRepoConfirmationText(e.target.value)}
-                            className="text-sm"
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                    )}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="delete-repo"
+                      checked={deleteRepo}
+                      onCheckedChange={v => {
+                        setDeleteRepo(Boolean(v));
+                        if (!v) setRepoConfirmationText('');
+                      }}
+                      className="mt-1"
+                    />
+                    <Label htmlFor="delete-repo" className="text-sm font-medium cursor-pointer">
+                      Also delete GitHub repository
+                    </Label>
                   </div>
-                )}
+
+                  {deleteRepo && (
+                    <div className="ml-6 space-y-3">
+                      <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/20">
+                        <p className="text-xs text-destructive flex items-start gap-1.5">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>
+                            The GitHub repository will also be permanently deleted and cannot be
+                            undone.
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="repo-confirm" className="text-xs font-medium">
+                          Type project name to confirm
+                        </Label>
+                        <Input
+                          id="repo-confirm"
+                          placeholder={project.name}
+                          value={repoConfirmationText}
+                          onChange={e => setRepoConfirmationText(e.target.value)}
+                          className="text-sm"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Deleting project files. This may take a moment, please don&apos;t close this window.
+            </p>
           )}
 
           {(isPending || isSuccess) && (

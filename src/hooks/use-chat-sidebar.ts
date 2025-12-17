@@ -21,6 +21,7 @@ export function useChatSidebar({
   // State
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<ChatSession | null>(null);
+  const [deletingSession, setDeletingSession] = useState<ChatSession | null>(null);
   const [newChatTitle, setNewChatTitle] = useState('');
   const [statusFilter, setStatusFilter] = useState<ChatSessionStatus[]>(['active']);
 
@@ -81,7 +82,7 @@ export function useChatSidebar({
       setNewChatTitle('');
       setIsNewChatModalOpen(false);
 
-      // Redirect/select the newly created session in parent (updates URL ?session=...)
+      // Redirect/select the newly created session in parent
       if (onChatSessionChange) {
         onChatSessionChange(newSession.session.id);
       }
@@ -103,18 +104,17 @@ export function useChatSidebar({
     [updateChatSession]
   );
 
-  // Handle session deletion
-  const handleDeleteSession = useCallback(
+  // Handle session deletion - opens the confirmation dialog
+  const handleDeleteSession = useCallback((session: ChatSession) => {
+    if (session.isDefault) return; // Prevent deletion of default session
+    setDeletingSession(session);
+  }, []);
+
+  // Confirm and execute session deletion
+  const confirmDeleteSession = useCallback(
     async (session: ChatSession) => {
-      if (session.isDefault) return; // Prevent deletion of default session
-
-      const confirmed = window.confirm(
-        `Are you sure you want to delete "${session.title}"? This action cannot be undone.`
-      );
-
-      if (confirmed) {
-        await deleteChatSession.mutateAsync(session.id);
-      }
+      await deleteChatSession.mutateAsync(session.id);
+      setDeletingSession(null);
     },
     [deleteChatSession]
   );
@@ -150,16 +150,19 @@ export function useChatSidebar({
     statusFilter,
     isNewChatModalOpen,
     editingSession,
+    deletingSession,
     newChatTitle,
 
     // Actions
     setIsNewChatModalOpen,
     setEditingSession,
+    setDeletingSession,
     setNewChatTitle,
     setStatusFilter,
     handleCreateChat,
     handleUpdateSession,
     handleDeleteSession,
+    confirmDeleteSession,
     handleDuplicateSession,
     handleViewGitHubBranch,
 
