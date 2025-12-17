@@ -48,16 +48,6 @@ export interface ChatSessionMessagesResponse {
   };
 }
 
-// Settings types for default branch configuration
-export interface DefaultBranchSettings {
-  default_branch: string;
-  available_branches: string[];
-}
-
-export interface UpdateDefaultBranchData {
-  default_branch: string;
-}
-
 // Pull Request types
 export interface CreatePullRequestData {
   title?: string;

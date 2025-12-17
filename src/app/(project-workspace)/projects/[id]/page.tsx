@@ -6,20 +6,15 @@ import { use, useEffect, useRef, useState } from 'react';
 import Navbar from '@/components/navbar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
-import { useCreatePullRequest } from '@/hooks/use-project-settings';
-import { useProjectUIState } from '@/hooks/use-project-ui-state';
+import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useProject } from '@/hooks/use-projects';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 // Import components
-import BrandGuidelines from './components/brand/brand-guidelines';
 import ChatInterface from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
-import { DatabaseTab } from './components/database/database-tab';
-import CodeExplorer from './components/preview/code-explorer';
 import PreviewPanel from './components/preview/preview-panel';
-import { SettingsTab } from './components/settings/settings-tab';
 
 interface ProjectPageProps {
   params: Promise<{
@@ -52,15 +47,6 @@ function ProjectLoadingSkeleton() {
             {/* Right section - project title and controls */}
             <div className="flex-1 flex items-center justify-between">
               <Skeleton className="h-5 w-32 ml-4" />
-
-              <div className="flex items-center gap-2 mx-auto">
-                <div className="flex border border-input rounded-md overflow-hidden">
-                  <Skeleton className="h-8 w-20 rounded-none" />
-                  <Skeleton className="h-8 w-16 rounded-none" />
-                  <Skeleton className="h-8 w-20 rounded-none" />
-                  <Skeleton className="h-8 w-20 rounded-none" />
-                </div>
-              </div>
 
               <div className="flex items-center gap-2 px-4">
                 <Skeleton className="h-8 w-8 rounded-md" />
@@ -141,8 +127,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const createPullRequestMutation = useCreatePullRequest(projectId);
 
   // UI state management
-  const { currentView, setCurrentView, isChatCollapsed, toggleChatCollapsed } =
-    useProjectUIState(project);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
 
   // Chat session state management
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
@@ -251,8 +237,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         variant="project"
         projectProps={{
           projectName: project?.name || 'Loading Project...',
-          currentView: currentView,
-          onViewChange: setCurrentView,
           onRefresh: handleRefresh,
           isChatCollapsed: isChatCollapsed,
           onToggleChat: toggleChatCollapsed,
@@ -310,25 +294,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             isChatCollapsed ? 'w-full' : 'hidden md:flex sm:w-3/5 md:w-3/5 lg:w-3/5'
           )}
         >
-          {currentView === 'preview' ? (
-            <PreviewPanel
-              projectId={projectId}
-              projectName={project.name}
-              sessionId={previewSessionId ?? ''}
-              branch={previewBranch}
-              isNewProject={isNewProject}
-            />
-          ) : currentView === 'code' ? (
-            <CodeExplorer projectId={projectId} />
-          ) : currentView === 'branding' ? (
-            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
-          ) : currentView === 'settings' ? (
-            <SettingsTab projectId={projectId} />
-          ) : currentView === 'database' ? (
-            <DatabaseTab projectId={projectId} sessionId={previewSessionId ?? ''} />
-          ) : (
-            <BrandGuidelines projectId={projectId} sessionId={previewSessionId ?? ''} />
-          )}
+          <PreviewPanel
+            projectId={projectId}
+            projectName={project.name}
+            sessionId={previewSessionId ?? ''}
+            branch={previewBranch}
+            isNewProject={isNewProject}
+          />
         </div>
       </div>
     </div>

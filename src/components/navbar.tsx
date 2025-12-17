@@ -4,16 +4,12 @@ import { useClerk } from '@clerk/nextjs';
 import {
   ArrowLeft,
   CircleIcon,
-  Code,
-  Database,
-  Eye,
   GitPullRequest,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -39,12 +35,10 @@ type NavbarProps = {
   hideSignIn?: boolean;
   projectProps?: {
     projectName: string;
-    currentView: 'preview' | 'code' | 'branding' | 'settings' | 'database';
-    onViewChange: (view: 'preview' | 'code' | 'branding' | 'settings' | 'database') => void;
     onRefresh?: () => void;
     isChatCollapsed?: boolean;
     onToggleChat?: () => void;
-    // NEW: Pull Request functionality
+    // Pull Request functionality
     activeChatSessionId?: string | null;
     onCreatePullRequest?: () => void;
     // Floating toggle functionality
@@ -228,56 +222,6 @@ export default function Navbar({
               <h2 className="text-sm font-medium truncate max-w-[200px] ml-4">
                 {projectProps.projectName}
               </h2>
-
-              <div className="flex items-center gap-2 mx-auto">
-                <div className="flex border border-input rounded-md overflow-hidden">
-                  <Button
-                    variant={projectProps.currentView === 'preview' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none px-3 h-8"
-                    onClick={() => projectProps.onViewChange('preview')}
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Preview
-                  </Button>
-                  <Button
-                    variant={projectProps.currentView === 'code' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none px-3 h-8"
-                    onClick={() => projectProps.onViewChange('code')}
-                  >
-                    <Code className="h-4 w-4 mr-1" />
-                    Code
-                  </Button>
-                  <Button
-                    variant={projectProps.currentView === 'branding' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none px-3 h-8"
-                    onClick={() => projectProps.onViewChange('branding')}
-                  >
-                    <Sparkles className="h-4 w-4 mr-1" />
-                    Branding
-                  </Button>
-                  <Button
-                    variant={projectProps.currentView === 'settings' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none px-3 h-8"
-                    onClick={() => projectProps.onViewChange('settings')}
-                  >
-                    <Settings className="h-4 w-4 mr-1" />
-                    Settings
-                  </Button>
-                  <Button
-                    variant={projectProps.currentView === 'database' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none px-3 h-8"
-                    onClick={() => projectProps.onViewChange('database')}
-                  >
-                    <Database className="h-4 w-4 mr-1" />
-                    Database
-                  </Button>
-                </div>
-              </div>
 
               <div className="flex items-center gap-2 px-4">
                 {/* Create Pull Request Button */}
