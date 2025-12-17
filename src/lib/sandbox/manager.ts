@@ -177,8 +177,8 @@ export class SandboxManager {
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
       `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}`,
-      `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514'}`,
-      `GOOGLE_MODEL=${process.env.GOOGLE_MODEL || 'gemini-2.0-flash-exp'}`,
+      `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
+      `GOOGLE_MODEL=${process.env.GOOGLE_MODEL}`,
       `AGENT_MAX_TURNS=${process.env.AGENT_MAX_TURNS || '25'}`,
       // Git identity for sandbox commits
       `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
