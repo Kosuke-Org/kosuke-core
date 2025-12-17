@@ -74,7 +74,6 @@ export async function GET(
       buildJob: {
         id: buildJob.id,
         status: buildJob.status,
-        totalCost: buildJob.totalCost,
         createdAt: buildJob.createdAt,
         startedAt: buildJob.startedAt,
         completedAt: buildJob.completedAt,
@@ -96,7 +95,6 @@ export async function GET(
         estimatedEffort: t.estimatedEffort,
         status: t.status,
         error: t.error,
-        cost: t.cost,
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       })),
