@@ -3,14 +3,36 @@
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
-import Navbar from '@/components/navbar';
+import {
+  ArrowLeft,
+  GitPullRequest,
+  LayoutDashboard,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+} from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+
+import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
 import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useProject } from '@/hooks/use-projects';
+import { useUser as useUserHook } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
-import { useUser } from '@clerk/nextjs';
+import { useClerk, useUser } from '@clerk/nextjs';
 
 // Import components
 import ChatInterface from './components/chat/chat-interface';
@@ -25,81 +47,62 @@ interface ProjectPageProps {
 
 function ProjectLoadingSkeleton() {
   return (
-    <div className="flex flex-col h-screen w-full">
-      {/* Navbar Skeleton */}
-      <div className="w-full">
-        <header className="w-full h-14 flex items-center bg-background">
-          <div className="flex w-full h-full">
-            {/* Left section - matches chat width */}
-            <div className="flex items-center h-full w-full md:w-2/5 lg:w-2/5 border-r border-transparent relative">
-              <div className="px-4 flex items-center">
-                <Skeleton className="h-6 w-6 rounded-full" />
-              </div>
-
-              {/* Sidebar/Chat toggle button skeleton */}
-              <Skeleton className="h-8 w-8 rounded-md" />
-
-              {/* Collapse toggle button skeleton */}
-              <div className="absolute right-0 mr-2">
-                <Skeleton className="h-8 w-8 rounded-md" />
-              </div>
+    <div className="flex h-screen w-full">
+      {/* Left Panel Skeleton - Chat */}
+      <div className="flex flex-col h-full w-full md:w-2/5">
+        {/* Chat Header Skeleton */}
+        <header className="h-14 flex items-center bg-background">
+          <div className="flex items-center h-full w-full relative">
+            <div className="px-4 flex items-center">
+              <Skeleton className="h-6 w-6 rounded" />
             </div>
-
-            {/* Right section - project title and controls */}
-            <div className="flex-1 flex items-center justify-between">
-              <Skeleton className="h-5 w-32 ml-4" />
-
-              <div className="flex items-center gap-2 px-4">
-                <Skeleton className="h-8 w-8 rounded-md" />
-              </div>
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <div className="absolute right-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
             </div>
           </div>
         </header>
-      </div>
 
-      {/* Content Skeleton */}
-      <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden">
-        {/* Left Panel Skeleton - Chat Sidebar */}
-        <div className="h-full overflow-hidden w-full md:w-2/5 lg:w-2/5">
-          <div className="relative flex h-full w-full rounded-md">
-            <div className="flex flex-col h-full w-full">
-              {/* New Chat Button Skeleton */}
-              <div className="p-4">
-                <Skeleton className="h-9 w-full rounded-md" />
-              </div>
-
-              {/* Chat Sessions List Skeleton */}
-              <div className="flex-1 p-4 space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="rounded-lg border p-3 space-y-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Skeleton className="h-4 w-4 rounded-full" />
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-4 w-12 rounded-full" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-3 w-3 rounded-full" />
-                      <Skeleton className="h-3 w-16" />
-                      <Skeleton className="h-3 w-1" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
+        {/* Chat Content Skeleton */}
+        <div className="flex-1 overflow-hidden">
+          <div className="flex flex-col h-full w-full">
+            <div className="p-4">
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+            <div className="flex-1 p-4 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-12 rounded-full" />
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3 w-3 rounded-full" />
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-1" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Right Panel Skeleton - Preview/Code Explorer */}
-        <div className="hidden md:flex md:w-3/5 lg:w-3/5 h-full flex-col overflow-hidden border border-border rounded-md">
-          <div className="flex items-center justify-between p-4 border-b">
-            <Skeleton className="h-6 w-32" />
-            <div className="flex gap-2">
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
+      {/* Right Panel Skeleton - Preview */}
+      <div className="hidden md:flex md:flex-1 h-full flex-col">
+        <div className="flex flex-col h-full">
+          {/* Preview Header Skeleton */}
+          <header className="h-14 flex items-center justify-between bg-background px-4">
+            <Skeleton className="h-5 w-32" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-md" />
             </div>
-          </div>
-          <div className="flex-1 p-8 flex items-center justify-center">
+          </header>
+
+          {/* Preview Content Skeleton - with rounded border */}
+          <div className="flex-1 p-8 flex items-center justify-center border rounded-md border-border">
             <div className="text-center space-y-4">
               <Skeleton className="h-12 w-12 rounded-full mx-auto" />
               <Skeleton className="h-4 w-48 mx-auto" />
@@ -121,6 +124,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const sessionFromUrl = searchParams.get('session');
 
   const { user } = useUser();
+  const {
+    clerkUser,
+    user: dbUser,
+    isLoaded,
+    isSignedIn,
+    imageUrl,
+    displayName,
+    initials,
+  } = useUserHook();
+  const { signOut } = useClerk();
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
@@ -129,6 +142,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // UI state management
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
 
   // Chat session state management
@@ -202,12 +216,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
-  // Handlers
-  const handleRefresh = () => {
-    // Refresh could trigger a page reload or refetch project data
-    window.location.reload();
-  };
-
   const toggleSidebar = () => {
     if (!showSidebar) {
       // Going back to sidebar - update URL to main project page
@@ -232,26 +240,70 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     });
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirectUrl: '/sign-in' });
+    } catch (error) {
+      console.error('Error signing out:', error);
+      router.push('/sign-in');
+      router.refresh();
+    }
+  };
+
+  // Render user menu
+  const renderUserSection = () => {
+    if (!isLoaded) {
+      return <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />;
+    }
+
+    if (isSignedIn && clerkUser) {
+      return (
+        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
+              <Avatar className="h-8 w-8 cursor-pointer transition-all">
+                {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 mt-1">
+            <div className="flex items-center justify-start gap-2 p-2">
+              <div className="flex flex-col space-y-0.5">
+                <p className="text-sm font-medium">{displayName}</p>
+                <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+              </div>
+            </div>
+            <DropdownMenuSeparator />
+            <OrganizationSwitcherComponent onClose={() => setDropdownOpen(false)} />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/projects')} className="cursor-pointer">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Projects</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
+    return null;
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full">
-      <Navbar
-        variant="project"
-        projectProps={{
-          projectName: project?.name || 'Loading Project...',
-          onRefresh: handleRefresh,
-          isChatCollapsed: isChatCollapsed,
-          onToggleChat: toggleChatCollapsed,
-          showSidebar: showSidebar,
-          onToggleSidebar: toggleSidebar,
-          activeChatSessionId: !showSidebar ? activeChatSessionId : null,
-          onCreatePullRequest: handleCreatePullRequest,
-        }}
-      />
-      <ResizablePanelGroup
-        direction="horizontal"
-        className="h-[calc(100vh-3.5rem)] w-full overflow-hidden"
-      >
-        {/* Chat Panel */}
+    <div className="flex h-screen w-full">
+      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+        {/* Chat Panel - Header + Content */}
         <ResizablePanel
           defaultSize={40}
           minSize={25}
@@ -261,55 +313,141 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             display: isChatCollapsed ? 'none' : undefined,
           }}
         >
-          <div ref={chatInterfaceRef} className="h-full overflow-hidden flex">
-            {/* Chat area with toggle between sidebar and interface */}
-            <div className="relative flex h-full w-full rounded-md">
-              {showSidebar ? (
-                /* Chat Sidebar - Full Width */
-                <div className="w-full">
-                  <ChatSidebar
-                    projectId={projectId}
-                    activeChatSessionId={activeChatSessionId}
-                    onChatSessionChange={handleSessionSelect}
-                  />
+          <div className="flex flex-col h-full">
+            {/* Chat Header */}
+            <header className="h-14 flex items-center bg-background">
+              <div className="flex items-center h-full w-full relative">
+                <div className="px-4 flex items-center">
+                  <Link href="/" className="flex items-center">
+                    <Image
+                      src="/logo-dark.svg"
+                      alt="Kosuke"
+                      width={24}
+                      height={24}
+                      className="block dark:hidden"
+                      priority
+                    />
+                    <Image
+                      src="/logo.svg"
+                      alt="Kosuke"
+                      width={24}
+                      height={24}
+                      className="hidden dark:block"
+                      priority
+                    />
+                  </Link>
                 </div>
-              ) : (
-                /* Chat Interface - Full Width */
-                <div className="w-full flex flex-col">
-                  <ChatInterface
-                    projectId={projectId}
-                    activeChatSessionId={activeChatSessionId}
-                    currentBranch={currentBranch}
-                    sessionId={sessionId}
-                    model={project?.model}
-                  />
-                </div>
-              )}
+
+                {/* Back to Sessions button - only show when in chat interface */}
+                {!showSidebar && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleSidebar}
+                    aria-label="Back to Sessions"
+                    title="Back to Sessions"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
+
+                {/* Collapse toggle button positioned at the right edge */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleChatCollapsed}
+                  className="absolute right-2 h-8 w-8"
+                  aria-label={isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
+                  title={isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
+                >
+                  <PanelLeftClose className="h-5 w-5" />
+                </Button>
+              </div>
+            </header>
+
+            {/* Chat Content */}
+            <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
+              <div className="relative flex h-full w-full rounded-md">
+                {showSidebar ? (
+                  <div className="w-full">
+                    <ChatSidebar
+                      projectId={projectId}
+                      activeChatSessionId={activeChatSessionId}
+                      onChatSessionChange={handleSessionSelect}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full flex flex-col">
+                    <ChatInterface
+                      projectId={projectId}
+                      activeChatSessionId={activeChatSessionId}
+                      currentBranch={currentBranch}
+                      sessionId={sessionId}
+                      model={project?.model}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </ResizablePanel>
 
-        {/* Resize Handle - invisible but functional */}
+        {/* Resize Handle - invisible line but draggable via padding */}
         {!isChatCollapsed && (
-          <ResizableHandle className="hidden md:flex w-1 bg-transparent hover:bg-border/50 transition-colors" />
+          <ResizableHandle className="hidden md:flex w-px! bg-transparent! border-none! after:bg-transparent! before:bg-transparent! hover:after:bg-border/30! transition-colors px-1" />
         )}
 
-        {/* Preview Panel */}
+        {/* Preview Panel - Header + Content */}
         <ResizablePanel
           defaultSize={isChatCollapsed ? 100 : 60}
           minSize={40}
-          className={cn(
-            'h-full flex-col overflow-hidden border rounded-md border-border',
-            !isChatCollapsed && 'hidden md:flex'
-          )}
+          className={cn('h-full flex-col overflow-hidden', !isChatCollapsed && 'hidden md:flex')}
         >
-          <PreviewPanel
-            projectId={projectId}
-            projectName={project.name}
-            sessionId={previewSessionId ?? ''}
-            branch={previewBranch}
-            isNewProject={isNewProject}
-          />
+          <div className="flex flex-col h-full">
+            {/* Preview Header */}
+            <header className="h-14 flex items-center justify-between bg-background px-4">
+              <div className="flex items-center gap-2">
+                {/* Expand chat button - only show when collapsed */}
+                {isChatCollapsed && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleChatCollapsed}
+                    className="h-8 w-8 mr-2"
+                    aria-label="Expand chat"
+                    title="Expand chat"
+                  >
+                    <PanelLeftOpen className="h-5 w-5" />
+                  </Button>
+                )}
+                <h2 className="text-sm font-medium truncate max-w-[200px]">
+                  {project?.name || 'Loading Project...'}
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Create Pull Request Button */}
+                {!showSidebar && activeChatSessionId && (
+                  <Button variant="outline" size="sm" onClick={handleCreatePullRequest}>
+                    <GitPullRequest className="h-4 w-4 mr-1" />
+                    Create PR
+                  </Button>
+                )}
+                {renderUserSection()}
+              </div>
+            </header>
+
+            {/* Preview Content - with rounded border */}
+            <div className="flex-1 overflow-hidden border rounded-md border-border">
+              <PreviewPanel
+                projectId={projectId}
+                projectName={project.name}
+                sessionId={previewSessionId ?? ''}
+                branch={previewBranch}
+                isNewProject={isNewProject}
+              />
+            </div>
+          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

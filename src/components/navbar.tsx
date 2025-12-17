@@ -1,16 +1,8 @@
 'use client';
 
 import { useClerk } from '@clerk/nextjs';
-import {
-  ArrowLeft,
-  CircleIcon,
-  GitPullRequest,
-  LayoutDashboard,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-} from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -28,32 +20,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
 
 type NavbarProps = {
-  variant?: 'standard' | 'project';
   hideSignIn?: boolean;
-  projectProps?: {
-    projectName: string;
-    onRefresh?: () => void;
-    isChatCollapsed?: boolean;
-    onToggleChat?: () => void;
-    // Pull Request functionality
-    activeChatSessionId?: string | null;
-    onCreatePullRequest?: () => void;
-    // Floating toggle functionality
-    showSidebar?: boolean;
-    onToggleSidebar?: () => void;
-  };
   className?: string;
 };
 
-export default function Navbar({
-  variant = 'standard',
-  hideSignIn = false,
-  projectProps,
-  className,
-}: NavbarProps) {
+export default function Navbar({ hideSignIn = false, className }: NavbarProps) {
   const { clerkUser, user, isLoaded, isSignedIn, imageUrl, displayName, initials } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
@@ -134,117 +107,36 @@ export default function Navbar({
     );
   };
 
-  // Standard navbar for most pages
-  if (variant === 'standard') {
-    return (
-      <div className="w-full border-b border-border relative z-50">
-        <header className={cn('bg-background w-full h-14', className)}>
-          <div className="w-full h-full px-6 sm:px-8 md:px-16 lg:px-24 flex justify-between items-center max-w-screen-2xl mx-auto">
-            <Link
-              href="/"
-              className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
-            >
-              <Image
-                src="/logo-dark.svg"
-                alt="Kosuke"
-                width={24}
-                height={24}
-                className="block dark:hidden"
-                priority
-              />
-              <Image
-                src="/logo.svg"
-                alt="Kosuke"
-                width={24}
-                height={24}
-                className="hidden dark:block"
-                priority
-              />
-              <span className="ml-2 text-xl text-foreground">Kosuke</span>
-            </Link>
+  return (
+    <div className="w-full border-b border-border relative z-50">
+      <header className={cn('bg-background w-full h-14', className)}>
+        <div className="w-full h-full px-6 sm:px-8 md:px-16 lg:px-24 flex justify-between items-center max-w-screen-2xl mx-auto">
+          <Link
+            href="/"
+            className="flex items-center hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <Image
+              src="/logo-dark.svg"
+              alt="Kosuke"
+              width={24}
+              height={24}
+              className="block dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo.svg"
+              alt="Kosuke"
+              width={24}
+              height={24}
+              className="hidden dark:block"
+              priority
+            />
+            <span className="ml-2 text-xl text-foreground">Kosuke</span>
+          </Link>
 
-            {renderUserSection()}
-          </div>
-        </header>
-      </div>
-    );
-  }
-
-  // Project variant
-  if (variant === 'project' && projectProps) {
-    return (
-      <div className="w-full">
-        <header className={cn('w-full h-14 flex items-center bg-background', className)}>
-          <div className="flex w-full h-full">
-            {/* Left section - matches chat width */}
-            <div className="flex items-center h-full w-full md:w-1/3 lg:w-1/4 border-r border-transparent relative">
-              <div className="px-4 flex items-center">
-                <Link href="/" className="flex items-center">
-                  <CircleIcon className="h-6 w-6 text-primary" />
-                </Link>
-              </div>
-
-              {/* Floating toggle button positioned to the left of collapse toggle */}
-              {/* Only show toggle when in chat interface (showSidebar is false) */}
-              {projectProps.onToggleSidebar && !projectProps.showSidebar && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={projectProps.onToggleSidebar}
-                  aria-label="Back to Sessions"
-                  title="Back to Sessions"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* Toggle button positioned at the right edge of chat width */}
-              {projectProps.onToggleChat && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={projectProps.onToggleChat}
-                  className="absolute right-0 mr-2 h-8 w-8"
-                  aria-label={projectProps.isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
-                  title={projectProps.isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
-                >
-                  {projectProps.isChatCollapsed ? (
-                    <PanelLeftOpen className="h-5 w-5" />
-                  ) : (
-                    <PanelLeftClose className="h-5 w-5" />
-                  )}
-                </Button>
-              )}
-            </div>
-
-            {/* Right section - project title and controls */}
-            <div className="flex-1 flex items-center justify-between">
-              <h2 className="text-sm font-medium truncate max-w-[200px] ml-4">
-                {projectProps.projectName}
-              </h2>
-
-              <div className="flex items-center gap-2 px-4">
-                {/* Create Pull Request Button */}
-                {projectProps.onCreatePullRequest && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={projectProps.onCreatePullRequest}
-                    disabled={!projectProps.activeChatSessionId}
-                    className="mr-2"
-                  >
-                    <GitPullRequest className="h-4 w-4 mr-1" />
-                    Create PR
-                  </Button>
-                )}
-                {renderUserSection()}
-              </div>
-            </div>
-          </div>
-        </header>
-      </div>
-    );
-  }
-
-  return null;
+          {renderUserSection()}
+        </div>
+      </header>
+    </div>
+  );
 }
