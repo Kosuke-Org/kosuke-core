@@ -604,7 +604,7 @@ export async function POST(
 
               const currentMetadata =
                 typeof currentMessage?.metadata === 'object' && currentMessage?.metadata !== null
-                  ? (currentMessage.metadata as Record<string, unknown>)
+                  ? (currentMessage?.metadata as Record<string, unknown>)
                   : {};
 
               await db
