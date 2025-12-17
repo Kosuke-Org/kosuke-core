@@ -4,6 +4,7 @@ import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
 import Navbar from '@/components/navbar';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
 import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
@@ -246,52 +247,60 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           onCreatePullRequest: handleCreatePullRequest,
         }}
       />
-      <div className={cn('flex h-[calc(100vh-3.5rem)] w-full overflow-hidden')}>
-        <div
-          ref={chatInterfaceRef}
-          className={cn(
-            'h-full overflow-hidden',
-            // Balanced width for chat area - more than original but not too much
-            isChatCollapsed ? 'w-0 opacity-0' : 'w-full sm:w-2/5 md:w-2/5 lg:w-2/5'
-          )}
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="h-[calc(100vh-3.5rem)] w-full overflow-hidden"
+      >
+        {/* Chat Panel */}
+        <ResizablePanel
+          defaultSize={40}
+          minSize={25}
+          maxSize={60}
+          className={cn(isChatCollapsed && 'hidden')}
           style={{
-            // Use visibility instead of conditional rendering
-            visibility: isChatCollapsed ? 'hidden' : 'visible',
-            // Use display to properly hide when collapsed
-            display: isChatCollapsed ? 'none' : 'flex',
+            display: isChatCollapsed ? 'none' : undefined,
           }}
         >
-          {/* Chat area with toggle between sidebar and interface */}
-          <div className="relative flex h-full w-full rounded-md">
-            {showSidebar ? (
-              /* Chat Sidebar - Full Width */
-              <div className="w-full">
-                <ChatSidebar
-                  projectId={projectId}
-                  activeChatSessionId={activeChatSessionId}
-                  onChatSessionChange={handleSessionSelect}
-                />
-              </div>
-            ) : (
-              /* Chat Interface - Full Width */
-              <div className="w-full flex flex-col">
-                <ChatInterface
-                  projectId={projectId}
-                  activeChatSessionId={activeChatSessionId}
-                  currentBranch={currentBranch}
-                  sessionId={sessionId}
-                  model={project?.model}
-                />
-              </div>
-            )}
+          <div ref={chatInterfaceRef} className="h-full overflow-hidden flex">
+            {/* Chat area with toggle between sidebar and interface */}
+            <div className="relative flex h-full w-full rounded-md">
+              {showSidebar ? (
+                /* Chat Sidebar - Full Width */
+                <div className="w-full">
+                  <ChatSidebar
+                    projectId={projectId}
+                    activeChatSessionId={activeChatSessionId}
+                    onChatSessionChange={handleSessionSelect}
+                  />
+                </div>
+              ) : (
+                /* Chat Interface - Full Width */
+                <div className="w-full flex flex-col">
+                  <ChatInterface
+                    projectId={projectId}
+                    activeChatSessionId={activeChatSessionId}
+                    currentBranch={currentBranch}
+                    sessionId={sessionId}
+                    model={project?.model}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </ResizablePanel>
 
-        <div
+        {/* Resize Handle - invisible but functional */}
+        {!isChatCollapsed && (
+          <ResizableHandle className="hidden md:flex w-1 bg-transparent hover:bg-border/50 transition-colors" />
+        )}
+
+        {/* Preview Panel */}
+        <ResizablePanel
+          defaultSize={isChatCollapsed ? 100 : 60}
+          minSize={40}
           className={cn(
             'h-full flex-col overflow-hidden border rounded-md border-border',
-            // Balanced width for preview panel - maintains good visibility
-            isChatCollapsed ? 'w-full' : 'hidden md:flex sm:w-3/5 md:w-3/5 lg:w-3/5'
+            !isChatCollapsed && 'hidden md:flex'
           )}
         >
           <PreviewPanel
@@ -301,8 +310,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             branch={previewBranch}
             isNewProject={isNewProject}
           />
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
