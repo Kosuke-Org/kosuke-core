@@ -133,7 +133,7 @@ RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
     npm install -g @playwright/mcp@latest && \
     cd /usr/local/lib/node_modules/@playwright/mcp && \
     # Try chrome first (chrome-for-testing), fallback to chromium
-    npx playwright install chrome || npx playwright install chromium && \
+    npx playwright install chromium && \
     # Move playwright cache to kosuke's home directory
     mkdir -p /home/kosuke/.cache && \
     mv /root/.cache/ms-playwright /home/kosuke/.cache/ && \
