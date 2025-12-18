@@ -372,9 +372,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           </div>
         </ResizablePanel>
 
-        {/* Resize Handle - invisible line but draggable via padding */}
+        {/* Resize Handle - completely invisible but draggable via padding */}
         {!isChatCollapsed && (
-          <ResizableHandle className="hidden md:flex w-px! bg-transparent! border-none! after:bg-transparent! before:bg-transparent! hover:after:bg-border/30! transition-colors px-1" />
+          <ResizableHandle className="hidden md:flex w-px! bg-transparent! border-none! after:bg-transparent! before:bg-transparent! px-1" />
         )}
 
         {/* Preview Panel - Header + Content */}
