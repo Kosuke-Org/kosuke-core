@@ -3,7 +3,7 @@
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
-import { ArrowLeft, GitPullRequest, LayoutDashboard, LogOut, Settings } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, LogOut, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -413,16 +413,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </h2>
               </div>
 
-              <div className="flex items-center gap-2">
-                {/* Create Pull Request Button */}
-                {!showSidebar && activeChatSessionId && (
-                  <Button variant="outline" size="sm" onClick={handleCreatePullRequest}>
-                    <GitPullRequest className="h-4 w-4 mr-1" />
-                    Create PR
-                  </Button>
-                )}
-                {renderUserSection()}
-              </div>
+              <div className="flex items-center gap-2">{renderUserSection()}</div>
             </header>
 
             {/* Preview Content - with rounded border */}
@@ -435,6 +426,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isNewProject={isNewProject}
                 isSidebarCollapsed={isChatCollapsed}
                 onToggleSidebar={toggleChatCollapsed}
+                showCreatePR={!showSidebar && Boolean(activeChatSessionId)}
+                onCreatePullRequest={handleCreatePullRequest}
               />
             </div>
           </div>

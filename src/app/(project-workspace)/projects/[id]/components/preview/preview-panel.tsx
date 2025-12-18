@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Send,
   XCircle,
 } from 'lucide-react';
 
@@ -37,6 +38,10 @@ interface PreviewPanelProps {
   isSidebarCollapsed?: boolean;
   /** Callback to toggle sidebar visibility */
   onToggleSidebar?: () => void;
+  /** When true, shows the Create PR button */
+  showCreatePR?: boolean;
+  /** Callback to create a pull request */
+  onCreatePullRequest?: () => void;
 }
 
 export default function PreviewPanel({
@@ -48,6 +53,8 @@ export default function PreviewPanel({
   isNewProject = false,
   isSidebarCollapsed = false,
   onToggleSidebar,
+  showCreatePR = false,
+  onCreatePullRequest,
 }: PreviewPanelProps) {
   const {
     // State
@@ -165,6 +172,12 @@ export default function PreviewPanel({
           >
             <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
           </Button>
+          {showCreatePR && onCreatePullRequest && (
+            <Button variant="outline" size="sm" onClick={onCreatePullRequest}>
+              <Send className="h-4 w-4 mr-1" />
+              Submit
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-hidden">
