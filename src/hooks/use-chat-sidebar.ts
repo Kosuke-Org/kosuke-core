@@ -110,11 +110,10 @@ export function useChatSidebar({
     setDeletingSession(session);
   }, []);
 
-  // Confirm and execute session deletion
+  // Confirm and execute session deletion (fire and forget - dialog closes immediately)
   const confirmDeleteSession = useCallback(
-    async (session: ChatSession) => {
-      await deleteChatSession.mutateAsync(session.id);
-      setDeletingSession(null);
+    (session: ChatSession) => {
+      deleteChatSession.mutate(session.id);
     },
     [deleteChatSession]
   );
@@ -172,6 +171,5 @@ export function useChatSidebar({
     // Loading states
     isCreating: createChatSession.isPending,
     isUpdating: updateChatSession.isPending,
-    isDeleting: deleteChatSession.isPending,
   };
 }

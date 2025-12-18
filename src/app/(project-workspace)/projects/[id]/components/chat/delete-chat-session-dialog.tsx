@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,6 @@ interface DeleteChatSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (session: ChatSession) => void | Promise<void>;
-  isDeleting: boolean;
 }
 
 export function DeleteChatSessionDialog({
@@ -25,22 +24,17 @@ export function DeleteChatSessionDialog({
   open,
   onOpenChange,
   onConfirm,
-  isDeleting,
 }: DeleteChatSessionDialogProps) {
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!session) return;
-    await onConfirm(session);
+    // Close modal immediately for optimistic UI
+    onOpenChange(false);
+    // Fire and forget - don't await the response
+    onConfirm(session);
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={value => {
-        // Prevent closing while deletion is in progress
-        if (isDeleting) return;
-        onOpenChange(value);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] border border-border bg-card">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -68,18 +62,11 @@ export function DeleteChatSessionDialog({
         </div>
 
         <DialogFooter className="mt-6">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                <span>Deleting...</span>
-              </>
-            ) : (
-              'Delete Session'
-            )}
+          <Button variant="destructive" onClick={handleDelete}>
+            Delete Session
           </Button>
         </DialogFooter>
       </DialogContent>

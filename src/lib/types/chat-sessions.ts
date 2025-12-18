@@ -90,7 +90,7 @@ export interface UseChatSidebarReturn {
   handleCreateChat: () => Promise<void>;
   handleUpdateSession: (session: ChatSession, updates: Partial<ChatSession>) => Promise<void>;
   handleDeleteSession: (session: ChatSession) => void;
-  confirmDeleteSession: (session: ChatSession) => Promise<void>;
+  confirmDeleteSession: (session: ChatSession) => void;
   handleDuplicateSession: (session: ChatSession) => Promise<void>;
   handleViewGitHubBranch: (session: ChatSession) => void;
 
@@ -100,5 +100,4 @@ export interface UseChatSidebarReturn {
   // Loading states
   isCreating: boolean;
   isUpdating: boolean;
-  isDeleting: boolean;
 }
