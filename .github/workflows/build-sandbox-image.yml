@@ -34,6 +34,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read kosuke-cli version
+        id: cli-version
+        run: echo "version=$(cat sandbox/.kosuke-cli-version)" >> $GITHUB_OUTPUT
+
       - name: Extract metadata for Sandbox image
         id: meta
         uses: docker/metadata-action@v5
@@ -56,6 +60,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             KOSUKE_CLI_MODE=production
+            KOSUKE_CLI_VERSION=${{ steps.cli-version.outputs.version }}
             INSTALL_CHROMIUM=false
           secrets: |
             npm_token=${{ secrets.NPM_TOKEN }}
@@ -63,7 +68,7 @@ jobs:
       - name: Notify Slack - Success
         if: success()
         run: |
-          curl -X POST --data '{"text":"✅ Kosuke Sandbox Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ github.sha }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data '{"text":"✅ Kosuke Sandbox Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ github.sha }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 
       - name: Notify Slack - Failure
         if: failure()
