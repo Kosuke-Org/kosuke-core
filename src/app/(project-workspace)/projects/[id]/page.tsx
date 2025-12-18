@@ -146,9 +146,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
-
-  // Chat session state management (activeChatSessionId declared above for useLatestBuild)
-  const [showSidebar, setShowSidebar] = useState(!sessionFromUrl); // Show sidebar unless we have a session in URL
+  const [showSidebar, setShowSidebar] = useState(!sessionFromUrl);
 
   // Auto-select session based on URL or default session when sessions are loaded
   useEffect(() => {
@@ -439,6 +437,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 onCreatePullRequest={handleCreatePullRequest}
                 canCreatePR={canCreatePR}
                 isCreatingPR={createPullRequestMutation.isPending}
+                prUrl={createPullRequestMutation.data?.pull_request_url}
               />
             </div>
           </div>

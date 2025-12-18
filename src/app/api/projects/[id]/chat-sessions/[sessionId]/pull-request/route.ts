@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { buildJobs, chatSessions } from '@/lib/db/schema';
+import { buildJobs } from '@/lib/db/schema';
 import { getOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { desc, eq } from 'drizzle-orm';
@@ -118,12 +118,6 @@ export async function POST(
         head: sourceBranch,
         base: targetBranch,
       });
-
-      // Store PR number in session
-      await db
-        .update(chatSessions)
-        .set({ pullRequestNumber: pr.number })
-        .where(eq(chatSessions.id, session.id));
 
       return NextResponse.json({
         pull_request_url: pr.html_url,

@@ -12,6 +12,7 @@ import {
   Send,
   XCircle,
 } from 'lucide-react';
+import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,8 @@ interface PreviewPanelProps {
   canCreatePR?: boolean;
   /** When true, the Create PR mutation is in progress */
   isCreatingPR?: boolean;
+  /** URL of the created PR (when available, shows View PR button) */
+  prUrl?: string | null;
 }
 
 export default function PreviewPanel({
@@ -62,6 +65,7 @@ export default function PreviewPanel({
   onCreatePullRequest,
   canCreatePR = false,
   isCreatingPR = false,
+  prUrl = null,
 }: PreviewPanelProps) {
   const {
     // State
@@ -191,7 +195,19 @@ export default function PreviewPanel({
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
-          {showCreatePR && onCreatePullRequest && (
+          {showCreatePR && prUrl ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={prUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    View Changes
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View your submitted changes on GitHub</TooltipContent>
+            </Tooltip>
+          ) : showCreatePR && onCreatePullRequest ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
@@ -216,7 +232,7 @@ export default function PreviewPanel({
                   : 'Submit your changes'}
               </TooltipContent>
             </Tooltip>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

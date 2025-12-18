@@ -163,8 +163,6 @@ export default function ChatInterface({
     return true;
   });
 
-  // Use prop for build in progress status (managed by parent via useLatestBuild)
-
   // Enhance messages with showAvatar property
   const enhancedMessages = filteredMessages.map((message, index) => {
     let showAvatar = true;

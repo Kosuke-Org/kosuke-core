@@ -28,16 +28,6 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 
-    // Get the chat session
-    const chatSession = await db.query.chatSessions.findFirst({
-      where: (chatSessions, { and, eq }) =>
-        and(eq(chatSessions.projectId, projectId), eq(chatSessions.id, sessionId)),
-    });
-
-    if (!chatSession) {
-      return NextResponse.json({ error: 'Chat session not found' }, { status: 404 });
-    }
-
     // Get the latest build job for this session
     const latestBuild = await db
       .select()
