@@ -118,12 +118,6 @@ export function ChatSessionItem({
             {session.title}
           </h3>
 
-          {/* Branch Name */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <GitBranch className="h-3 w-3 shrink-0" />
-            <span className="truncate font-mono">{session.branchName}</span>
-          </div>
-
           {/* Creation Date */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3 shrink-0" />

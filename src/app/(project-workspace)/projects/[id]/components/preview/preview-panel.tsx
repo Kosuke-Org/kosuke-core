@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreviewPanel } from '@/hooks/use-preview-panel';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
@@ -42,6 +43,10 @@ interface PreviewPanelProps {
   showCreatePR?: boolean;
   /** Callback to create a pull request */
   onCreatePullRequest?: () => void;
+  /** When true, the Create PR button is enabled (requires completed build) */
+  canCreatePR?: boolean;
+  /** When true, the Create PR mutation is in progress */
+  isCreatingPR?: boolean;
 }
 
 export default function PreviewPanel({
@@ -55,6 +60,8 @@ export default function PreviewPanel({
   onToggleSidebar,
   showCreatePR = false,
   onCreatePullRequest,
+  canCreatePR = false,
+  isCreatingPR = false,
 }: PreviewPanelProps) {
   const {
     // State
@@ -125,17 +132,21 @@ export default function PreviewPanel({
         </div>
         <div className="flex items-center space-x-1">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label="Download project"
-                title="Download project"
-                disabled={isDownloading}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Download project"
+                    disabled={isDownloading}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Download</TooltipContent>
+            </Tooltip>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem className="flex items-center" disabled>
                 <Github className="mr-2 h-4 w-4" />
@@ -152,31 +163,59 @@ export default function PreviewPanel({
             </DropdownMenuContent>
           </DropdownMenu>
           {previewUrl && status === 'ready' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={openInNewTab}
-              aria-label="Open in new tab"
-              title="Open in new tab"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={openInNewTab}
+                  aria-label="Open in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View</TooltipContent>
+            </Tooltip>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleRefresh()}
-            disabled={!isPreviewEnabled || status === 'loading'}
-            aria-label="Refresh preview"
-            title="Refresh preview"
-          >
-            <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRefresh()}
+                disabled={!isPreviewEnabled || status === 'loading'}
+                aria-label="Refresh preview"
+              >
+                <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh</TooltipContent>
+          </Tooltip>
           {showCreatePR && onCreatePullRequest && (
-            <Button variant="outline" size="sm" onClick={onCreatePullRequest}>
-              <Send className="h-4 w-4 mr-1" />
-              Submit
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onCreatePullRequest}
+                    disabled={!canCreatePR || isCreatingPR}
+                  >
+                    {isCreatingPR ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-1" />
+                    )}
+                    {isCreatingPR ? 'Creating...' : 'Submit'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {!canCreatePR
+                  ? 'A successful build is required before submitting'
+                  : 'Submit your changes'}
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
