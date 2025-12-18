@@ -504,25 +504,14 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       totalCost,
     };
   } catch (error) {
-    // Check if this was an abort (cancellation) or sandbox destroyed
-    const isAbortError =
-      error instanceof Error &&
-      (error.name === 'AbortError' ||
-        error.message.includes('aborted') ||
-        error.message.includes('cancelled') ||
-        error.message.includes('ENOTFOUND') ||
-        error.message.includes('fetch failed'));
-
-    // Also check if build was already marked as cancelled by the API
+    // Check if build was cancelled by the API (source of truth)
     const [currentBuildJob] = await db
       .select({ status: buildJobs.status })
       .from(buildJobs)
       .where(eq(buildJobs.id, buildJobId))
       .limit(1);
 
-    const isAborted = isAbortError || currentBuildJob?.status === 'cancelled';
-
-    if (isAborted) {
+    if (currentBuildJob?.status === 'cancelled') {
       console.log('\n' + '='.repeat(80));
       console.log(`[BUILD] 🛑 Build job ${buildJobId} was cancelled`);
       console.log('='.repeat(80) + '\n');
