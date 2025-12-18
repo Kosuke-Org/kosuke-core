@@ -9,7 +9,6 @@ import type { FileType } from './db/schema';
 // S3 storage is enabled via feature flag (S3_ENABLED=true in env)
 // When disabled, files are stored locally in public/uploads/
 const isS3Enabled = process.env.S3_ENABLED === 'true';
-const useLocalStorage = !isS3Enabled;
 
 // Local storage directory (inside public for static serving)
 const LOCAL_UPLOAD_DIR = 'public/uploads';
@@ -21,14 +20,14 @@ const s3Client = isS3Enabled
       endpoint: process.env.S3_ENDPOINT,
       region: process.env.S3_REGION,
       credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+        accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
       },
       forcePathStyle: false, // Digital Ocean Spaces uses virtual-hosted-style
     })
   : null;
 
-const S3_BUCKET = process.env.S3_BUCKET || '';
+const S3_BUCKET = process.env.S3_BUCKET;
 
 export interface MessageAttachmentPayload {
   upload: UploadResult;
@@ -187,7 +186,7 @@ export async function uploadFile(
   try {
     const filename = generateFilename(file.name, prefix);
 
-    if (useLocalStorage) {
+    if (!isS3Enabled) {
       // Use local file system in development
       console.log(`📁 Using local storage for file: ${filename}`);
       return await uploadFileToLocal(file, filename);
