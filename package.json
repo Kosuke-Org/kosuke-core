@@ -29,7 +29,6 @@
     "workers:trigger-job": "npx tsx src/lib/queue/trigger.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
     "@aws-sdk/client-s3": "^3.948.0",
     "@clerk/nextjs": "^6.36.2",
     "@docker/node-sdk": "^0.0.17",
@@ -120,7 +119,6 @@
     "@testing-library/react": "^16.2.0",
     "@types/cookiebot-sdk": "^2.43.5",
     "@types/jest": "^29.5.14",
-    "@types/mime-types": "^2.1.4",
     "@types/tryghost__content-api": "^1.3.17",
     "eslint": "^9.22.0",
     "eslint-config-next": "^15.2.3",
