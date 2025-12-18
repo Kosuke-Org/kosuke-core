@@ -1,21 +1,32 @@
 import type { PutObjectCommandInput } from '@aws-sdk/client-s3';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import type { FileType } from './db/schema';
 
+// S3 storage is enabled via feature flag (S3_ENABLED=true in env)
+// When disabled, files are stored locally in public/uploads/
+const isS3Enabled = process.env.S3_ENABLED === 'true';
+const useLocalStorage = !isS3Enabled;
+
+// Local storage directory (inside public for static serving)
+const LOCAL_UPLOAD_DIR = 'public/uploads';
+
 // S3 Client configuration for Digital Ocean Spaces
-// Used for both development and production environments
-const s3Client = new S3Client({
-  endpoint: process.env.S3_ENDPOINT,
-  region: process.env.S3_REGION,
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-  },
-  forcePathStyle: false, // Digital Ocean Spaces uses virtual-hosted-style
-});
+// Only initialize if S3 is enabled
+const s3Client = isS3Enabled
+  ? new S3Client({
+      endpoint: process.env.S3_ENDPOINT,
+      region: process.env.S3_REGION,
+      credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+      },
+      forcePathStyle: false, // Digital Ocean Spaces uses virtual-hosted-style
+    })
+  : null;
 
 const S3_BUCKET = process.env.S3_BUCKET || '';
 
@@ -104,6 +115,10 @@ async function uploadFileToS3(
   filename: string,
   body: PutObjectBody
 ): Promise<UploadResult> {
+  if (!s3Client) {
+    throw new Error('S3 client not configured');
+  }
+
   const command = new PutObjectCommand({
     Bucket: S3_BUCKET,
     Key: filename,
@@ -125,9 +140,42 @@ async function uploadFileToS3(
   };
 }
 
+// Upload to local file system (for development without S3)
+async function uploadFileToLocal(file: globalThis.File, filename: string): Promise<UploadResult> {
+  // Ensure upload directory exists
+  const uploadDir = join(process.cwd(), LOCAL_UPLOAD_DIR);
+  if (!existsSync(uploadDir)) {
+    mkdirSync(uploadDir, { recursive: true });
+  }
+
+  // Create subdirectories if filename includes path
+  const filePath = join(uploadDir, filename);
+  const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+  if (fileDir && !existsSync(fileDir)) {
+    mkdirSync(fileDir, { recursive: true });
+  }
+
+  // Read file content and write to disk
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  writeFileSync(filePath, buffer);
+
+  // Return URL relative to public directory (served by Next.js)
+  const fileUrl = `/uploads/${filename}`;
+
+  return {
+    fileUrl,
+    filename: file.name,
+    storedFilename: filename,
+    fileType: getFileType(file.type),
+    mediaType: file.type,
+    fileSize: file.size,
+  };
+}
+
 /**
  * Generic file upload function
- * Uploads files to Digital Ocean Spaces in both development and production
+ * Uses local file system in development (when S3 not configured), S3 in production
  * @param file File to upload
  * @param prefix Optional prefix for organizing files (e.g., 'documents/', 'images/')
  * @returns Upload result with file metadata
@@ -138,6 +186,14 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   try {
     const filename = generateFilename(file.name, prefix);
+
+    if (useLocalStorage) {
+      // Use local file system in development
+      console.log(`📁 Using local storage for file: ${filename}`);
+      return await uploadFileToLocal(file, filename);
+    }
+
+    // Use S3 in production
     const fileBody: PutObjectBody = createReadableStream(file);
     return await uploadFileToS3(file, filename, fileBody);
   } catch (error) {

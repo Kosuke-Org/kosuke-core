@@ -18,8 +18,31 @@ import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
+import type { ImageContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
+
+// Supported image media types for Claude multipart prompts
+const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+
+/**
+ * Convert a File to base64 ImageContent for Claude multipart prompts
+ * Only processes images (jpeg, png, gif, webp), returns null for other file types
+ */
+async function fileToImageContent(file: File): Promise<ImageContent | null> {
+  // Only process supported image types
+  if (!IMAGE_MEDIA_TYPES.includes(file.type as (typeof IMAGE_MEDIA_TYPES)[number])) {
+    return null;
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+  return {
+    mediaType: file.type as ImageContent['mediaType'],
+    data: base64,
+  };
+}
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -65,7 +88,7 @@ async function saveUploadedFile(file: File, projectId: string): Promise<MessageA
 }
 
 /**
- * Process a FormData request and extract the content and attachment
+ * Process a FormData request and extract the content, attachments, and raw image files
  */
 async function processFormDataRequest(
   req: NextRequest,
@@ -75,6 +98,7 @@ async function processFormDataRequest(
   includeContext: boolean;
   contextFiles: Array<{ name: string; content: string }>;
   attachments: MessageAttachmentPayload[];
+  imageFiles: File[]; // Raw image files for base64 conversion (to send to Claude)
 }> {
   const formData = await req.formData();
   const content = (formData.get('content') as string) || '';
@@ -84,13 +108,20 @@ async function processFormDataRequest(
 
   // Process all attachments (images and documents)
   const attachments: MessageAttachmentPayload[] = [];
+  const imageFiles: File[] = []; // Collect raw image files for Claude
   const attachmentCount = parseInt((formData.get('attachmentCount') as string) || '0', 10);
 
   for (let i = 0; i < attachmentCount; i++) {
     const attachmentFile = formData.get(`attachment_${i}`) as File | null;
     if (attachmentFile) {
+      // Upload to S3 for storage/display
       const attachment = await saveUploadedFile(attachmentFile, projectId);
       attachments.push(attachment);
+
+      // Collect image files for Claude (will be converted to base64)
+      if (IMAGE_MEDIA_TYPES.includes(attachmentFile.type as (typeof IMAGE_MEDIA_TYPES)[number])) {
+        imageFiles.push(attachmentFile);
+      }
     }
   }
 
@@ -99,6 +130,7 @@ async function processFormDataRequest(
     includeContext,
     contextFiles,
     attachments,
+    imageFiles,
   };
 }
 
@@ -358,6 +390,7 @@ export async function POST(
     const contentType = req.headers.get('content-type') || '';
     let messageContent: string;
     let attachmentPayloads: MessageAttachmentPayload[] = [];
+    const imageContents: ImageContent[] = []; // Base64-encoded images for Claude
 
     if (contentType.includes('multipart/form-data')) {
       // Process FormData request (for file uploads)
@@ -366,11 +399,23 @@ export async function POST(
       messageContent = formData.content;
       attachmentPayloads = formData.attachments;
 
+      // Convert image files to base64 for Claude multipart prompts
+      for (const imageFile of formData.imageFiles) {
+        const imageContent = await fileToImageContent(imageFile);
+        if (imageContent) {
+          imageContents.push(imageContent);
+        }
+      }
+
       if (attachmentPayloads.length > 0) {
         console.log(`⬆️ ${attachmentPayloads.length} file(s) uploaded`);
         attachmentPayloads.forEach((attachment, index) => {
           console.log(`⬆️ Attachment [${index + 1}] uploaded: ${attachment.upload.fileUrl}`);
         });
+      }
+
+      if (imageContents.length > 0) {
+        console.log(`📷 ${imageContents.length} image(s) prepared for Claude`);
       }
     } else {
       // Process JSON request for text messages
@@ -533,6 +578,7 @@ export async function POST(
           // Stream events from kosuke serve /api/plan (plan phase only)
           const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
             resume: claudeSessionId, // Resume previous conversation if exists
+            ...(imageContents.length > 0 && { images: imageContents }), // Include images if present
           });
 
           for await (const event of planStream) {

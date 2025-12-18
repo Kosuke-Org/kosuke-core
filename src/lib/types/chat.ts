@@ -161,6 +161,12 @@ export interface Attachment {
   createdAt: Date;
 }
 
+// Base64-encoded image content for Claude multipart prompts
+export interface ImageContent {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  data: string; // base64-encoded image data
+}
+
 // Streaming Event Types (kosuke-cli format)
 export interface StreamingEvent {
   // Event types from kosuke-cli
