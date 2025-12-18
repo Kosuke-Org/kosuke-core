@@ -301,6 +301,22 @@ export async function DELETE(
       return ApiErrorHandler.badRequest('Cannot delete default chat session');
     }
 
+    // Step 0: Cancel any active builds for this session
+    try {
+      console.log(`Cancelling any active builds for session ${session.id}`);
+      const { cancelBuild } = await import('@/lib/queue');
+      const cancelResult = await cancelBuild({ chatSessionId: session.id });
+      if (cancelResult.cancelled > 0) {
+        console.log(
+          `Cancelled ${cancelResult.cancelled} active build(s) for session ${session.id}`
+        );
+      }
+    } catch (cancelError) {
+      Sentry.captureException(cancelError);
+      console.error(`Error cancelling builds for session ${session.id}:`, cancelError);
+      // Continue with deletion even if cancellation fails
+    }
+
     // Step 1: Destroy the sandbox container for this session
     try {
       console.log(`Destroying sandbox for session ${session.id} in project ${projectId}`);

@@ -24,11 +24,18 @@ export const buildStatusEnum = pgEnum('build_status', [
   'running',
   'completed',
   'failed',
+  'cancelled',
 ]);
 export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
 
 // Task status enum
-export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done', 'error']);
+export const taskStatusEnum = pgEnum('task_status', [
+  'todo',
+  'in_progress',
+  'done',
+  'error',
+  'cancelled',
+]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
 export const projects = pgTable('projects', {
@@ -228,6 +235,9 @@ export const buildJobs = pgTable(
 
     // Claude planning session that produced this build (for audit trail)
     claudeSessionId: varchar('claude_session_id', { length: 100 }),
+
+    // Git commit SHA before build starts (for revert on cancel)
+    startCommit: varchar('start_commit', { length: 40 }),
 
     // Status
     status: buildStatusEnum('status').notNull().default('pending'),

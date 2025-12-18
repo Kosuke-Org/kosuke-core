@@ -7,8 +7,13 @@
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, tasks } from '@/lib/db/schema';
 import { SandboxClient } from '@/lib/sandbox/client';
-import { eq } from 'drizzle-orm';
-import { createQueueEvents, createWorker } from '../client';
+import { and, eq, ne } from 'drizzle-orm';
+import {
+  clearBuildCancelSignal,
+  createQueueEvents,
+  createWorker,
+  isBuildCancelled,
+} from '../client';
 import { QUEUE_NAMES } from '../config';
 import type { BuildJobData, BuildJobResult } from '../queues/build';
 
@@ -69,6 +74,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       body: JSON.stringify({
         cwd: '/app/project',
         ticketsFile: ticketsPath,
+        buildId: buildJobId, // For cancellation tracking
         dbUrl,
         githubToken,
         baseBranch,
@@ -98,6 +104,13 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     let buffer = '';
 
     while (true) {
+      // Check for cancel signal from Redis (cross-process)
+      if (await isBuildCancelled(buildJobId)) {
+        console.log(`[BUILD] 🛑 Cancel signal received for build ${buildJobId}`);
+        await reader.cancel();
+        throw new Error('Build cancelled by user');
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -132,7 +145,18 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 console.log(
                   `[BUILD] 🏗️  Build started: ${event.data.totalTickets} tickets from ${event.data.ticketsFile}`
                 );
+                if (event.data.startCommit) {
+                  console.log(`[BUILD] 📍 Start commit: ${event.data.startCommit.substring(0, 8)}`);
+                }
                 console.log('='.repeat(80) + '\n');
+
+                // Save startCommit to build job for potential revert on cancel
+                if (event.data.startCommit) {
+                  await db
+                    .update(buildJobs)
+                    .set({ startCommit: event.data.startCommit })
+                    .where(eq(buildJobs.id, buildJobId));
+                }
                 break;
 
               case 'ticket_started':
@@ -480,6 +504,62 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       totalCost,
     };
   } catch (error) {
+    // Check if this was an abort (cancellation) or sandbox destroyed
+    const isAbortError =
+      error instanceof Error &&
+      (error.name === 'AbortError' ||
+        error.message.includes('aborted') ||
+        error.message.includes('cancelled') ||
+        error.message.includes('ENOTFOUND') ||
+        error.message.includes('fetch failed'));
+
+    // Also check if build was already marked as cancelled by the API
+    const [currentBuildJob] = await db
+      .select({ status: buildJobs.status })
+      .from(buildJobs)
+      .where(eq(buildJobs.id, buildJobId))
+      .limit(1);
+
+    const isAborted = isAbortError || currentBuildJob?.status === 'cancelled';
+
+    if (isAborted) {
+      console.log('\n' + '='.repeat(80));
+      console.log(`[BUILD] 🛑 Build job ${buildJobId} was cancelled`);
+      console.log('='.repeat(80) + '\n');
+
+      // Clear the cancel signal from Redis
+      await clearBuildCancelSignal(buildJobId);
+
+      // Update build job to cancelled with accumulated cost
+      await db
+        .update(buildJobs)
+        .set({
+          status: 'cancelled',
+          completedAt: new Date(),
+          totalCost, // Preserve the cost accumulated before cancellation
+        })
+        .where(eq(buildJobs.id, buildJobId));
+
+      // Mark all incomplete tasks as cancelled (keep done and error as-is)
+      await db
+        .update(tasks)
+        .set({ status: 'cancelled' })
+        .where(
+          and(eq(tasks.buildJobId, buildJobId), ne(tasks.status, 'done'), ne(tasks.status, 'error'))
+        );
+
+      console.log(`[BUILD] 💰 Cost before cancellation: $${totalCost.toFixed(4)}`);
+
+      // Return a result with actual accumulated values
+      return {
+        success: false,
+        totalTasks: 0,
+        completedTasks: 0,
+        failedTasks: 0,
+        totalCost, // Use accumulated cost
+      };
+    }
+
     console.error('\n' + '='.repeat(80));
     console.error(`[BUILD] ❌ Build job ${buildJobId} failed`);
     console.error(`[BUILD] Error: ${error instanceof Error ? error.message : String(error)}`);
