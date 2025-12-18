@@ -164,11 +164,12 @@ export interface Attachment {
 // Streaming Event Types (kosuke-cli format)
 export interface StreamingEvent {
   // Event types from kosuke-cli
-  type: // Plan phase events
+  type: // Plan phase events (streamed to chat)
     | 'tool_call'
     | 'message'
     | 'done'
-    // Build phase events
+    // Build phase events (streamed via SSE to worker, not chat)
+    // These are here for type completeness but build runs async via BullMQ
     | 'build_started'
     | 'ticket_started'
     | 'ticket_phase'

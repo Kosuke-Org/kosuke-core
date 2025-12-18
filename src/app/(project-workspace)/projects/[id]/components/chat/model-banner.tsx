@@ -19,9 +19,9 @@ export default function ModelBanner({
   // Format model name for display
   const getModelDisplayName = (modelId?: string) => {
     if (!modelId) return 'Unknown';
-    if (modelId.includes('claude-sonnet-4')) return 'Claude Sonnet 4';
-    if (modelId.includes('claude-haiku-4')) return 'Claude Haiku 4';
-    if (modelId.includes('claude-opus-4')) return 'Claude Opus 4';
+    if (modelId.includes('claude-sonnet-4-5')) return 'Claude Sonnet 4.5';
+    if (modelId.includes('claude-haiku-4-5')) return 'Claude Haiku 4.5';
+    if (modelId.includes('claude-opus-4-5')) return 'Claude Opus 4.5';
     return modelId;
   };
 

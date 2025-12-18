@@ -23,6 +23,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     ticketsPath,
     dbUrl,
     githubToken,
+    baseBranch,
     enableReview,
     enableTest: _enableTest,
     testUrl,
@@ -70,6 +71,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         ticketsFile: ticketsPath,
         dbUrl,
         githubToken,
+        baseBranch,
         reset: false,
         review: enableReview,
         url: testUrl,
@@ -355,6 +357,44 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 console.log(
                   `[BUILD] 📊 Progress: ${event.data.completed}/${event.data.total} tickets (${event.data.percentage}%)\n`
                 );
+                break;
+
+              // Build-level lint phase (runs once after all tickets)
+              case 'lint_phase_started':
+                console.log('\n' + '-'.repeat(60));
+                console.log('[BUILD] 🔧 Phase: LINTING (started)');
+                console.log('-'.repeat(60) + '\n');
+                break;
+
+              case 'lint_phase_completed':
+                console.log(
+                  `[BUILD] ✅ Linting completed (${event.data.fixCount || 0} fixes applied)\n`
+                );
+                break;
+
+              // Build-level review phase (runs once after linting)
+              case 'review_phase_started':
+                console.log('\n' + '-'.repeat(60));
+                console.log('[BUILD] 🔍 Phase: REVIEW (started)');
+                console.log('-'.repeat(60) + '\n');
+                break;
+
+              case 'review_phase_completed':
+                console.log(
+                  `[BUILD] ✅ Review completed (${event.data.fixesApplied || 0} fixes applied)\n`
+                );
+                break;
+
+              // Review events (tool calls and messages during review)
+              case 'review_tool_call':
+                console.log(`[BUILD] 🔧 Review tool: ${event.data.action}`);
+                break;
+
+              case 'review_message':
+                if (event.data.text && event.data.text.length > 0) {
+                  const text = event.data.text.substring(0, 150);
+                  console.log(`[BUILD] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
+                }
                 break;
 
               case 'done':
