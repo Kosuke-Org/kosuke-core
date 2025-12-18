@@ -65,7 +65,6 @@ export default function ChatSidebar({
 
     // Loading states
     isCreating,
-    isDeleting,
   } = useChatSidebar({
     projectId,
     onChatSessionChange,
@@ -170,7 +169,6 @@ export default function ChatSidebar({
         open={!!deletingSession}
         onOpenChange={open => !open && setDeletingSession(null)}
         onConfirm={confirmDeleteSession}
-        isDeleting={isDeleting}
       />
     </div>
   );
