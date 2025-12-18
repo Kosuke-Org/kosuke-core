@@ -161,11 +161,20 @@ export interface Attachment {
   createdAt: Date;
 }
 
-// Base64-encoded image content for Claude multipart prompts
-export interface ImageContent {
+// Base64-encoded image content for Claude multipart prompts (internal, used in ImageInput union)
+interface ImageContent {
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
   data: string; // base64-encoded image data
 }
+
+// URL-based image content (fetched and converted to base64 by CLI)
+export interface ImageUrlContent {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  url: string; // S3 or public URL to fetch
+}
+
+// Union type for image input - supports both base64 and URL formats
+export type ImageInput = ImageContent | ImageUrlContent;
 
 // Streaming Event Types (kosuke-cli format)
 export interface StreamingEvent {

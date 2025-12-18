@@ -3,7 +3,7 @@
  * HTTP client for communicating with sandbox containers
  */
 
-import type { ImageContent } from '@/lib/types';
+import type { ImageInput } from '@/lib/types';
 
 import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
@@ -182,7 +182,7 @@ export class SandboxClient {
     options?: {
       noTest?: boolean;
       resume?: string | null;
-      images?: ImageContent[]; // Optional base64-encoded images for Claude multipart prompts
+      images?: ImageInput[]; // Optional images (base64 or URL - CLI will normalize)
     }
   ): AsyncGenerator<Record<string, unknown>> {
     const config = getSandboxConfig();
