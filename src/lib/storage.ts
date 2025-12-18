@@ -6,18 +6,17 @@ import { Readable } from 'node:stream';
 import type { FileType } from './db/schema';
 
 // S3 Client configuration for Digital Ocean Spaces
-// Used for both development and production environments
 const s3Client = new S3Client({
   endpoint: process.env.S3_ENDPOINT,
   region: process.env.S3_REGION,
   credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
   },
   forcePathStyle: false, // Digital Ocean Spaces uses virtual-hosted-style
 });
 
-const S3_BUCKET = process.env.S3_BUCKET || '';
+const S3_BUCKET = process.env.S3_BUCKET;
 
 export interface MessageAttachmentPayload {
   upload: UploadResult;
@@ -126,8 +125,7 @@ async function uploadFileToS3(
 }
 
 /**
- * Generic file upload function
- * Uploads files to Digital Ocean Spaces in both development and production
+ * Upload file to S3 storage
  * @param file File to upload
  * @param prefix Optional prefix for organizing files (e.g., 'documents/', 'images/')
  * @returns Upload result with file metadata

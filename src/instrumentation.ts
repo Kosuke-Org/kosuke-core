@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs';
  */
 function validateEnvironmentVariables() {
   const sentryEnabled = process.env.SENTRY_ENABLED !== 'false';
+  const s3Enabled = process.env.S3_ENABLED === 'true';
 
   const requiredEnvVars = [
     // Database
@@ -56,13 +57,6 @@ function validateEnvironmentVariables() {
     // Domain Configuration
     { key: 'TRAEFIK_ENABLED', description: 'Enable Traefik reverse proxy' },
 
-    // Digital Ocean Spaces (Storage)
-    { key: 'S3_REGION', description: 'Digital Ocean Spaces region' },
-    { key: 'S3_ENDPOINT', description: 'Digital Ocean Spaces endpoint URL' },
-    { key: 'S3_BUCKET', description: 'Digital Ocean Spaces bucket name' },
-    { key: 'S3_ACCESS_KEY_ID', description: 'Digital Ocean Spaces access key' },
-    { key: 'S3_SECRET_ACCESS_KEY', description: 'Digital Ocean Spaces secret key' },
-
     // Redis Configuration
     { key: 'REDIS_PASSWORD', description: 'Redis password' },
     { key: 'REDIS_URL', description: 'Redis connection URL for job queue' },
@@ -84,6 +78,17 @@ function validateEnvironmentVariables() {
     // Conditionally required based on feature flags
     ...(sentryEnabled
       ? [{ key: 'SENTRY_AUTH_TOKEN', description: 'Sentry authentication token' }]
+      : []),
+
+    // Digital Ocean Spaces (S3) - only required when S3_ENABLED=true
+    ...(s3Enabled
+      ? [
+          { key: 'S3_REGION', description: 'Digital Ocean Spaces region' },
+          { key: 'S3_ENDPOINT', description: 'Digital Ocean Spaces endpoint URL' },
+          { key: 'S3_BUCKET', description: 'Digital Ocean Spaces bucket name' },
+          { key: 'S3_ACCESS_KEY_ID', description: 'Digital Ocean Spaces access key' },
+          { key: 'S3_SECRET_ACCESS_KEY', description: 'Digital Ocean Spaces secret key' },
+        ]
       : []),
   ];
 

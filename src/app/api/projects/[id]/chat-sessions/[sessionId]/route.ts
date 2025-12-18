@@ -18,8 +18,12 @@ import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
+import type { ImageUrlContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
+
+// Supported image media types for Claude multipart prompts
+const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
 
 // Schema for updating a chat session
 const updateChatSessionSchema = z.object({
@@ -65,7 +69,7 @@ async function saveUploadedFile(file: File, projectId: string): Promise<MessageA
 }
 
 /**
- * Process a FormData request and extract the content and attachment
+ * Process a FormData request and extract the content and attachments
  */
 async function processFormDataRequest(
   req: NextRequest,
@@ -89,6 +93,7 @@ async function processFormDataRequest(
   for (let i = 0; i < attachmentCount; i++) {
     const attachmentFile = formData.get(`attachment_${i}`) as File | null;
     if (attachmentFile) {
+      // Upload to S3 for storage/display
       const attachment = await saveUploadedFile(attachmentFile, projectId);
       attachments.push(attachment);
     }
@@ -358,6 +363,7 @@ export async function POST(
     const contentType = req.headers.get('content-type') || '';
     let messageContent: string;
     let attachmentPayloads: MessageAttachmentPayload[] = [];
+    let imageUrls: ImageUrlContent[] = []; // URL-based images for Claude (fetched by CLI)
 
     if (contentType.includes('multipart/form-data')) {
       // Process FormData request (for file uploads)
@@ -366,11 +372,26 @@ export async function POST(
       messageContent = formData.content;
       attachmentPayloads = formData.attachments;
 
+      // Build URL-based image objects from uploaded attachments
+      // CLI will fetch these URLs and convert to base64 for Claude
+      imageUrls = attachmentPayloads
+        .filter(a =>
+          IMAGE_MEDIA_TYPES.includes(a.upload.mediaType as (typeof IMAGE_MEDIA_TYPES)[number])
+        )
+        .map(a => ({
+          mediaType: a.upload.mediaType as ImageUrlContent['mediaType'],
+          url: a.upload.fileUrl,
+        }));
+
       if (attachmentPayloads.length > 0) {
-        console.log(`⬆️ ${attachmentPayloads.length} file(s) uploaded`);
+        console.log(`📎 ${attachmentPayloads.length} file(s) attached`);
         attachmentPayloads.forEach((attachment, index) => {
-          console.log(`⬆️ Attachment [${index + 1}] uploaded: ${attachment.upload.fileUrl}`);
+          console.log(`📎 Attachment [${index + 1}]: ${attachment.upload.fileUrl}`);
         });
+      }
+
+      if (imageUrls.length > 0) {
+        console.log(`🖼️ ${imageUrls.length} image URL(s) prepared for Claude`);
       }
     } else {
       // Process JSON request for text messages
@@ -533,6 +554,7 @@ export async function POST(
           // Stream events from kosuke serve /api/plan (plan phase only)
           const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
             resume: claudeSessionId, // Resume previous conversation if exists
+            ...(imageUrls.length > 0 && { images: imageUrls }), // Include image URLs (fetched by CLI)
           });
 
           for await (const event of planStream) {

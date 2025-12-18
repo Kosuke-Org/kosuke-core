@@ -54,6 +54,7 @@ services:
       - .:/app:cached
       - /app/node_modules
       - /app/.next
+      - /dev/null:/app/.env.local:ro # Shadow .env.local with empty file
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
@@ -70,6 +71,7 @@ services:
       - .:/app:cached
       - /app/node_modules
       - /app/.next
+      - /dev/null:/app/.env.local:ro # Shadow .env.local with empty file
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       redis:

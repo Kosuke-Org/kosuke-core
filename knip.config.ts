@@ -30,7 +30,6 @@ const knipConfig: KnipConfig = {
         '@radix-ui/*',
         'embla-carousel-react',
         'input-otp',
-        'react-resizable-panels',
         'vaul',
         'ts-node',
         'react-hook-form',

@@ -3,6 +3,8 @@
  * HTTP client for communicating with sandbox containers
  */
 
+import type { ImageInput } from '@/lib/types';
+
 import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
 import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
@@ -180,6 +182,7 @@ export class SandboxClient {
     options?: {
       noTest?: boolean;
       resume?: string | null;
+      images?: ImageInput[]; // Optional images (base64 or URL - CLI will normalize)
     }
   ): AsyncGenerator<Record<string, unknown>> {
     const config = getSandboxConfig();
@@ -198,6 +201,7 @@ export class SandboxClient {
         cwd,
         noTest,
         resume: options?.resume,
+        images: options?.images,
       }),
     });
 
