@@ -76,14 +76,11 @@ export const chatSessions = pgTable(
     mergeCommitSha: varchar('merge_commit_sha', { length: 40 }),
     pullRequestNumber: integer('pull_request_number'),
   },
-  table => ({
-    lastActivityAtIdx: index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
+  table => [
+    index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
     // Branch name is unique within a project
-    projectBranchUnique: unique('chat_sessions_project_branch_unique').on(
-      table.projectId,
-      table.branchName
-    ),
-  })
+    unique('chat_sessions_project_branch_unique').on(table.projectId, table.branchName),
+  ]
 );
 
 export const chatMessages = pgTable('chat_messages', {
@@ -186,9 +183,7 @@ export const projectEnvironmentVariables = pgTable(
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
-  table => ({
-    uniqueProjectKey: unique('project_env_vars_unique_key').on(table.projectId, table.key),
-  })
+  table => [unique('project_env_vars_unique_key').on(table.projectId, table.key)]
 );
 
 export const projectIntegrations = pgTable(
@@ -205,13 +200,13 @@ export const projectIntegrations = pgTable(
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
   },
-  table => ({
-    uniqueProjectIntegration: unique('project_integrations_unique_key').on(
+  table => [
+    unique('project_integrations_unique_key').on(
       table.projectId,
       table.integrationType,
       table.integrationName
     ),
-  })
+  ]
 );
 
 // Build jobs - tracks build execution per session
@@ -243,10 +238,10 @@ export const buildJobs = pgTable(
     // BullMQ reference
     bullJobId: varchar('bull_job_id', { length: 100 }),
   },
-  table => ({
-    sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),
-    statusIdx: index('idx_build_jobs_status').on(table.status),
-  })
+  table => [
+    index('idx_build_jobs_session').on(table.chatSessionId),
+    index('idx_build_jobs_status').on(table.status),
+  ]
 );
 
 // Tasks - individual task records for builds
@@ -279,11 +274,11 @@ export const tasks = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  table => ({
-    buildJobIdx: index('idx_tasks_build_job').on(table.buildJobId),
-    statusIdx: index('idx_tasks_status').on(table.status),
-    externalIdIdx: index('idx_tasks_external_id').on(table.externalId),
-  })
+  table => [
+    index('idx_tasks_build_job').on(table.buildJobId),
+    index('idx_tasks_status').on(table.status),
+    index('idx_tasks_external_id').on(table.externalId),
+  ]
 );
 
 export const projectsRelations = relations(projects, ({ many }) => ({
