@@ -28,8 +28,8 @@ interface SandboxConfig {
   bunPort: number;
   /** Python service port inside container */
   pythonPort: number;
-  /** Whether to generate test tickets in plan phase */
-  planTest: boolean;
+  /** Whether to generate and run tests (plan generates test tickets, build runs them) */
+  test: boolean;
 }
 
 let sandboxConfig: SandboxConfig | null = null;
@@ -52,7 +52,7 @@ export function getSandboxConfig(): SandboxConfig {
       agentPort: parseInt(process.env.SANDBOX_AGENT_PORT!, 10),
       bunPort: parseInt(process.env.SANDBOX_BUN_PORT!, 10),
       pythonPort: parseInt(process.env.SANDBOX_PYTHON_PORT!, 10),
-      planTest: process.env.SANDBOX_PLAN_TEST === 'true',
+      test: process.env.SANDBOX_TEST === 'true',
     };
   }
   return sandboxConfig;
