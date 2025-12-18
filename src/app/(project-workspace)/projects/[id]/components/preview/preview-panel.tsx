@@ -6,7 +6,10 @@ import {
   ExternalLink,
   Github,
   Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCw,
+  Send,
   XCircle,
 } from 'lucide-react';
 
@@ -31,6 +34,14 @@ interface PreviewPanelProps {
   className?: string;
   /** When true, shows template preview immediately while container starts */
   isNewProject?: boolean;
+  /** When true, shows the expand sidebar button */
+  isSidebarCollapsed?: boolean;
+  /** Callback to toggle sidebar visibility */
+  onToggleSidebar?: () => void;
+  /** When true, shows the Create PR button */
+  showCreatePR?: boolean;
+  /** Callback to create a pull request */
+  onCreatePullRequest?: () => void;
 }
 
 export default function PreviewPanel({
@@ -40,6 +51,10 @@ export default function PreviewPanel({
   branch,
   className,
   isNewProject = false,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
+  showCreatePR = false,
+  onCreatePullRequest,
 }: PreviewPanelProps) {
   const {
     // State
@@ -81,7 +96,23 @@ export default function PreviewPanel({
     >
       <div className="flex items-center justify-between px-4 py-2 border-b">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">Preview</h3>
+          {/* Toggle sidebar button */}
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              className="h-8 w-8"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
+          )}
           {isShowingTemplate ? (
             <Badge variant="outline" className="text-xs">
               Template
@@ -141,6 +172,12 @@ export default function PreviewPanel({
           >
             <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
           </Button>
+          {showCreatePR && onCreatePullRequest && (
+            <Button variant="outline" size="sm" onClick={onCreatePullRequest}>
+              <Send className="h-4 w-4 mr-1" />
+              Submit
+            </Button>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

@@ -188,7 +188,7 @@ export class SandboxClient {
     const config = getSandboxConfig();
 
     // Use env var config if noTest not explicitly provided
-    const noTest = options?.noTest ?? !config.planTest;
+    const noTest = options?.noTest ?? !config.test;
 
     const response = await fetch(`${this.baseUrl}/api/plan`, {
       method: 'POST',

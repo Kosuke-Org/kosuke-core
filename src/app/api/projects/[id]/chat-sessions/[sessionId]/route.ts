@@ -704,8 +704,9 @@ export async function POST(
                 cwd: '/app/project',
                 dbUrl: getSandboxDatabaseUrl(chatSession.id),
                 githubToken,
-                enableReview: false, // TODO: Make configurable
-                enableTest: false, // TODO: Make configurable
+                baseBranch: project.defaultBranch || 'main', // Review diffs feature branch vs base
+                enableReview: true, // Review runs once after all tickets
+                enableTest: sandboxConfig.test,
                 testUrl,
               });
 
