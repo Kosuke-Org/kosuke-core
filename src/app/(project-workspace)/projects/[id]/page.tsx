@@ -3,15 +3,7 @@
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
-import {
-  ArrowLeft,
-  GitPullRequest,
-  LayoutDashboard,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-} from 'lucide-react';
+import { ArrowLeft, GitPullRequest, LayoutDashboard, LogOut, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -350,18 +342,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                 )}
-
-                {/* Collapse toggle button positioned at the right edge */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleChatCollapsed}
-                  className="absolute right-2 h-8 w-8"
-                  aria-label={isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
-                  title={isChatCollapsed ? 'Expand chat' : 'Collapse chat'}
-                >
-                  <PanelLeftClose className="h-5 w-5" />
-                </Button>
               </div>
             </header>
 
@@ -406,19 +386,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           <div className="flex flex-col h-full">
             {/* Preview Header */}
             <header className="h-14 flex items-center justify-between bg-background px-4">
-              <div className="flex items-center gap-2">
-                {/* Expand chat button - only show when collapsed */}
+              <div className="flex items-center gap-4">
+                {/* Logo - show when sidebar is collapsed */}
                 {isChatCollapsed && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleChatCollapsed}
-                    className="h-8 w-8 mr-2"
-                    aria-label="Expand chat"
-                    title="Expand chat"
-                  >
-                    <PanelLeftOpen className="h-5 w-5" />
-                  </Button>
+                  <Link href="/" className="flex items-center">
+                    <Image
+                      src="/logo-dark.svg"
+                      alt="Kosuke"
+                      width={24}
+                      height={24}
+                      className="block dark:hidden"
+                      priority
+                    />
+                    <Image
+                      src="/logo.svg"
+                      alt="Kosuke"
+                      width={24}
+                      height={24}
+                      className="hidden dark:block"
+                      priority
+                    />
+                  </Link>
                 )}
                 <h2 className="text-sm font-medium truncate max-w-[200px]">
                   {project?.name || 'Loading Project...'}
@@ -445,6 +433,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 sessionId={previewSessionId ?? ''}
                 branch={previewBranch}
                 isNewProject={isNewProject}
+                isSidebarCollapsed={isChatCollapsed}
+                onToggleSidebar={toggleChatCollapsed}
               />
             </div>
           </div>
