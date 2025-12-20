@@ -11,14 +11,14 @@
 export const QUEUE_NAMES = {
   PREVIEW_CLEANUP: 'preview-cleanup',
   BUILD: 'build',
+  AGENT_LOGS: 'agent-logs',
 } as const;
 
 /**
  * Job names - organized by queue
  */
 export const JOB_NAMES = {
-  // Preview cleanup jobs
   CLEANUP_INACTIVE_PREVIEWS: 'cleanup-inactive-previews',
-  // Build jobs
   PROCESS_BUILD: 'process-build',
+  PROCESS_AGENT_LOG: 'process-agent-log',
 } as const;

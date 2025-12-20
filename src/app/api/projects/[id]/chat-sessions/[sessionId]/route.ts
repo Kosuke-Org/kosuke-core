@@ -14,13 +14,14 @@ import {
 } from '@/lib/db/schema';
 import { getGitHubToken, getOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
-import { buildQueue } from '@/lib/queue';
+import { buildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import type { ImageUrlContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
+import { JOB_NAMES } from '@/lib/queue/config';
 
 // Supported image media types for Claude multipart prompts
 const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
@@ -671,7 +672,7 @@ export async function POST(
                 ? eventData.ticketsFile.slice('/app/project/'.length)
                 : eventData.ticketsFile;
 
-              await buildQueue.add('build', {
+              await buildQueue.add(JOB_NAMES.PROCESS_BUILD, {
                 buildJobId: buildJob.id,
                 chatSessionId: chatSession.id,
                 projectId,

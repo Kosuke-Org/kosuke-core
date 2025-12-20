@@ -13,6 +13,12 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
 
 // File type enum for attachments
 export const fileTypeEnum = pgEnum('file_type', ['image', 'document']);
@@ -30,6 +36,16 @@ export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
 // Task status enum
 export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done', 'error']);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
+
+// Agent log status enum
+export const agentLogStatusEnum = pgEnum('agent_log_status', ['success', 'error', 'cancelled']);
+
+// Agent log command enum
+export const agentLogCommandEnum = pgEnum('agent_log_command', ['requirements', 'plan', 'build']);
+
+// ------------------------------------------------------------
+// TABLES
+// ------------------------------------------------------------
 
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -129,86 +145,6 @@ export const messageAttachments = pgTable('message_attachments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const diffs = pgTable('diffs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .references(() => projects.id)
-    .notNull(),
-  chatMessageId: uuid('chat_message_id')
-    .references(() => chatMessages.id)
-    .notNull(),
-  filePath: text('file_path').notNull(),
-  content: text('content').notNull(), // The diff content
-  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'applied', 'rejected'
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  appliedAt: timestamp('applied_at'),
-});
-
-export const projectCommits = pgTable('project_commits', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  commitSha: text('commit_sha').notNull(),
-  commitMessage: text('commit_message').notNull(),
-  commitUrl: text('commit_url'),
-  filesChanged: integer('files_changed').default(0),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-export const githubSyncSessions = pgTable('github_sync_sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .references(() => projects.id, { onDelete: 'cascade' })
-    .notNull(),
-  triggerType: varchar('trigger_type', { length: 50 }).notNull(), // 'manual', 'webhook', 'cron'
-  status: varchar('status', { length: 20 }).default('running'), // 'running', 'completed', 'failed'
-  changes: jsonb('changes'),
-  startedAt: timestamp('started_at').defaultNow(),
-  completedAt: timestamp('completed_at'),
-  logs: text('logs'),
-});
-
-export const projectEnvironmentVariables = pgTable(
-  'project_environment_variables',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(),
-    value: text('value').notNull(),
-    isSecret: boolean('is_secret').default(false),
-    description: text('description'),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  table => [unique('project_env_vars_unique_key').on(table.projectId, table.key)]
-);
-
-export const projectIntegrations = pgTable(
-  'project_integrations',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    integrationType: text('integration_type').notNull(), // 'clerk', 'polar', 'stripe', 'custom'
-    integrationName: text('integration_name').notNull(),
-    config: text('config').notNull().default('{}'), // JSON string
-    enabled: boolean('enabled').default(true),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  table => [
-    unique('project_integrations_unique_key').on(
-      table.projectId,
-      table.integrationType,
-      table.integrationName
-    ),
-  ]
-);
-
 // Build jobs - tracks build execution per session
 export const buildJobs = pgTable(
   'build_jobs',
@@ -281,12 +217,73 @@ export const tasks = pgTable(
   ]
 );
 
+export const agentLogs = pgTable(
+  'agent_logs',
+  {
+    // Identifiers
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    orgId: text('org_id'),
+    userId: text('user_id'),
+
+    // Command Info
+    command: agentLogCommandEnum('command').notNull(),
+    commandArgs: jsonb('command_args'),
+
+    // Execution Status
+    status: agentLogStatusEnum('status').notNull(),
+    errorMessage: text('error_message'),
+
+    // Token Usage & Cost
+    tokensInput: integer('tokens_input').notNull(),
+    tokensOutput: integer('tokens_output').notNull(),
+    tokensCacheCreation: integer('tokens_cache_creation').default(0),
+    tokensCacheRead: integer('tokens_cache_read').default(0),
+    cost: varchar('cost', { length: 20 }).notNull(), // Stored as string to avoid decimal precision issues
+
+    // Performance
+    executionTimeMs: integer('execution_time_ms').notNull(),
+    inferenceTimeMs: integer('inference_time_ms'),
+
+    // Command-Specific Results
+    fixesApplied: integer('fixes_applied'),
+    testsRun: integer('tests_run'),
+    testsPassed: integer('tests_passed'),
+    testsFailed: integer('tests_failed'),
+    iterations: integer('iterations'),
+    filesModified: jsonb('files_modified'), // Array of file paths
+
+    // Kosuke CLI version
+    agentVersion: varchar('agent_version', { length: 50 }),
+
+    // Conversation Data (full capture for tickets/requirements commands)
+    conversationMessages: jsonb('conversation_messages'), // Array of { role, content, timestamp, toolCalls }
+
+    // Timestamps
+    startedAt: timestamp('started_at').notNull(),
+    completedAt: timestamp('completed_at').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => [
+    // Indexes for performance
+    index('idx_agent_logs_project_id').on(table.projectId),
+    index('idx_agent_logs_org_id').on(table.orgId),
+    index('idx_agent_logs_user_id').on(table.userId),
+    index('idx_agent_logs_command').on(table.command),
+    index('idx_agent_logs_status').on(table.status),
+    index('idx_agent_logs_started_at').on(table.startedAt),
+  ]
+);
+
+// ------------------------------------------------------------
+// RELATIONS
+// ------------------------------------------------------------
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
-  diffs: many(diffs),
-  commits: many(projectCommits),
-  githubSyncSessions: many(githubSyncSessions),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -307,7 +304,6 @@ export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => 
     fields: [chatMessages.chatSessionId],
     references: [chatSessions.id],
   }),
-  diffs: many(diffs),
   messageAttachments: many(messageAttachments),
 }));
 
@@ -330,48 +326,6 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   }),
 }));
 
-export const diffsRelations = relations(diffs, ({ one }) => ({
-  project: one(projects, {
-    fields: [diffs.projectId],
-    references: [projects.id],
-  }),
-  chatMessage: one(chatMessages, {
-    fields: [diffs.chatMessageId],
-    references: [chatMessages.id],
-  }),
-}));
-
-export const projectCommitsRelations = relations(projectCommits, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectCommits.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const githubSyncSessionsRelations = relations(githubSyncSessions, ({ one }) => ({
-  project: one(projects, {
-    fields: [githubSyncSessions.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const projectEnvironmentVariablesRelations = relations(
-  projectEnvironmentVariables,
-  ({ one }) => ({
-    project: one(projects, {
-      fields: [projectEnvironmentVariables.projectId],
-      references: [projects.id],
-    }),
-  })
-);
-
-export const projectIntegrationsRelations = relations(projectIntegrations, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectIntegrations.projectId],
-    references: [projects.id],
-  }),
-}));
-
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],
@@ -391,6 +345,21 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
+// ------------------------------------------------------------
+// ZOD SCHEMAS
+// ------------------------------------------------------------
+
+export const agentLogInsertSchema = createInsertSchema(agentLogs, {
+  // Override timestamp fields to coerce ISO strings to Date objects
+  startedAt: z.coerce.date(),
+  completedAt: z.coerce.date(),
+  createdAt: z.coerce.date().optional(),
+});
+
+// ------------------------------------------------------------
+// TYPES
+// ------------------------------------------------------------
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -401,17 +370,8 @@ export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
 export type MessageAttachment = typeof messageAttachments.$inferSelect;
 export type NewMessageAttachment = typeof messageAttachments.$inferInsert;
-export type Diff = typeof diffs.$inferSelect;
-export type NewDiff = typeof diffs.$inferInsert;
-export type ProjectCommit = typeof projectCommits.$inferSelect;
-export type NewProjectCommit = typeof projectCommits.$inferInsert;
-export type GithubSyncSession = typeof githubSyncSessions.$inferSelect;
-export type NewGithubSyncSession = typeof githubSyncSessions.$inferInsert;
-export type ProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferSelect;
-export type NewProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferInsert;
-export type ProjectIntegration = typeof projectIntegrations.$inferSelect;
-export type NewProjectIntegration = typeof projectIntegrations.$inferInsert;
 export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type NewAgentLog = typeof agentLogs.$inferInsert;

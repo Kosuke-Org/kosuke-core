@@ -83,6 +83,7 @@
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.7",
     "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.26",
     "input-otp": "^1.4.2",
