@@ -249,9 +249,6 @@ export const buildJobs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     startedAt: timestamp('started_at'),
     completedAt: timestamp('completed_at'),
-
-    // BullMQ reference
-    bullJobId: varchar('bull_job_id', { length: 100 }),
   },
   table => ({
     sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),

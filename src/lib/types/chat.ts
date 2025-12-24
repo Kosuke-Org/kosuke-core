@@ -238,7 +238,6 @@ export interface BuildJobResponse {
     createdAt: string;
     startedAt: string | null;
     completedAt: string | null;
-    bullJobId: string | null;
   };
   progress: {
     totalTasks: number;

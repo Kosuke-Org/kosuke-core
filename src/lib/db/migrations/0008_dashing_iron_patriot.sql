@@ -1,0 +1,1 @@
+ALTER TABLE "build_jobs" DROP COLUMN "bull_job_id";
