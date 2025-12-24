@@ -32,14 +32,11 @@ export function useCreatePullRequest(projectId: string) {
 
       return response.json();
     },
-    onSuccess: data => {
+    onSuccess: () => {
       toast({
-        title: 'Redirecting to GitHub',
-        description: 'Opening GitHub pull request creation page...',
+        title: 'Changes Submitted',
+        description: 'Your changes are ready for review.',
       });
-
-      // Open GitHub PR creation page in new tab
-      window.open(data.pull_request_url, '_blank');
     },
     onError: (error: Error) => {
       toast({

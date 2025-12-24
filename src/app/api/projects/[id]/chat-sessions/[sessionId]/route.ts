@@ -301,7 +301,24 @@ export async function DELETE(
       return ApiErrorHandler.badRequest('Cannot delete default chat session');
     }
 
-    // Step 1: Destroy the sandbox container for this session
+    // Step 1: Close the associated PR if one exists
+    if (session.pullRequestNumber && project.githubOwner && project.githubRepoName) {
+      try {
+        const github = await getOctokit(project.isImported, userId);
+        await closePullRequest(
+          github,
+          project.githubOwner,
+          project.githubRepoName,
+          session.pullRequestNumber
+        );
+        console.log(`Closed PR #${session.pullRequestNumber} for deleted session ${session.id}`);
+      } catch (prError) {
+        // Log but continue - we still want to delete the session even if PR closing fails
+        console.error(`Error closing PR for session ${session.id}:`, prError);
+      }
+    }
+
+    // Step 2: Destroy the sandbox container for this session
     try {
       console.log(`Destroying sandbox for session ${session.id} in project ${projectId}`);
       const sandboxManager = getSandboxManager();
@@ -314,7 +331,7 @@ export async function DELETE(
       console.log(`Continuing with session deletion despite container cleanup failure`);
     }
 
-    // Step 2: Delete chat session from database (cascade will delete associated messages)
+    // Step 3: Delete chat session from database (cascade will delete associated messages)
     await db.delete(chatSessions).where(eq(chatSessions.id, session.id));
 
     return NextResponse.json({
