@@ -223,7 +223,7 @@ export interface BuildTask {
   type: string | null;
   category: string | null;
   estimatedEffort: number;
-  status: 'todo' | 'in_progress' | 'done' | 'error';
+  status: 'todo' | 'in_progress' | 'done' | 'error' | 'cancelled';
   error: string | null;
   cost: number | null;
   createdAt: string;
@@ -233,12 +233,11 @@ export interface BuildTask {
 export interface BuildJobResponse {
   buildJob: {
     id: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
     totalCost: number;
     createdAt: string;
     startedAt: string | null;
     completedAt: string | null;
-    bullJobId: string | null;
   };
   progress: {
     totalTasks: number;

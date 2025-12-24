@@ -77,7 +77,6 @@ export async function GET(
         createdAt: buildJob.createdAt,
         startedAt: buildJob.startedAt,
         completedAt: buildJob.completedAt,
-        bullJobId: buildJob.bullJobId,
       },
       progress: {
         totalTasks,

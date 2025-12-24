@@ -8,7 +8,12 @@ import { db } from '@/lib/db/drizzle';
 import { buildJobs, tasks } from '@/lib/db/schema';
 import { SandboxClient } from '@/lib/sandbox/client';
 import { eq } from 'drizzle-orm';
-import { createQueueEvents, createWorker } from '../client';
+import {
+  clearBuildCancelSignal,
+  createQueueEvents,
+  createWorker,
+  isBuildCancelled,
+} from '../client';
 import { QUEUE_NAMES } from '../config';
 import type { BuildJobData, BuildJobResult } from '../queues/build';
 
@@ -69,6 +74,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       body: JSON.stringify({
         cwd: '/app/project',
         ticketsFile: ticketsPath,
+        buildId: buildJobId, // For cancellation tracking
         dbUrl,
         githubToken,
         baseBranch,
@@ -98,6 +104,29 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     let buffer = '';
 
     while (true) {
+      // Check for cancel signal from Redis (cross-process)
+      if (await isBuildCancelled(buildJobId)) {
+        console.log('\n' + '='.repeat(80));
+        console.log(`[BUILD] 🛑 Build job ${buildJobId} was cancelled`);
+        console.log('='.repeat(80) + '\n');
+
+        await reader.cancel();
+        await clearBuildCancelSignal(buildJobId);
+
+        // Only update cost (status and tasks already updated by cancelBuild())
+        await db.update(buildJobs).set({ totalCost }).where(eq(buildJobs.id, buildJobId));
+
+        console.log(`[BUILD] 💰 Cost before cancellation: $${totalCost.toFixed(4)}`);
+
+        return {
+          success: false,
+          totalTasks: 0,
+          completedTasks: 0,
+          failedTasks: 0,
+          totalCost,
+        };
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -132,7 +161,18 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 console.log(
                   `[BUILD] 🏗️  Build started: ${event.data.totalTickets} tickets from ${event.data.ticketsFile}`
                 );
+                if (event.data.startCommit) {
+                  console.log(`[BUILD] 📍 Start commit: ${event.data.startCommit.substring(0, 8)}`);
+                }
                 console.log('='.repeat(80) + '\n');
+
+                // Save startCommit to build job for potential revert on cancel
+                if (event.data.startCommit) {
+                  await db
+                    .update(buildJobs)
+                    .set({ startCommit: event.data.startCommit })
+                    .where(eq(buildJobs.id, buildJobId));
+                }
                 break;
 
               case 'ticket_started':
@@ -333,6 +373,9 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 console.log(`[BUILD]    💰 Ticket Cost: $${currentTicketCost.toFixed(4)}`);
                 console.log('-'.repeat(60) + '\n');
 
+                // Accumulate ticket cost into total (don't rely on sandbox's done event)
+                totalCost += currentTicketCost;
+
                 // Update task status to done or error based on result, including cost
                 const taskStatus = event.data.result === 'failed' ? 'error' : 'done';
                 await db
@@ -347,6 +390,9 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                     updatedAt: new Date(),
                   })
                   .where(eq(tasks.externalId, event.data.ticket.id));
+
+                // Reset for next ticket
+                currentTicketCost = 0;
                 break;
 
               case 'ticket_committed':
@@ -398,14 +444,15 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 break;
 
               case 'done':
-                if (event.data.totalCost) {
-                  totalCost = event.data.totalCost;
-                }
+                // Use max of local and sandbox cost (handles cancellation where sandbox sends 0)
+                const sandboxCost = event.data.totalCost || 0;
+                totalCost = Math.max(totalCost, sandboxCost);
+
                 console.log('\n' + '='.repeat(80));
                 console.log(
                   `[BUILD] 🏁 Build Complete: ${event.data.ticketsSucceeded}/${event.data.ticketsProcessed} succeeded, ${event.data.ticketsFailed} failed`
                 );
-                console.log(`[BUILD] 💰 Total Cost: $${event.data.totalCost?.toFixed(4)}`);
+                console.log(`[BUILD] 💰 Total Cost: $${totalCost.toFixed(4)}`);
                 console.log(`[BUILD] 🔢 Token Usage:`);
                 console.log(`[BUILD]    Input: ${event.data.tokensUsed?.input || 0}`);
                 console.log(`[BUILD]    Output: ${event.data.tokensUsed?.output || 0}`);
@@ -485,12 +532,13 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     console.error(`[BUILD] Error: ${error instanceof Error ? error.message : String(error)}`);
     console.error('='.repeat(80) + '\n');
 
-    // Update build job to failed
+    // Update build job to failed with accumulated cost
     await db
       .update(buildJobs)
       .set({
         status: 'failed',
         completedAt: new Date(),
+        totalCost,
       })
       .where(eq(buildJobs.id, buildJobId));
 

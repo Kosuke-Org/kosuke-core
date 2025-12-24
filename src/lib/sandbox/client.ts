@@ -154,10 +154,10 @@ export class SandboxClient {
    * Revert to a specific commit and force push
    */
   async revert(commitSha: string, githubToken: string): Promise<GitRevertResponse> {
-    const response = await fetch(`${this.baseUrl}/git/revert`, {
+    const response = await fetch(`${this.baseUrl}/api/git/revert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commitSha, githubToken }),
+      body: JSON.stringify({ cwd: '/app/project', commitSha, githubToken }),
     });
 
     if (!response.ok) {
@@ -169,6 +169,33 @@ export class SandboxClient {
     }
 
     return response.json();
+  }
+
+  /**
+   * Cancel a running build in the sandbox
+   */
+  async cancelBuild(buildId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buildId }),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `HTTP ${response.status}`,
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // --- Plan/Build Streaming ---
