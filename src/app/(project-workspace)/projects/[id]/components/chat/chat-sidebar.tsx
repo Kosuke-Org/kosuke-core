@@ -1,6 +1,6 @@
 'use client';
 
-import { Filter, Plus, X } from 'lucide-react';
+import { Filter, FilterX, Plus } from 'lucide-react';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -124,7 +124,7 @@ export default function ChatSidebar({
                           : 'opacity-30 cursor-default'
                       )}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <FilterX className="h-3.5 w-3.5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="right">Clear</TooltipContent>
