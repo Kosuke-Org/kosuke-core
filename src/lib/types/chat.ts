@@ -114,9 +114,9 @@ export interface ChatInterfaceProps {
   projectId: string;
   className?: string;
   activeChatSessionId?: string | null;
-  currentBranch?: string;
   sessionId?: string; // Session ID for fetching session-specific messages
   model?: string; // AI model name from server config
+  isBuildInProgress?: boolean; // Whether a build is currently in progress
 }
 
 // Content Block Types (for streaming UI state)
