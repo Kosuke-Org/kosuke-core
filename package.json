@@ -29,7 +29,7 @@
     "workers:trigger-job": "npx tsx src/lib/queue/trigger.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.956.0",
+    "@aws-sdk/client-s3": "^3.957.0",
     "@clerk/nextjs": "^6.36.5",
     "@docker/node-sdk": "^0.0.17",
     "@octokit/auth-app": "^8.1.2",
@@ -87,7 +87,7 @@
     "framer-motion": "^12.23.26",
     "input-otp": "^1.4.2",
     "ioredis": "^5.8.2",
-    "knip": "^5.76.2",
+    "knip": "^5.76.3",
     "lucide-react": "^0.562.0",
     "marked": "^17.0.1",
     "next": "^15.5.9",
@@ -95,8 +95,8 @@
     "pg": "^8.16.3",
     "postcss": "^8.4.31",
     "postgres": "^3.4.5",
-    "posthog-js": "^1.309.1",
-    "posthog-node": "^5.17.4",
+    "posthog-js": "^1.310.1",
+    "posthog-node": "^5.18.0",
     "react": "19.2.3",
     "react-day-picker": "^9.13.0",
     "react-dom": "19.2.3",
