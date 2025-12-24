@@ -116,16 +116,6 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
     }
   }
 
-  // Also signal cancel for the specific buildJobId if provided (in case job not in queue)
-  if (buildJobId) {
-    await signalBuildCancel(buildJobId);
-  }
-
-  // If specific buildJobId provided but not in queue, still update DB
-  if (buildJobId && !buildJobIds.includes(buildJobId)) {
-    buildJobIds.push(buildJobId);
-  }
-
   // Update build job status in database to 'cancelled'
   if (buildJobIds.length > 0) {
     // Get the first build job with a startCommit for potential git reset
