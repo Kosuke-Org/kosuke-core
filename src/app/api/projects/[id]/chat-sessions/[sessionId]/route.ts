@@ -14,6 +14,7 @@ import {
 } from '@/lib/db/schema';
 import { getGitHubToken, getOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
+import { JOB_NAMES } from '@/lib/queue/config';
 import { buildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
@@ -21,7 +22,6 @@ import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import type { ImageUrlContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
-import { JOB_NAMES } from '@/lib/queue/config';
 
 // Supported image media types for Claude multipart prompts
 const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
@@ -554,8 +554,9 @@ export async function POST(
         try {
           // Stream events from kosuke serve /api/plan (plan phase only)
           const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
-            resume: claudeSessionId, // Resume previous conversation if exists
+            resume: claudeSessionId || undefined, // Resume previous conversation if exists
             ...(imageUrls.length > 0 && { images: imageUrls }), // Include image URLs (fetched by CLI)
+            userId,
           });
 
           for await (const event of planStream) {
@@ -685,6 +686,7 @@ export async function POST(
                 enableReview: true, // Review runs once after all tickets
                 enableTest: sandboxConfig.test,
                 testUrl,
+                userId,
               });
 
               console.log(`🚀 Enqueued build job ${buildJob.id}`);

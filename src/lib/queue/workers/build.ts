@@ -27,6 +27,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     enableReview,
     enableTest: _enableTest,
     testUrl,
+    userId,
   } = job.data;
 
   console.log('\n' + '='.repeat(80));
@@ -78,6 +79,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         headless: true,
         verbose: false,
         trace: false,
+        userId,
       }),
     });
 

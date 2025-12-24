@@ -177,9 +177,8 @@ export class SandboxManager {
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
-      `KOSUKE_LOGGER_API_KEY=${process.env.SANDBOX_WEBHOOK_SECRET}`,
-      `KOSUKE_LOGGER_URL=${process.env.SANDBOX_LOGGER_URL}`,
       `KOSUKE_PROJECT_ID=${options.projectId}`,
+      `KOSUKE_SESSION_ID=${options.sessionId}`,
       `SANDBOX_BUN_PORT=${this.config.bunPort}`,
       `SANDBOX_PYTHON_PORT=${this.config.pythonPort}`,
       `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
@@ -187,6 +186,9 @@ export class SandboxManager {
       `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
       `GOOGLE_MODEL=${process.env.GOOGLE_MODEL}`,
       `AGENT_MAX_TURNS=${process.env.AGENT_MAX_TURNS || '25'}`,
+      `LANGFUSE_SECRET_KEY=${process.env.LANGFUSE_SECRET_KEY || ''}`,
+      `LANGFUSE_PUBLIC_KEY=${process.env.LANGFUSE_PUBLIC_KEY || ''}`,
+      `LANGFUSE_BASE_URL=${process.env.LANGFUSE_BASE_URL || ''}`,
       // Git identity for sandbox commits
       `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
       // Pass __KSK__* resolved values (same name as placeholder)
