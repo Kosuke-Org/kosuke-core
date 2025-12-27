@@ -78,7 +78,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         url: testUrl,
         headless: true,
         verbose: false,
-        trace: false,
+        isBrowserTracingEnabled: false,
         userId,
       }),
     });
