@@ -117,6 +117,7 @@ export interface ChatInterfaceProps {
   sessionId?: string; // Session ID for fetching session-specific messages
   model?: string; // AI model name from server config
   isBuildInProgress?: boolean; // Whether a build is currently in progress
+  isBuildFailed?: boolean; // Whether the build has failed
 }
 
 // Content Block Types (for streaming UI state)
