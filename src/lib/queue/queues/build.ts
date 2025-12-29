@@ -17,6 +17,7 @@ export interface BuildJobData {
   enableReview: boolean;
   enableTest: boolean;
   testUrl?: string;
+  orgId?: string; // Organization ID for custom API key lookup
 }
 
 /**

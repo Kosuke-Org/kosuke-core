@@ -14,6 +14,7 @@ export interface SandboxCreateOptions {
   repoUrl: string;
   githubToken: string;
   mode: 'development' | 'production';
+  orgId?: string; // Organization ID for fetching custom API keys
 }
 
 export interface SandboxInfo {

@@ -1,10 +1,16 @@
 'use client';
 
-import { Building2, Users } from 'lucide-react';
+import { Building2, Key, Users } from 'lucide-react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+function getCurrentTab(pathname: string): string {
+  if (pathname.endsWith('/members')) return 'members';
+  if (pathname.endsWith('/usage')) return 'usage';
+  return 'general';
+}
 
 export default function OrganizationSettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -12,7 +18,7 @@ export default function OrganizationSettingsLayout({ children }: { children: Rea
   const params = useParams();
   const orgSlug = params.orgSlug as string;
 
-  const currentTab = pathname.endsWith('/members') ? 'members' : 'general';
+  const currentTab = getCurrentTab(pathname);
 
   const handleTabChange = (value: string) => {
     router.push(`/organizations/${orgSlug}/${value === 'general' ? '' : value}`);
@@ -35,6 +41,10 @@ export default function OrganizationSettingsLayout({ children }: { children: Rea
             <TabsTrigger value="members" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span>Members</span>
+            </TabsTrigger>
+            <TabsTrigger value="usage" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              <span>Usage</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>

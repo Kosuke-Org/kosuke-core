@@ -147,6 +147,14 @@ export class ClerkService {
   }
 
   /**
+   * Check if user is member of organization (any role)
+   */
+  async isOrgMember(userId: string, orgId: string): Promise<boolean> {
+    const memberships = await this.client.users.getOrganizationMembershipList({ userId });
+    return memberships.data.some(m => m.organization.id === orgId);
+  }
+
+  /**
    * Mark user onboarding as complete
    */
   async markOnboardingComplete(userId: string): Promise<void> {

@@ -192,7 +192,7 @@ export default function OrganizationMembersPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="space-y-1.5">
               <CardTitle>Members</CardTitle>
               <CardDescription>
                 {isPersonal
