@@ -57,6 +57,13 @@
       "when": 1766588118611,
       "tag": "0007_light_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767006897270,
+      "tag": "0008_nifty_switch",
+      "breakpoints": true
     }
   ]
 }

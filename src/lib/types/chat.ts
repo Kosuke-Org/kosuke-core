@@ -13,12 +13,15 @@ export type AssistantBlock =
       status: 'running' | 'completed' | 'error';
     };
 
+// Chat message role type
+type ChatMessageRole = 'user' | 'assistant' | 'system' | 'admin';
+
 // Core Chat Types
 export interface ChatMessage {
   id: string;
   content?: string; // For user messages (optional for assistant messages)
   blocks?: AssistantBlock[]; // For assistant response blocks
-  role: 'user' | 'assistant' | 'system';
+  role: ChatMessageRole;
   timestamp: Date;
   tokensInput?: number;
   tokensOutput?: number;
@@ -27,6 +30,7 @@ export interface ChatMessage {
   hasError?: boolean;
   errorType?: ErrorType;
   attachments?: Attachment[];
+  adminUserId?: string; // Clerk user ID of admin who sent the message (for admin role)
   metadata?: {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
@@ -64,7 +68,7 @@ export interface ChatMessageProps {
   id?: string;
   content?: string; // For user messages
   blocks?: AssistantBlock[]; // For assistant response blocks
-  role: 'user' | 'assistant' | 'system';
+  role: ChatMessageRole;
   timestamp: Date;
   isLoading?: boolean;
   className?: string;
@@ -84,6 +88,7 @@ export interface ChatMessageProps {
   projectId?: string;
   sessionId?: string;
   attachments?: Attachment[];
+  adminUserId?: string; // Clerk user ID of admin who sent the message (for admin role)
   metadata?: {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
