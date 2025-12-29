@@ -192,12 +192,14 @@ export default function ChatInterface({
 
       {/* Human-assisted mode banner */}
       {isHumanAssisted && (
-        <Alert className="mx-4 mt-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
-          <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-          <AlertDescription className="text-green-700 dark:text-green-300">
-            You&apos;re chatting with a human support agent. AI responses are paused.
-          </AlertDescription>
-        </Alert>
+        <div className="px-4 mt-2">
+          <Alert className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
+            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              You&apos;re chatting with a human support agent. AI responses are paused.
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
       <ScrollArea className="flex-1 overflow-y-auto">

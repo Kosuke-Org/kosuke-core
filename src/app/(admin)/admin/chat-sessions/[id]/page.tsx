@@ -95,12 +95,12 @@ export default function AdminChatSessionDetailPage({
   }
 
   return (
-    <div className="space-y-4 h-[calc(100vh-100px)]">
+    <div className="space-y-6 h-[calc(100vh-100px)]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{session.title}</h1>
-          <p className="text-muted-foreground text-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1 flex-1">
+          <h1 className="text-3xl font-bold tracking-tight">{session.title}</h1>
+          <p className="text-muted-foreground">
             {session.projectName || 'Unknown Project'} &bull; {session.messageCount || 0} messages
           </p>
         </div>
@@ -290,13 +290,15 @@ export default function AdminChatSessionDetailPage({
 
 function PageSkeleton() {
   return (
-    <div className="space-y-4 h-[calc(100vh-100px)]">
-      <div className="flex items-center justify-between">
-        <div>
-          <Skeleton className="h-6 w-48 mb-2" />
-          <Skeleton className="h-4 w-32" />
+    <div className="space-y-6 h-[calc(100vh-100px)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-4 w-96" />
         </div>
-        <Skeleton className="h-8 w-40" />
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-8 w-40" />
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 h-[calc(100%-60px)]">
         <Skeleton className="h-64" />
