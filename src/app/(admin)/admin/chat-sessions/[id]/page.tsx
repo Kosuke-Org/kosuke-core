@@ -1,11 +1,10 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Bot, GitBranch, Loader2, Send, UserCog } from 'lucide-react';
 import { use, useEffect, useRef, useState } from 'react';
 
-import { useToast } from '@/hooks/use-toast';
+import { useAdminChatSession } from '@/hooks/use-admin-chat-session';
 
 import {
   AlertDialog,
@@ -25,7 +24,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 
 import ChatMessage from '@/app/(project-workspace)/projects/[id]/components/chat/chat-message';
-import type { AdminSessionDetail, AdminSessionMessagesResponse } from '@/lib/types';
 
 export default function AdminChatSessionDetailPage({
   params,
@@ -33,8 +31,6 @@ export default function AdminChatSessionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: sessionId } = use(params);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,122 +38,53 @@ export default function AdminChatSessionDetailPage({
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<'autonomous' | 'human_assisted' | null>(null);
 
-  // Fetch session details
-  const { data: sessionData, isLoading: isLoadingSession } = useQuery<{
-    session: AdminSessionDetail;
-  }>({
-    queryKey: ['admin-chat-session', sessionId],
-    queryFn: async () => {
-      const response = await fetch(`/api/admin/chat-sessions/${sessionId}`);
-      if (!response.ok) throw new Error('Failed to fetch session');
-      const result = await response.json();
-      return result.data;
-    },
-  });
-
-  // Fetch messages
-  const { data: messagesData, isLoading: isLoadingMessages } =
-    useQuery<AdminSessionMessagesResponse>({
-      queryKey: ['admin-chat-session-messages', sessionId],
-      queryFn: async () => {
-        const response = await fetch(`/api/admin/chat-sessions/${sessionId}/messages`);
-        if (!response.ok) throw new Error('Failed to fetch messages');
-        const result = await response.json();
-        return result.data;
-      },
-      refetchInterval: 5000, // Poll every 5 seconds for new messages
-    });
-
-  // Send message mutation
-  const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const response = await fetch(`/api/admin/chat-sessions/${sessionId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-      if (!response.ok) throw new Error('Failed to send message');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-chat-session-messages', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['admin-chat-session', sessionId] });
-      setMessageInput('');
-      inputRef.current?.focus();
-    },
-    onError: error => {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to send message',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // Toggle mode mutation
-  const toggleModeMutation = useMutation({
-    mutationFn: async (mode: 'autonomous' | 'human_assisted') => {
-      const response = await fetch(`/api/admin/chat-sessions/${sessionId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      });
-      if (!response.ok) throw new Error('Failed to update mode');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-chat-session', sessionId] });
-      queryClient.invalidateQueries({ queryKey: ['admin-chat-session-messages', sessionId] });
-      toast({
-        title: 'Mode updated',
-        description:
-          pendingMode === 'human_assisted'
-            ? 'Session is now in human-assisted mode'
-            : 'Session is now in autonomous mode',
-      });
-      setModeDialogOpen(false);
-      setPendingMode(null);
-    },
-    onError: error => {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to update mode',
-        variant: 'destructive',
-      });
-      setModeDialogOpen(false);
-      setPendingMode(null);
-    },
-  });
+  // Use the admin chat session hook
+  const {
+    session,
+    isLoadingSession,
+    messages,
+    isLoadingMessages,
+    sendMessage,
+    isSendingMessage,
+    toggleMode,
+    isTogglingMode,
+  } = useAdminChatSession({ sessionId });
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messagesData?.messages]);
+  }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || sendMessageMutation.isPending) return;
-    sendMessageMutation.mutate(messageInput.trim());
+    if (!messageInput.trim() || isSendingMessage) return;
+    sendMessage(messageInput.trim());
+    setMessageInput('');
+    inputRef.current?.focus();
   };
 
   const handleModeToggle = () => {
-    const newMode = sessionData?.session.mode === 'autonomous' ? 'human_assisted' : 'autonomous';
+    const newMode = session?.mode === 'autonomous' ? 'human_assisted' : 'autonomous';
     setPendingMode(newMode);
     setModeDialogOpen(true);
   };
 
   const confirmModeChange = () => {
     if (pendingMode) {
-      toggleModeMutation.mutate(pendingMode);
+      toggleMode(pendingMode);
+      setModeDialogOpen(false);
+      setPendingMode(null);
     }
+  };
+
+  const cancelModeChange = () => {
+    setModeDialogOpen(false);
+    setPendingMode(null);
   };
 
   if (isLoadingSession) {
     return <PageSkeleton />;
   }
-
-  const session = sessionData?.session;
-  const messages = messagesData?.messages || [];
 
   if (!session) {
     return (
@@ -185,7 +112,7 @@ export default function AdminChatSessionDetailPage({
           <Switch
             checked={session.mode === 'human_assisted'}
             onCheckedChange={handleModeToggle}
-            disabled={toggleModeMutation.isPending}
+            disabled={isTogglingMode}
           />
           <Badge
             variant={session.mode === 'human_assisted' ? 'default' : 'secondary'}
@@ -314,15 +241,11 @@ export default function AdminChatSessionDetailPage({
                 value={messageInput}
                 onChange={e => setMessageInput(e.target.value)}
                 placeholder="Type a message as admin..."
-                disabled={sendMessageMutation.isPending}
+                disabled={isSendingMessage}
                 className="flex-1"
               />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!messageInput.trim() || sendMessageMutation.isPending}
-              >
-                {sendMessageMutation.isPending ? (
+              <Button type="submit" size="icon" disabled={!messageInput.trim() || isSendingMessage}>
+                {isSendingMessage ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />
@@ -352,9 +275,11 @@ export default function AdminChatSessionDetailPage({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={toggleModeMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmModeChange} disabled={toggleModeMutation.isPending}>
-              {toggleModeMutation.isPending ? 'Updating...' : 'Confirm'}
+            <AlertDialogCancel onClick={cancelModeChange} disabled={isTogglingMode}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmModeChange} disabled={isTogglingMode}>
+              {isTogglingMode ? 'Updating...' : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -166,3 +166,25 @@ export interface UseChatSidebarReturn {
   isCreating: boolean;
   isUpdating: boolean;
 }
+
+// Admin Chat Session Hook Types
+export interface UseAdminChatSessionOptions {
+  sessionId: string;
+}
+
+export interface UseAdminChatSessionReturn {
+  // Session data
+  session: AdminSessionDetail | undefined;
+  isLoadingSession: boolean;
+
+  // Messages data
+  messages: AdminSessionMessagesResponse['messages'];
+  isLoadingMessages: boolean;
+
+  // Mutations
+  sendMessage: (content: string) => void;
+  isSendingMessage: boolean;
+
+  toggleMode: (mode: 'autonomous' | 'human_assisted') => void;
+  isTogglingMode: boolean;
+}
