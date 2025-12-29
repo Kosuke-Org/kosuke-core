@@ -136,7 +136,7 @@ To work with **kosuke-cli** locally alongside kosuke-core with hot-reload:
 ```bash
 # Clone kosuke-cli into the sandbox directory
 cd sandbox
-git clone https://github.com/Kosuke-Org/cli.git kosuke-cli
+git clone https://github.com/Kosuke-Org/kosuke-cli.git kosuke-cli
 cd kosuke-cli && npm install
 
 # Enable hot-reload: watches .ts files → auto-compiles → auto-restarts in preview containers
