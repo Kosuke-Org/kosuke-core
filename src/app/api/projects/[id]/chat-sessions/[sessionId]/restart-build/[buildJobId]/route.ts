@@ -59,10 +59,9 @@ export async function POST(
 
     // Only allow restarting failed builds
     if (failedBuild.status !== 'failed') {
-      return NextResponse.json({
-        success: false,
-        error: `Can only restart failed builds. Current status: ${failedBuild.status}`,
-      });
+      return ApiErrorHandler.badRequest(
+        `Can only restart failed builds. Current status: ${failedBuild.status}`
+      );
     }
 
     console.log(`🔄 Restarting failed build job ${buildJobId} for session ${session.branchName}`);
@@ -71,10 +70,7 @@ export async function POST(
     const githubToken = await getGitHubToken(project.isImported, userId);
 
     if (!githubToken) {
-      return NextResponse.json({
-        success: false,
-        error: 'GitHub token not available',
-      });
+      return ApiErrorHandler.unauthorized('GitHub token not available');
     }
 
     // Get sandbox client
@@ -82,10 +78,7 @@ export async function POST(
     const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (!sandbox || sandbox.status !== 'running') {
-      return NextResponse.json({
-        success: false,
-        error: 'Sandbox is not running',
-      });
+      return ApiErrorHandler.badRequest('Sandbox is not running');
     }
 
     const sandboxClient = new SandboxClient(session.id);
@@ -101,17 +94,11 @@ export async function POST(
           console.log(`✅ Git reset and force push successful`);
         } else {
           console.warn(`⚠️ Git reset failed: ${result.error}`);
-          return NextResponse.json({
-            success: false,
-            error: `Git reset failed: ${result.error}`,
-          });
+          return ApiErrorHandler.badRequest(`Git reset failed: ${result.error}`);
         }
       } catch (error) {
         console.error(`❌ Git reset error:`, error);
-        return NextResponse.json({
-          success: false,
-          error: 'Git reset failed',
-        });
+        return ApiErrorHandler.badRequest('Git reset failed');
       }
     }
 
@@ -119,10 +106,7 @@ export async function POST(
     const originalTasks = await db.select().from(tasks).where(eq(tasks.buildJobId, buildJobId));
 
     if (originalTasks.length === 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'No tasks found for this build',
-      });
+      return ApiErrorHandler.badRequest('No tasks found for this build');
     }
 
     // 3. Generate timestamp-based tickets path (same format as plan command)
@@ -157,10 +141,7 @@ export async function POST(
       console.log(`✅ Created ${ticketsRelativePath} with ${ticketsData.tickets.length} tickets`);
     } catch (error) {
       console.error(`❌ Failed to create tickets file:`, error);
-      return NextResponse.json({
-        success: false,
-        error: 'Failed to create tickets file',
-      });
+      return ApiErrorHandler.badRequest('Failed to create tickets file');
     }
 
     // 5. Create new build job

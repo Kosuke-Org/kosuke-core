@@ -7,17 +7,17 @@ interface RestartBuildOptions {
   buildJobId: string;
 }
 
-interface RestartBuildResponse {
-  success: boolean;
-  data?: {
-    originalBuildJobId: string;
-    newBuildJobId: string;
-    resetCommit?: string;
-    tasksCount: number;
-    message: string;
-  };
-  error?: string;
+interface RestartBuildData {
+  originalBuildJobId: string;
+  newBuildJobId: string;
+  resetCommit?: string;
+  tasksCount: number;
+  message: string;
 }
+
+type RestartBuildResponse =
+  | { success: true; data: RestartBuildData }
+  | { success: false; error: string };
 
 /**
  * Hook for restarting a failed build job
@@ -39,15 +39,15 @@ export function useRestartBuild({ projectId, sessionId, buildJobId }: RestartBui
       return response.json();
     },
     onSuccess: data => {
+      if (!data.success) return; // Type guard for discriminated union
+
       toast({
         title: 'Build restarted',
-        description: data.data?.message || 'The build has been restarted',
+        description: data.data.message,
       });
       // Invalidate build queries to refresh status
       queryClient.invalidateQueries({ queryKey: ['build-job', buildJobId] });
-      if (data.data?.newBuildJobId) {
-        queryClient.invalidateQueries({ queryKey: ['build-job', data.data.newBuildJobId] });
-      }
+      queryClient.invalidateQueries({ queryKey: ['build-job', data.data.newBuildJobId] });
       // Invalidate the latest build query for this session
       queryClient.invalidateQueries({ queryKey: ['latest-build', projectId, sessionId] });
       // Invalidate chat messages to show the new build message
