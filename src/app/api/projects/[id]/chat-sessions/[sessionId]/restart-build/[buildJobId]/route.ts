@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm';
 
 /**
  * POST /api/projects/[id]/chat-sessions/[sessionId]/restart-build/[buildJobId]
- * Restart a failed build by reverting git, resetting tickets, and starting a new build
+ * Restart a failed or cancelled build by reverting git, resetting tickets, and starting a new build
  */
 export async function POST(
   request: NextRequest,
@@ -57,14 +57,16 @@ export async function POST(
       return ApiErrorHandler.forbidden('Build job does not belong to this session');
     }
 
-    // Only allow restarting failed builds
-    if (failedBuild.status !== 'failed') {
+    // Only allow restarting failed or cancelled builds
+    if (failedBuild.status !== 'failed' && failedBuild.status !== 'cancelled') {
       return ApiErrorHandler.badRequest(
-        `Can only restart failed builds. Current status: ${failedBuild.status}`
+        `Can only restart failed or cancelled builds. Current status: ${failedBuild.status}`
       );
     }
 
-    console.log(`🔄 Restarting failed build job ${buildJobId} for session ${session.branchName}`);
+    console.log(
+      `🔄 Restarting ${failedBuild.status} build job ${buildJobId} for session ${session.branchName}`
+    );
 
     // Get GitHub token for git reset
     const githubToken = await getGitHubToken(project.isImported, userId);

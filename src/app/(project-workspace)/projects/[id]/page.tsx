@@ -141,7 +141,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const canCreatePR = latestBuildData?.status === 'completed';
   const isBuildInProgress =
     latestBuildData?.status === 'pending' || latestBuildData?.status === 'running';
-  const isBuildFailed = latestBuildData?.status === 'failed';
+  const isBuildFailed =
+    latestBuildData?.status === 'failed' || latestBuildData?.status === 'cancelled';
 
   // UI state management
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);

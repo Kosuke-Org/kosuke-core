@@ -342,7 +342,7 @@ export default function ChatInterface({
           onStop={cancelStream}
           placeholder={
             isBuildFailed
-              ? 'Build failed. Delete this session and create a new one.'
+              ? 'Build stopped. Use the restart button above to try again.'
               : isBuildInProgress
                 ? 'Build in progress...'
                 : 'Type your message...'

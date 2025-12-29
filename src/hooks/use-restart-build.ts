@@ -20,7 +20,7 @@ type RestartBuildResponse =
   | { success: false; error: string };
 
 /**
- * Hook for restarting a failed build job
+ * Hook for restarting a failed or cancelled build job
  */
 export function useRestartBuild({ projectId, sessionId, buildJobId }: RestartBuildOptions) {
   const { toast } = useToast();

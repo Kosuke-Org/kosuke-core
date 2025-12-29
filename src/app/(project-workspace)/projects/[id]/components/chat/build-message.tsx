@@ -199,7 +199,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {hasFailed && isLatestBuild && (
+            {(hasFailed || isCancelled) && isLatestBuild && (
               <AlertDialog>
                 <Tooltip>
                   <TooltipTrigger asChild>
