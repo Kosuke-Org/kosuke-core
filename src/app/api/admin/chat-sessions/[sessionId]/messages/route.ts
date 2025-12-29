@@ -8,11 +8,29 @@ import {
   messageAttachments,
   projects,
 } from '@/lib/db/schema';
+import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import { asc, eq, sql } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RouteParams {
   params: Promise<{ sessionId: string }>;
+}
+
+/**
+ * Save an uploaded file (image or document) to storage
+ */
+async function saveUploadedFile(file: File, projectId: string): Promise<MessageAttachmentPayload> {
+  const prefix = `attachments/project-${projectId}`;
+
+  try {
+    const uploadResult = await uploadFile(file, prefix);
+    return {
+      upload: uploadResult,
+    } satisfies MessageAttachmentPayload;
+  } catch (error) {
+    console.error('Error uploading file to storage:', error);
+    throw new Error('Failed to upload file');
+  }
 }
 
 /**
@@ -133,6 +151,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  * POST /api/admin/chat-sessions/[sessionId]/messages
  * Send a message as admin (super admin only)
  * This will automatically switch the session to human_assisted mode
+ * Supports both JSON (text only) and FormData (with attachments)
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -144,8 +163,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const { sessionId } = await params;
-    const body = await request.json();
-    const { content } = body as { content: string };
+
+    // Check if request is FormData (has attachments) or JSON (text only)
+    const contentType = request.headers.get('content-type') || '';
+    let content: string;
+    let attachmentFiles: File[];
+
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData with attachments
+      const formData = await request.formData();
+      content = formData.get('content') as string;
+
+      // Extract attachment files
+      const attachmentCount = parseInt(formData.get('attachmentCount') as string, 10) || 0;
+      const files: File[] = [];
+      for (let i = 0; i < attachmentCount; i++) {
+        const file = formData.get(`attachment_${i}`) as File;
+        if (file) {
+          files.push(file);
+        }
+      }
+      attachmentFiles = files;
+    } else {
+      // Handle JSON request (text only)
+      const body = await request.json();
+      content = body.content as string;
+      attachmentFiles = [];
+    }
 
     if (!content || typeof content !== 'string' || content.trim() === '') {
       return NextResponse.json({ error: 'Message content is required' }, { status: 400 });
@@ -198,6 +242,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .where(eq(chatSessions.id, sessionId));
     }
 
+    // Process attachments if present
+    const attachmentPayloads: MessageAttachmentPayload[] = [];
+    if (attachmentFiles.length > 0) {
+      for (const file of attachmentFiles) {
+        const attachment = await saveUploadedFile(file, projectId);
+        attachmentPayloads.push(attachment);
+      }
+    }
+
     // Insert the admin message
     const [newMessage] = await db
       .insert(chatMessages)
@@ -210,6 +263,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         timestamp: new Date(),
       })
       .returning();
+
+    // Save attachments to database if present
+    if (attachmentPayloads.length > 0) {
+      for (const payload of attachmentPayloads) {
+        // Insert attachment record
+        const [attachmentRecord] = await db
+          .insert(attachments)
+          .values({
+            projectId,
+            filename: payload.upload.filename,
+            storedFilename: payload.upload.storedFilename,
+            fileUrl: payload.upload.fileUrl,
+            fileType: payload.upload.fileType,
+            mediaType: payload.upload.mediaType,
+            fileSize: payload.upload.fileSize,
+          })
+          .returning();
+
+        // Link attachment to message
+        await db.insert(messageAttachments).values({
+          messageId: newMessage.id,
+          attachmentId: attachmentRecord.id,
+        });
+      }
+    }
 
     // Update session message count and last activity
     await db

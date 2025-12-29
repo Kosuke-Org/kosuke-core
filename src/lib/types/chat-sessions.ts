@@ -182,7 +182,7 @@ export interface UseAdminChatSessionReturn {
   isLoadingMessages: boolean;
 
   // Mutations
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, attachments?: File[]) => void;
   isSendingMessage: boolean;
 
   toggleMode: (mode: 'autonomous' | 'human_assisted') => void;

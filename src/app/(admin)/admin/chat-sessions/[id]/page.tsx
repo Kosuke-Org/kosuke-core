@@ -1,7 +1,7 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { Bot, GitBranch, Loader2, Send, UserCog } from 'lucide-react';
+import { Bot, GitBranch, Loader2, UserCog } from 'lucide-react';
 import { use, useEffect, useRef, useState } from 'react';
 
 import { useAdminChatSession } from '@/hooks/use-admin-chat-session';
@@ -17,12 +17,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 
+import ChatInput from '@/app/(project-workspace)/projects/[id]/components/chat/chat-input';
 import ChatMessage from '@/app/(project-workspace)/projects/[id]/components/chat/chat-message';
 
 export default function AdminChatSessionDetailPage({
@@ -32,9 +32,7 @@ export default function AdminChatSessionDetailPage({
 }) {
   const { id: sessionId } = use(params);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [messageInput, setMessageInput] = useState('');
   const [modeDialogOpen, setModeDialogOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<'autonomous' | 'human_assisted' | null>(null);
 
@@ -55,12 +53,12 @@ export default function AdminChatSessionDetailPage({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim() || isSendingMessage) return;
-    sendMessage(messageInput.trim());
-    setMessageInput('');
-    inputRef.current?.focus();
+  const handleSendMessage = async (
+    content: string,
+    options?: { includeContext?: boolean; attachments?: File[] }
+  ) => {
+    if (!content.trim() && !options?.attachments?.length) return;
+    sendMessage(content.trim(), options?.attachments);
   };
 
   const handleModeToggle = () => {
@@ -82,10 +80,12 @@ export default function AdminChatSessionDetailPage({
     setPendingMode(null);
   };
 
-  if (isLoadingSession) {
+  // Show skeleton while loading or if session is not yet available
+  if (isLoadingSession || session === undefined) {
     return <PageSkeleton />;
   }
 
+  // Only show "not found" if we're done loading and session is definitely not available
   if (!session) {
     return (
       <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
@@ -95,7 +95,7 @@ export default function AdminChatSessionDetailPage({
   }
 
   return (
-    <div className="space-y-6 h-[calc(100vh-100px)]">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1 flex-1">
@@ -116,7 +116,11 @@ export default function AdminChatSessionDetailPage({
           />
           <Badge
             variant={session.mode === 'human_assisted' ? 'default' : 'secondary'}
-            className={session.mode === 'human_assisted' ? 'bg-green-600 hover:bg-green-600' : ''}
+            className={
+              session.mode === 'human_assisted'
+                ? 'bg-green-600 hover:bg-green-600 dark:bg-green-800 dark:hover:bg-green-800 text-white dark:text-green-100'
+                : ''
+            }
           >
             {session.mode === 'human_assisted' ? (
               <>
@@ -134,12 +138,9 @@ export default function AdminChatSessionDetailPage({
       </div>
 
       {/* Main Content - Side by Side Layout (1/3 details, 2/3 chat) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 h-[calc(100%-60px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
         {/* Left Panel - Session Details */}
         <Card className="h-fit">
-          <CardHeader className="px-4 py-3">
-            <CardTitle className="text-sm font-medium">Session Details</CardTitle>
-          </CardHeader>
           <CardContent className="px-4 pb-4 pt-0">
             <div className="space-y-4 text-sm">
               <div>
@@ -198,65 +199,61 @@ export default function AdminChatSessionDetailPage({
         </Card>
 
         {/* Right Panel - Chat Messages */}
-        <Card className="flex flex-col min-h-0 h-full">
-          <CardHeader className="px-4 py-3 border-b flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Messages</CardTitle>
-              {isLoadingMessages && (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <div className="flex flex-col">
+          {/* Messages Header - lean */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Messages</h2>
+            {isLoadingMessages && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
+
+          {/* Messages Area */}
+          <ScrollArea className="flex-1">
+            <div className="flex flex-col">
+              {messages.length === 0 && !isLoadingMessages ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  No messages yet
+                </div>
+              ) : isLoadingMessages && messages.length === 0 ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {messages.map(message => (
+                    <ChatMessage
+                      key={message.id}
+                      id={message.id}
+                      content={message.content || ''}
+                      blocks={message.blocks || undefined}
+                      role={message.role}
+                      timestamp={new Date(message.timestamp)}
+                      showAvatar={true}
+                      commitSha={message.commitSha || undefined}
+                      metadata={message.metadata || undefined}
+                      adminUserId={message.adminUserId || undefined}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} className="pb-6" />
+                </>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-0 min-h-0">
-            {messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                No messages yet
-              </div>
-            ) : (
-              <div className="py-2">
-                {messages.map(message => (
-                  <ChatMessage
-                    key={message.id}
-                    id={message.id}
-                    content={message.content || ''}
-                    blocks={message.blocks || undefined}
-                    role={message.role}
-                    timestamp={new Date(message.timestamp)}
-                    showAvatar={true}
-                    commitSha={message.commitSha || undefined}
-                    metadata={message.metadata || undefined}
-                    adminUserId={message.adminUserId || undefined}
-                  />
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </CardContent>
+          </ScrollArea>
 
           {/* Message Input */}
-          <div className="border-t px-4 py-3 flex-shrink-0">
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={messageInput}
-                onChange={e => setMessageInput(e.target.value)}
-                placeholder="Type a message as admin..."
-                disabled={isSendingMessage}
-                className="flex-1"
-              />
-              <Button type="submit" size="icon" disabled={!messageInput.trim() || isSendingMessage}>
-                {isSendingMessage ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </form>
-            <p className="text-xs text-muted-foreground mt-2">
+          <div className="mt-4">
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              isLoading={isSendingMessage}
+              placeholder="Type a message as admin..."
+              disabled={isSendingMessage}
+            />
+            <p className="text-xs text-muted-foreground mt-2 px-4">
               Sending a message will automatically switch the session to human-assisted mode.
             </p>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Mode Change Confirmation Dialog */}
@@ -290,7 +287,7 @@ export default function AdminChatSessionDetailPage({
 
 function PageSkeleton() {
   return (
-    <div className="space-y-6 h-[calc(100vh-100px)]">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-2 flex-1">
           <Skeleton className="h-9 w-64" />
@@ -300,9 +297,12 @@ function PageSkeleton() {
           <Skeleton className="h-8 w-40" />
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4 h-[calc(100%-60px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-4">
         <Skeleton className="h-64" />
-        <Skeleton className="h-full" />
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-96 w-full" />
+        </div>
       </div>
     </div>
   );

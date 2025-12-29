@@ -43,11 +43,33 @@ export function useAdminChatSession({
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async ({ content, attachments }: { content: string; attachments?: File[] }) => {
+      // Prepare request body - use FormData for file attachments, JSON for text only
+      let requestBody: FormData | string;
+      const requestHeaders: HeadersInit = {};
+
+      if (attachments && attachments.length > 0) {
+        // For file uploads, use FormData
+        const formData = new FormData();
+        formData.append('content', content);
+
+        // Append all attachments
+        attachments.forEach((file, index) => {
+          formData.append(`attachment_${index}`, file);
+        });
+        formData.append('attachmentCount', String(attachments.length));
+
+        requestBody = formData;
+      } else {
+        // For text messages, use JSON
+        requestHeaders['Content-Type'] = 'application/json';
+        requestBody = JSON.stringify({ content });
+      }
+
       const response = await fetch(`/api/admin/chat-sessions/${sessionId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        headers: requestHeaders,
+        body: requestBody,
       });
       if (!response.ok) throw new Error('Failed to send message');
       return response.json();
@@ -106,7 +128,8 @@ export function useAdminChatSession({
     isLoadingMessages,
 
     // Mutations
-    sendMessage: sendMessageMutation.mutate,
+    sendMessage: (content: string, attachments?: File[]) =>
+      sendMessageMutation.mutate({ content, attachments }),
     isSendingMessage: sendMessageMutation.isPending,
 
     toggleMode: toggleModeMutation.mutate,
