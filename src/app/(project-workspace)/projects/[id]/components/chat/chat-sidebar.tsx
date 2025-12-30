@@ -147,33 +147,35 @@ export default function ChatSidebar({
       </div>
 
       {/* Chat Sessions List */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-2">
-          {filteredSessions.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-8">
-              No sessions match the selected filters
-            </div>
-          ) : (
-            filteredSessions.map(session => (
-              <ChatSessionItem
-                key={session.id}
-                session={session}
-                isActive={activeChatSessionId === session.id}
-                onClick={() => onChatSessionChange(session.id)}
-                onRename={setEditingSession}
-                onDuplicate={handleDuplicateSession}
-                onViewBranch={handleViewGitHubBranch}
-                onToggleArchive={s =>
-                  handleUpdateSession(s, {
-                    status: s.status === 'archived' ? 'active' : 'archived',
-                  })
-                }
-                onDelete={handleDeleteSession}
-              />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-2">
+            {filteredSessions.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                No sessions match the selected filters
+              </div>
+            ) : (
+              filteredSessions.map(session => (
+                <ChatSessionItem
+                  key={session.id}
+                  session={session}
+                  isActive={activeChatSessionId === session.id}
+                  onClick={() => onChatSessionChange(session.id)}
+                  onRename={setEditingSession}
+                  onDuplicate={handleDuplicateSession}
+                  onViewBranch={handleViewGitHubBranch}
+                  onToggleArchive={s =>
+                    handleUpdateSession(s, {
+                      status: s.status === 'archived' ? 'active' : 'archived',
+                    })
+                  }
+                  onDelete={handleDeleteSession}
+                />
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       <NewChatDialog
         open={isNewChatModalOpen}

@@ -358,7 +358,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
                 {showSidebar ? (
-                  <div className="w-full">
+                  <div className="w-full h-full">
                     <ChatSidebar
                       projectId={projectId}
                       activeChatSessionId={activeChatSessionId}
@@ -366,7 +366,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                   </div>
                 ) : (
-                  <div className="w-full flex flex-col">
+                  <div className="w-full h-full flex flex-col">
                     <ChatInterface
                       projectId={projectId}
                       activeChatSessionId={activeChatSessionId}
