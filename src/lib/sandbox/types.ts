@@ -14,6 +14,7 @@ export interface SandboxCreateOptions {
   repoUrl: string;
   githubToken: string;
   mode: 'development' | 'production';
+  orgId?: string; // Optional - uses system default API key if not provided
 }
 
 export interface SandboxInfo {

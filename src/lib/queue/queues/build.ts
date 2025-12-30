@@ -17,6 +17,7 @@ export interface BuildJobData {
   enableReview: boolean;
   enableTest: boolean;
   testUrl?: string;
+  orgId?: string; // Optional - uses system default API key if not provided
 }
 
 /**

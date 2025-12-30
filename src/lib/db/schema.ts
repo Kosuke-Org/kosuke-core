@@ -384,6 +384,18 @@ export const projectIntegrationsRelations = relations(projectIntegrations, ({ on
   }),
 }));
 
+// Organization API keys - for BYOK (Bring Your Own Key) functionality
+export const organizationApiKeys = pgTable('organization_api_keys', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: text('org_id').notNull().unique(), // Clerk organization ID
+  anthropicApiKey: text('anthropic_api_key'), // Encrypted with AES-256
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
+export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
+
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],

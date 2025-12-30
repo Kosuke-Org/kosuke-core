@@ -88,6 +88,7 @@ export async function GET(
       repoUrl,
       githubToken,
       mode,
+      orgId: project.orgId ?? undefined,
     });
 
     return NextResponse.json({

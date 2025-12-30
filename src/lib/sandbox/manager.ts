@@ -4,11 +4,46 @@
  */
 
 import { DockerClient, type ContainerCreateRequest } from '@docker/node-sdk';
+import { eq } from 'drizzle-orm';
+
+import { decrypt } from '@/lib/crypto';
+import { db } from '@/lib/db/drizzle';
+import { organizationApiKeys } from '@/lib/db/schema';
+
 import { SandboxClient } from './client';
 import { getSandboxConfig } from './config';
 import { createSandboxDatabase, dropSandboxDatabase } from './database';
 import { generatePreviewHost, generateSandboxName } from './naming';
 import type { SandboxCreateOptions, SandboxInfo } from './types';
+
+/**
+ * Get the Anthropic API key for an organization
+ * Returns the org's custom key if set, otherwise returns system default
+ * Note: ANTHROPIC_API_KEY is validated in instrumentation.ts at startup
+ */
+async function getAnthropicApiKey(orgId?: string): Promise<string> {
+  const systemDefault = process.env.ANTHROPIC_API_KEY!;
+
+  if (!orgId) {
+    return systemDefault;
+  }
+
+  try {
+    const apiKeyRecord = await db.query.organizationApiKeys.findFirst({
+      where: eq(organizationApiKeys.orgId, orgId),
+    });
+
+    if (apiKeyRecord?.anthropicApiKey) {
+      const decryptedKey = decrypt(apiKeyRecord.anthropicApiKey);
+      console.log(`🔑 Using custom Anthropic API key for org ${orgId}`);
+      return decryptedKey;
+    }
+  } catch (error) {
+    console.error(`Failed to fetch org API key for ${orgId}:`, error);
+  }
+
+  return systemDefault;
+}
 
 export class SandboxManager {
   private client: DockerClient | null = null;
@@ -165,8 +200,12 @@ export class SandboxManager {
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
       'kosuke.branch': options.branchName,
+      ...(options.orgId && { 'kosuke.org_id': options.orgId }),
       ...routingLabels,
     };
+
+    // Get Anthropic API key (org custom key or system default)
+    const anthropicApiKey = await getAnthropicApiKey(options.orgId);
 
     // Build environment variables
     const envVars: string[] = [
@@ -179,7 +218,7 @@ export class SandboxManager {
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
       `SANDBOX_BUN_PORT=${this.config.bunPort}`,
       `SANDBOX_PYTHON_PORT=${this.config.pythonPort}`,
-      `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
+      `ANTHROPIC_API_KEY=${anthropicApiKey}`,
       `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}`,
       `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
       `GOOGLE_MODEL=${process.env.GOOGLE_MODEL}`,
