@@ -1,7 +1,15 @@
 'use client';
 
 import { useUser } from '@clerk/nextjs';
-import { AlertCircle, ArrowRight, CheckCircle2, FolderPlus, Github, Loader2 } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  FolderPlus,
+  Github,
+  Info,
+  Loader2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -262,6 +270,20 @@ export default function ProjectCreationModal({
                       <CardDescription>
                         Choose an existing GitHub repository to import into your project.
                       </CardDescription>
+                      <Alert className="mt-3 py-2">
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          Can&apos;t find your repository?{' '}
+                          <a
+                            href="https://github.com/settings/applications"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium underline underline-offset-4 hover:text-primary"
+                          >
+                            Grant Kosuke access to your organization
+                          </a>
+                        </AlertDescription>
+                      </Alert>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">

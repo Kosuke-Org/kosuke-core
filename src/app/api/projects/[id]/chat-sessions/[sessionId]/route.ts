@@ -204,7 +204,12 @@ export async function PUT(
       session.pullRequestNumber
     ) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Use project owner's token for imported projects
+        const tokenUserId = project.isImported ? project.createdBy : userId;
+        if (!tokenUserId) {
+          console.warn('Cannot update PR: project owner not found');
+        }
+        const github = await getOctokit(project.isImported, tokenUserId || userId);
 
         if (updateData.status === 'archived' && session.status === 'active') {
           // Archiving: close the PR
@@ -320,7 +325,12 @@ export async function DELETE(
     // Step 1: Close the associated PR if one exists
     if (session.pullRequestNumber && project.githubOwner && project.githubRepoName) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Use project owner's token for imported projects
+        const tokenUserId = project.isImported ? project.createdBy : userId;
+        if (!tokenUserId) {
+          console.warn('Cannot close PR: project owner not found');
+        }
+        const github = await getOctokit(project.isImported, tokenUserId || userId);
         await closePullRequest(
           github,
           project.githubOwner,
@@ -528,12 +538,22 @@ export async function POST(
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
 
     // Get GitHub token based on project ownership
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Use project owner's token for imported projects so invited members can collaborate
+    const tokenUserId = project.isImported ? project.createdBy : userId;
+    if (!tokenUserId) {
+      return new Response(JSON.stringify({ error: 'Project owner not found' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
 
     if (!githubToken) {
       return new Response(
         JSON.stringify({
-          error: 'GitHub token not available. Please connect your GitHub account.',
+          error: project.isImported
+            ? 'Project owner needs to reconnect their GitHub account.'
+            : 'GitHub token not available. Please connect your GitHub account.',
         }),
         {
           status: 400,

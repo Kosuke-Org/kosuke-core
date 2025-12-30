@@ -68,11 +68,19 @@ export async function POST(
       `🔄 Restarting ${failedBuild.status} build job ${buildJobId} for session ${session.branchName}`
     );
 
-    // Get GitHub token for git reset
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Get GitHub token for git reset - use project owner's token for imported projects
+    const tokenUserId = project.isImported ? project.createdBy : userId;
+    if (!tokenUserId) {
+      return ApiErrorHandler.badRequest('Project owner not found');
+    }
+    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
 
     if (!githubToken) {
-      return ApiErrorHandler.unauthorized('GitHub token not available');
+      return ApiErrorHandler.unauthorized(
+        project.isImported
+          ? 'Project owner needs to reconnect their GitHub account'
+          : 'GitHub token not available'
+      );
     }
 
     // Get sandbox client

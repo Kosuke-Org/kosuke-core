@@ -64,11 +64,20 @@ export async function GET(
     // Sandbox not running - need to create/start it
     console.log('Sandbox is not running, starting...');
 
-    // Get GitHub token
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Get GitHub token - use project owner's token for imported projects
+    // This allows invited members to work without their own GitHub connection
+    const tokenUserId = project.isImported ? project.createdBy : userId;
+    if (!tokenUserId) {
+      return ApiErrorHandler.badRequest('Project owner not found');
+    }
+    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
 
     if (!githubToken) {
-      return ApiErrorHandler.badRequest('GitHub token not available');
+      return ApiErrorHandler.badRequest(
+        project.isImported
+          ? 'Project owner needs to reconnect their GitHub account'
+          : 'GitHub token not available'
+      );
     }
 
     // Determine mode: main session uses production, others use development

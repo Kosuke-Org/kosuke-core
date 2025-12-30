@@ -66,8 +66,9 @@ export async function POST(
 
     console.log(`🛑 Cancelling build job ${buildJobId} for session ${session.branchName}`);
 
-    // Get GitHub token for git reset
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Get GitHub token for git reset - use project owner's token for imported projects
+    const tokenUserId = project.isImported ? project.createdBy : userId;
+    const githubToken = tokenUserId ? await getGitHubToken(project.isImported, tokenUserId) : null;
 
     // Get sandbox client if sandbox is running
     let sandboxClient: SandboxClient | undefined;

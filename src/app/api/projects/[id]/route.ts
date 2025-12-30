@@ -6,7 +6,7 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { getOctokit } from '@/lib/github/client';
+import { getOctokit, userHasGitHubConnected } from '@/lib/github/client';
 import { deleteGitHubWebhook } from '@/lib/github/webhooks';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
@@ -39,9 +39,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiErrorHandler.projectNotFound();
     }
 
-    return ApiResponseHandler.success(project, {
-      model: process.env.ANTHROPIC_MODEL,
-    });
+    // Check owner's GitHub connection status for imported projects
+    let ownerHasGithub = true;
+    if (project.isImported && project.createdBy) {
+      ownerHasGithub = await userHasGitHubConnected(project.createdBy);
+    }
+
+    return ApiResponseHandler.success(
+      { ...project, ownerHasGithub },
+      {
+        model: process.env.ANTHROPIC_MODEL,
+      }
+    );
   } catch (error) {
     return ApiErrorHandler.handle(error);
   }
@@ -177,7 +186,12 @@ export async function DELETE(
     // Step 3: Optionally delete the associated GitHub repository
     if (deleteRepo && project.githubOwner && project.githubRepoName) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Use project owner's token for imported projects
+        const tokenUserId = project.isImported ? project.createdBy : userId;
+        if (!tokenUserId) {
+          console.warn('Cannot delete repo: project owner not found');
+        }
+        const github = await getOctokit(project.isImported, tokenUserId || userId);
 
         await github.rest.repos.delete({
           owner: project.githubOwner,

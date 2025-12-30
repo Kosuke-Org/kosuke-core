@@ -96,10 +96,19 @@ export async function POST(
     );
 
     // Get GitHub token based on project ownership (required for pushing to remote)
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Use project owner's token for imported projects so invited members can collaborate
+    const tokenUserId = project.isImported ? project.createdBy : userId;
+    if (!tokenUserId) {
+      return ApiErrorHandler.badRequest('Project owner not found');
+    }
+    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
 
     if (!githubToken) {
-      return ApiErrorHandler.badRequest('GitHub not connected');
+      return ApiErrorHandler.badRequest(
+        project.isImported
+          ? 'Project owner needs to reconnect their GitHub account'
+          : 'GitHub not connected'
+      );
     }
 
     // Perform git revert operation via sandbox - use session.id (UUID) for sandbox identification

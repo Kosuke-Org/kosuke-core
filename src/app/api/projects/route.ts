@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
 import { createRepositoryFromTemplate } from '@/lib/github';
-import { getUserGitHubToken } from '@/lib/github/client';
+import { getUserGitHubToken, userHasGitHubConnected } from '@/lib/github/client';
 import { createGitHubWebhook } from '@/lib/github/webhooks';
 
 // Schema for project creation with GitHub integration
@@ -46,7 +46,21 @@ export async function GET() {
       .where(and(eq(projects.orgId, orgId), eq(projects.isArchived, false)))
       .orderBy(desc(projects.createdAt));
 
-    return NextResponse.json(orgProjects);
+    // Add owner's GitHub connection status for imported projects
+    // This allows invited members to see if they can work on the project
+    const projectsWithOwnerStatus = await Promise.all(
+      orgProjects.map(async project => {
+        // Only check owner's GitHub for imported projects
+        if (project.isImported && project.createdBy) {
+          const ownerHasGithub = await userHasGitHubConnected(project.createdBy);
+          return { ...project, ownerHasGithub };
+        }
+        // Non-imported projects use Kosuke's GitHub App - always available
+        return { ...project, ownerHasGithub: true };
+      })
+    );
+
+    return NextResponse.json(projectsWithOwnerStatus);
   } catch (error) {
     console.error('Error fetching projects:', error);
     return ApiErrorHandler.handle(error);

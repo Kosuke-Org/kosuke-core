@@ -56,6 +56,23 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
 }
 
 /**
+ * Check if a user has GitHub connected (without fetching token)
+ * Used to check project owner's GitHub status for invited members
+ */
+export async function userHasGitHubConnected(userId: string): Promise<boolean> {
+  try {
+    const user = await clerk.users.getUser(userId);
+    const githubAccount = user.externalAccounts?.find(
+      account => account.provider === 'oauth_github'
+    );
+    return !!githubAccount;
+  } catch (error) {
+    console.error('Error checking GitHub connection:', error);
+    return false;
+  }
+}
+
+/**
  * Get GitHub user information for the authenticated user
  */
 export async function getUserGitHubInfo(userId: string): Promise<{

@@ -83,7 +83,12 @@ export async function POST(
 
     try {
       // Get GitHub client based on project ownership
-      const github = await getOctokit(project.isImported, userId);
+      // Use project owner's token for imported projects so invited members can create PRs
+      const tokenUserId = project.isImported ? project.createdBy : userId;
+      if (!tokenUserId) {
+        return ApiErrorHandler.badRequest('Project owner not found');
+      }
+      const github = await getOctokit(project.isImported, tokenUserId);
 
       // Check if source branch exists
       try {
