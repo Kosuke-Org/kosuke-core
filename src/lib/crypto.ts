@@ -1,56 +1,55 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+const SALT_LENGTH = 16;
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
 /**
- * Get encryption key from environment variable
- * Key must be at least 32 characters for AES-256
+ * Derive encryption key using scrypt with provided salt
+ * Uses ENCRYPTION_KEY from environment (validated in instrumentation.ts)
  */
-function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key) {
-    throw new Error('ENCRYPTION_KEY environment variable is not set');
-  }
-  if (key.length < 32) {
-    throw new Error('ENCRYPTION_KEY must be at least 32 characters');
-  }
-  // Use scrypt to derive a proper 32-byte key from the secret
-  const salt = Buffer.from('kosuke-api-key-salt'); // Static salt for deterministic key derivation
+function deriveKey(salt: Buffer): Buffer {
+  // ENCRYPTION_KEY is validated in instrumentation.ts at startup
+  const key = process.env.ENCRYPTION_KEY!;
   return scryptSync(key, salt, 32);
 }
 
 /**
- * Encrypt a string using AES-256-GCM
- * Returns base64-encoded string: IV + AuthTag + CipherText
+ * Encrypt a string using AES-256-GCM with per-encryption random salt
+ * Returns base64-encoded string: Salt + IV + AuthTag + CipherText
  */
 export function encrypt(plaintext: string): string {
-  const key = getEncryptionKey();
+  const salt = randomBytes(SALT_LENGTH);
+  const key = deriveKey(salt);
   const iv = randomBytes(IV_LENGTH);
 
   const cipher = createCipheriv(ALGORITHM, key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
-  // Combine IV + AuthTag + CipherText
-  const combined = Buffer.concat([iv, authTag, encrypted]);
+  // Combine Salt + IV + AuthTag + CipherText
+  const combined = Buffer.concat([salt, iv, authTag, encrypted]);
   return combined.toString('base64');
 }
 
 /**
  * Decrypt an AES-256-GCM encrypted string
- * Expects base64-encoded string: IV + AuthTag + CipherText
+ * Expects base64-encoded string: Salt + IV + AuthTag + CipherText
  */
 export function decrypt(encryptedBase64: string): string {
-  const key = getEncryptionKey();
   const combined = Buffer.from(encryptedBase64, 'base64');
 
-  // Extract IV, AuthTag, and CipherText
-  const iv = combined.subarray(0, IV_LENGTH);
-  const authTag = combined.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
-  const ciphertext = combined.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+  // Extract Salt, IV, AuthTag, and CipherText
+  const salt = combined.subarray(0, SALT_LENGTH);
+  const iv = combined.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+  const authTag = combined.subarray(
+    SALT_LENGTH + IV_LENGTH,
+    SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH
+  );
+  const ciphertext = combined.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
 
+  const key = deriveKey(salt);
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
 

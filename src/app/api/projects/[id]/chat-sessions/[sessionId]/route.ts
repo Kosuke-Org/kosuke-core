@@ -717,7 +717,7 @@ export async function POST(
                 enableReview: true, // Review runs once after all tickets
                 enableTest: sandboxConfig.test,
                 testUrl,
-                orgId: project.orgId || undefined, // For custom API key lookup
+                orgId: project.orgId ?? undefined,
               });
 
               console.log(`🚀 Enqueued build job ${buildJob.id}`);

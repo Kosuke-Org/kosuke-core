@@ -2,7 +2,7 @@
 
 import { useOrganization } from '@clerk/nextjs';
 import { AlertCircle, Check, Eye, EyeOff, Loader2, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -12,117 +12,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useToast } from '@/hooks/use-toast';
-
-interface ApiKeyStatus {
-  hasCustomKey: boolean;
-  maskedKey: string | null;
-  updatedAt?: string;
-}
+import { useOrganizationApiKeys } from '@/hooks/use-organization-api-keys';
 
 export default function OrganizationUsagePage() {
   const { organization, isLoaded, membership } = useOrganization();
-  const { toast } = useToast();
+  const {
+    status: apiKeyStatus,
+    isLoading: isLoadingStatus,
+    saveApiKey,
+    isSaving,
+    deleteApiKey,
+    isDeleting,
+  } = useOrganizationApiKeys(organization?.id);
 
-  const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const isAdmin = membership?.role === 'org:admin';
 
-  const fetchApiKeyStatus = useCallback(async () => {
-    if (!organization?.id) return;
-
-    try {
-      setIsLoadingStatus(true);
-      const response = await fetch(`/api/organizations/${organization.id}/api-keys`);
-      if (response.ok) {
-        const data = await response.json();
-        setApiKeyStatus(data);
-      }
-    } catch {
-      console.error('Failed to fetch API key status');
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, [organization?.id]);
-
-  useEffect(() => {
-    if (organization?.id) {
-      fetchApiKeyStatus();
-    }
-  }, [organization?.id, fetchApiKeyStatus]);
-
-  const handleSaveApiKey = async () => {
-    if (!organization?.id || !apiKeyInput.trim()) return;
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/organizations/${organization.id}/api-keys`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anthropicApiKey: apiKeyInput }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to save API key');
-        return;
-      }
-
-      setApiKeyStatus({
-        hasCustomKey: true,
-        maskedKey: data.maskedKey,
-      });
-      setApiKeyInput('');
-      toast({
-        title: 'API key saved',
-        description: 'Your Anthropic API key has been saved and validated.',
-      });
-    } catch {
-      setError('Network error - please try again');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSaveApiKey = () => {
+    if (!apiKeyInput.trim()) return;
+    saveApiKey(apiKeyInput, {
+      onSuccess: () => setApiKeyInput(''),
+    });
   };
 
-  const handleDeleteApiKey = async () => {
-    if (!organization?.id) return;
-
-    setIsDeleting(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/organizations/${organization.id}/api-keys`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || 'Failed to delete API key');
-        return;
-      }
-
-      setApiKeyStatus({
-        hasCustomKey: false,
-        maskedKey: null,
-      });
-      toast({
-        title: 'API key removed',
-        description: 'Your organization will now use the system default API key.',
-      });
-    } catch {
-      setError('Network error - please try again');
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDeleteApiKey = () => {
+    deleteApiKey();
   };
 
   if (!isLoaded) {
@@ -203,13 +119,6 @@ export default function OrganizationUsagePage() {
             </div>
           ) : (
             <>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
               {/* Admin-only API Key Management */}
               {isAdmin ? (
                 <div className="space-y-4">

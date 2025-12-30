@@ -19,9 +19,10 @@ import type { SandboxCreateOptions, SandboxInfo } from './types';
 /**
  * Get the Anthropic API key for an organization
  * Returns the org's custom key if set, otherwise returns system default
+ * Note: ANTHROPIC_API_KEY is validated in instrumentation.ts at startup
  */
 async function getAnthropicApiKey(orgId?: string): Promise<string> {
-  const systemDefault = process.env.ANTHROPIC_API_KEY || '';
+  const systemDefault = process.env.ANTHROPIC_API_KEY!;
 
   if (!orgId) {
     return systemDefault;
