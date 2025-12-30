@@ -16,9 +16,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useBuildStatus } from '@/hooks/use-build-status';
 import { useCancelBuild } from '@/hooks/use-cancel-build';
+import { useLatestBuild } from '@/hooks/use-latest-build';
+import { useRestartBuild } from '@/hooks/use-restart-build';
 import type { BuildTask } from '@/lib/types/chat';
 import { cn } from '@/lib/utils';
-import { Circle, CircleCheck, CircleX, Loader2, Square, StopCircle } from 'lucide-react';
+import { Circle, CircleCheck, CircleX, Loader2, RotateCcw, Square, StopCircle } from 'lucide-react';
 
 interface BuildMessageProps {
   buildJobId: string;
@@ -37,6 +39,13 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
 
   // Cancel build mutation
   const cancelMutation = useCancelBuild({ projectId, sessionId, buildJobId });
+
+  // Restart build mutation
+  const restartMutation = useRestartBuild({ projectId, sessionId, buildJobId });
+
+  // Check if this is the latest build (only show restart for latest failed build)
+  const { data: latestBuildData } = useLatestBuild(projectId, sessionId);
+  const isLatestBuild = latestBuildData?.buildJobId === buildJobId;
 
   const buildJob = data?.buildJob;
   const progress = data?.progress;
@@ -100,7 +109,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
       return <CircleX className="h-4 w-4 text-red-500 fill-red-500/10 shrink-0" />;
     }
     if (task.status === 'cancelled') {
-      return <StopCircle className="h-4 w-4 text-destructive shrink-0" />;
+      return <StopCircle className="h-4 w-4 text-muted-foreground shrink-0" />;
     }
     if (task.status === 'in_progress') {
       // Pulsing blue circle for running
@@ -190,6 +199,43 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
                 </AlertDialogContent>
               </AlertDialog>
             )}
+            {(hasFailed || isCancelled) && isLatestBuild && (
+              <AlertDialog>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                        disabled={restartMutation.isPending}
+                      >
+                        {restartMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Restart build</TooltipContent>
+                </Tooltip>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restart build?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will revert all changes and restart the build from scratch.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => restartMutation.mutate()}>
+                      Restart
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
           <span className="text-xs font-medium text-muted-foreground">{getStatusText()}</span>
         </div>
@@ -221,7 +267,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
                     'truncate',
                     task.status === 'done' && 'text-muted-foreground line-through',
                     task.status === 'error' && 'text-red-500',
-                    task.status === 'cancelled' && 'text-destructive',
+                    task.status === 'cancelled' && 'text-muted-foreground',
                     task.status === 'in_progress' && 'text-blue-500 font-medium'
                   )}
                 >

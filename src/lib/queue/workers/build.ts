@@ -7,7 +7,7 @@
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, tasks } from '@/lib/db/schema';
 import { SandboxClient } from '@/lib/sandbox/client';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   clearBuildCancelSignal,
   createQueueEvents,
@@ -187,14 +187,19 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 }
                 console.log('='.repeat(80) + '\n');
 
-                // Update task status to in_progress
+                // Update task status to in_progress (filter by buildJobId to avoid affecting other builds)
                 await db
                   .update(tasks)
                   .set({
                     status: 'in_progress',
                     updatedAt: new Date(),
                   })
-                  .where(eq(tasks.externalId, event.data.ticket.id));
+                  .where(
+                    and(
+                      eq(tasks.buildJobId, buildJobId),
+                      eq(tasks.externalId, event.data.ticket.id)
+                    )
+                  );
                 break;
 
               case 'ticket_phase':
@@ -377,6 +382,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 totalCost += currentTicketCost;
 
                 // Update task status to done or error based on result, including cost
+                // Filter by buildJobId to avoid affecting tasks from other builds
                 const taskStatus = event.data.result === 'failed' ? 'error' : 'done';
                 await db
                   .update(tasks)
@@ -389,7 +395,12 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                     cost: currentTicketCost,
                     updatedAt: new Date(),
                   })
-                  .where(eq(tasks.externalId, event.data.ticket.id));
+                  .where(
+                    and(
+                      eq(tasks.buildJobId, buildJobId),
+                      eq(tasks.externalId, event.data.ticket.id)
+                    )
+                  );
 
                 // Reset for next ticket
                 currentTicketCost = 0;
@@ -397,6 +408,39 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
 
               case 'ticket_committed':
                 console.log(`[BUILD] 💾 Committed: ${event.data.commitMessage}\n`);
+                break;
+
+              case 'ticket_retry':
+                console.log('\n' + '-'.repeat(60));
+                console.log(
+                  `[BUILD] 🔄 Retry ${event.data.attempt}/${event.data.maxAttempts} for ${event.data.ticketId}`
+                );
+                console.log(`[BUILD]    Error: ${event.data.error}`);
+                console.log('-'.repeat(60) + '\n');
+                break;
+
+              case 'build_stopped':
+                console.log('\n' + '='.repeat(80));
+                console.log(`[BUILD] 🛑 Build stopped: ${event.data.reason}`);
+                console.log(
+                  `[BUILD]    Remaining tickets cancelled: ${event.data.remainingTickets}`
+                );
+                console.log('='.repeat(80) + '\n');
+
+                // Mark only pending/todo tasks as cancelled (not already completed/failed ones)
+                await db
+                  .update(tasks)
+                  .set({
+                    status: 'cancelled',
+                    error: 'Stopped due to previous failure',
+                    updatedAt: new Date(),
+                  })
+                  .where(
+                    and(
+                      eq(tasks.buildJobId, buildJobId),
+                      inArray(tasks.status, ['todo', 'in_progress'])
+                    )
+                  );
                 break;
 
               case 'progress':

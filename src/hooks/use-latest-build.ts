@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 interface LatestBuildResponse {
   hasBuild: boolean;
-  status: 'pending' | 'running' | 'completed' | 'failed' | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
   buildJobId: string | null;
 }
 

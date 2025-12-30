@@ -27,6 +27,7 @@ export default function ChatInterface({
   sessionId,
   model,
   isBuildInProgress = false,
+  isBuildFailed = false,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -172,6 +173,12 @@ export default function ChatInterface({
       if (prevMessage.role === message.role) {
         showAvatar = false;
       }
+    }
+
+    // Always show avatar for build messages (they should appear as separate messages)
+    const hasBuildJobId = message.metadata && 'buildJobId' in message.metadata;
+    if (hasBuildJobId) {
+      showAvatar = true;
     }
 
     return {
@@ -333,8 +340,14 @@ export default function ChatInterface({
           isLoading={isSending || isRegenerating}
           isStreaming={isStreaming}
           onStop={cancelStream}
-          placeholder={isBuildInProgress ? 'Build in progress...' : 'Type your message...'}
-          disabled={isBuildInProgress}
+          placeholder={
+            isBuildFailed
+              ? 'Build stopped. Use the restart button above to try again.'
+              : isBuildInProgress
+                ? 'Build in progress...'
+                : 'Type your message...'
+          }
+          disabled={isBuildInProgress || isBuildFailed}
           data-testid="chat-input"
           className="chat-input"
         />
