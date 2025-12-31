@@ -1,4 +1,5 @@
-import { useUser } from '@clerk/nextjs';
+import { useReverification, useUser } from '@clerk/nextjs';
+import { isReverificationCancelledError } from '@clerk/nextjs/errors';
 import { useCallback, useEffect, useState } from 'react';
 
 const GITHUB_CONNECTING_KEY = 'github_oauth_connecting';
@@ -23,6 +24,8 @@ export function useGitHubOAuth() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
+  // Use verification.strategy for consistency - this matches the OAuth strategy used
+  // Server-side uses provider === 'oauth_github', client uses strategy === 'oauth_github'
   const githubAccount = user?.externalAccounts?.find(
     account => account.verification?.strategy === 'oauth_github'
   );
@@ -48,6 +51,19 @@ export function useGitHubOAuth() {
     }
   }, []);
 
+  // Wrap createExternalAccount with reverification to handle stale sessions
+  // This automatically prompts for re-authentication when needed
+  const createExternalAccountWithReverification = useReverification(async (redirectUrl: string) => {
+    if (!user) return null;
+
+    const externalAccount = await user.createExternalAccount({
+      strategy: 'oauth_github',
+      redirectUrl,
+    });
+
+    return externalAccount;
+  });
+
   const connectGitHub = useCallback(
     async (redirectUrl?: string) => {
       if (!user) return;
@@ -58,10 +74,17 @@ export function useGitHubOAuth() {
       setConnectingStorage();
 
       try {
-        const externalAccount = await user.createExternalAccount({
-          strategy: 'oauth_github',
-          redirectUrl: redirectUrl || `${window.location.origin}${window.location.pathname}`,
-        });
+        const finalRedirectUrl =
+          redirectUrl || `${window.location.origin}${window.location.pathname}`;
+
+        const externalAccount = await createExternalAccountWithReverification(finalRedirectUrl);
+
+        // User cancelled reverification
+        if (!externalAccount) {
+          clearConnectingStorage();
+          setIsConnecting(false);
+          return;
+        }
 
         const verification = externalAccount.verification;
         if (verification?.externalVerificationRedirectURL) {
@@ -73,13 +96,21 @@ export function useGitHubOAuth() {
           setIsConnecting(false);
         }
       } catch (error) {
+        // Handle reverification cancellation gracefully
+        if (isReverificationCancelledError(error)) {
+          console.log('User cancelled reverification');
+          clearConnectingStorage();
+          setIsConnecting(false);
+          return;
+        }
+
         console.error('Failed to connect GitHub:', error);
         clearConnectingStorage();
         setIsConnecting(false);
         throw error;
       }
     },
-    [user]
+    [user, createExternalAccountWithReverification]
   );
 
   const disconnectGitHub = useCallback(async () => {

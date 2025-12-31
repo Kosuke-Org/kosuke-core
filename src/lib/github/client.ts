@@ -20,9 +20,20 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
     );
 
     if (!githubAccount) {
-      console.log(`No GitHub account found for user: ${userId}`);
+      console.log(`[GitHub] No GitHub account found for user: ${userId}`);
+      console.log(
+        `[GitHub] Available external accounts:`,
+        user.externalAccounts?.map(acc => ({
+          provider: acc.provider,
+          verification: acc.verification?.strategy,
+        }))
+      );
       return null;
     }
+
+    console.log(
+      `[GitHub] Found GitHub account for user: ${userId}, provider: ${githubAccount.provider}`
+    );
 
     // Get the access token using Clerk's OAuth token endpoint
     const endpoint = `https://api.clerk.com/v1/users/${userId}/oauth_access_tokens/oauth_github`;
@@ -35,7 +46,10 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
     });
 
     if (!tokenResponse.ok) {
-      console.log(`Failed to get GitHub token for user: ${userId}`);
+      const errorText = await tokenResponse.text();
+      console.error(
+        `[GitHub] Failed to get GitHub token for user: ${userId}, status: ${tokenResponse.status}, error: ${errorText}`
+      );
       return null;
     }
 
@@ -44,13 +58,24 @@ export async function getUserGitHubToken(userId: string): Promise<string | null>
     // Handle array response (Clerk returns an array of tokens)
     if (Array.isArray(tokenData) && tokenData.length > 0) {
       const tokenObj = tokenData[0];
-      return tokenObj.token || tokenObj.access_token || tokenObj.oauth_access_token || null;
+      const token = tokenObj.token || tokenObj.access_token || tokenObj.oauth_access_token || null;
+      if (!token) {
+        console.error(
+          `[GitHub] Token array response but no token found:`,
+          JSON.stringify(tokenData)
+        );
+      }
+      return token;
     }
 
     // Handle object response
-    return tokenData.token || tokenData.access_token || tokenData.oauth_access_token || null;
+    const token = tokenData.token || tokenData.access_token || tokenData.oauth_access_token || null;
+    if (!token) {
+      console.error(`[GitHub] Token response but no token found:`, JSON.stringify(tokenData));
+    }
+    return token;
   } catch (error) {
-    console.error('Error fetching GitHub token:', error);
+    console.error('[GitHub] Error fetching GitHub token:', error);
     return null;
   }
 }
