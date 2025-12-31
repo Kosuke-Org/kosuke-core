@@ -128,7 +128,7 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
         and(
           inArray(buildJobs.id, buildJobIds),
           // Only get active builds
-          inArray(buildJobs.status, ['pending', 'implementing', 'validating'])
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
         )
       );
 
@@ -142,7 +142,7 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
       .where(
         and(
           inArray(buildJobs.id, buildJobIds),
-          inArray(buildJobs.status, ['pending', 'implementing', 'validating'])
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
         )
       );
 

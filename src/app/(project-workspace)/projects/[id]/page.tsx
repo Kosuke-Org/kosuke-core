@@ -135,13 +135,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // Build status for submit and chat input
   const { data: latestBuildData } = useLatestBuild(projectId, activeChatSessionId);
-  const canSubmit = latestBuildData?.status === 'ready';
+  const canSubmit = latestBuildData?.status === 'completed';
 
   // Submit build functionality (review → commit → PR)
   const submitBuildMutation = useSubmitBuild(projectId, activeChatSessionId);
   const isBuildInProgress =
     latestBuildData?.status === 'pending' ||
-    latestBuildData?.status === 'implementing' ||
+    latestBuildData?.status === 'running' ||
     latestBuildData?.status === 'validating';
   const isBuildFailed =
     latestBuildData?.status === 'failed' || latestBuildData?.status === 'cancelled';
@@ -439,7 +439,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 submitStatus={latestBuildData?.submitStatus}
                 prUrl={latestBuildData?.prUrl}
                 isSubmitting={submitBuildMutation.isPending}
-                hasSubmitted={submitBuildMutation.isSuccess && !latestBuildData?.submitStatus}
+                hasSubmitted={submitBuildMutation.isSuccess}
               />
             </div>
           </div>

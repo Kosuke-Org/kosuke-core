@@ -44,7 +44,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
   await db
     .update(buildJobs)
     .set({
-      status: 'implementing',
+      status: 'running',
       startedAt: new Date(),
       ticketsPath,
     })
@@ -449,10 +449,10 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                   `[BUILD] ✅ Validation completed (${event.data.fixCount || 0} fixes applied)\n`
                 );
 
-                // Update status to 'ready'
+                // Update status to 'completed'
                 await db
                   .update(buildJobs)
-                  .set({ status: 'ready' })
+                  .set({ status: 'completed' })
                   .where(eq(buildJobs.id, buildJobId));
                 break;
 
@@ -507,7 +507,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     const failedCount = allTasks.filter(t => t.status === 'error').length;
 
     // Determine final status: failed if any tasks failed, otherwise ready
-    const finalStatus = failedCount > 0 ? 'failed' : 'ready';
+    const finalStatus = failedCount > 0 ? 'failed' : 'completed';
 
     // Update build job to final status
     await db

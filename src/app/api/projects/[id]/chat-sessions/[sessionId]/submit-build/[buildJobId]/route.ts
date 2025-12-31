@@ -15,7 +15,7 @@ import { eq } from 'drizzle-orm';
  * Submit a completed build for review, commit, and PR creation
  *
  * Workflow:
- * 1. Validates build is in 'ready' status
+ * 1. Validates build is in 'completed' status
  * 2. Sets submitStatus to 'pending'
  * 3. Enqueues submit job to BullMQ
  * 4. Worker calls kosuke-cli /api/submit (review → commit → PR)
@@ -63,7 +63,7 @@ export async function POST(
     }
 
     // Only allow submitting ready builds
-    if (buildJob.status !== 'ready') {
+    if (buildJob.status !== 'completed') {
       return ApiErrorHandler.badRequest(
         `Can only submit ready builds. Current status: ${buildJob.status}`
       );

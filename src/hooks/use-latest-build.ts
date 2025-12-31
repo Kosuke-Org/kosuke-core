@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 interface LatestBuildResponse {
   hasBuild: boolean;
-  status: 'pending' | 'implementing' | 'validating' | 'ready' | 'failed' | 'cancelled' | null;
+  status: 'pending' | 'running' | 'validating' | 'completed' | 'failed' | 'cancelled' | null;
   buildJobId: string | null;
   submitStatus: 'pending' | 'reviewing' | 'committing' | 'creating_pr' | 'done' | 'failed' | null;
   prUrl: string | null;
@@ -36,7 +36,7 @@ export function useLatestBuild(projectId: string, sessionId: string | null) {
       // Poll more frequently during active builds or submit
       if (
         data?.status === 'pending' ||
-        data?.status === 'implementing' ||
+        data?.status === 'running' ||
         data?.status === 'validating'
       ) {
         return 1000 * 3; // 3 seconds during active build

@@ -21,9 +21,9 @@ export type FileType = (typeof fileTypeEnum.enumValues)[number];
 // Build status enum (merged with phase for simpler model)
 export const buildStatusEnum = pgEnum('build_status', [
   'pending', // Job waiting to start
-  'implementing', // Processing tickets
+  'running', // Processing tickets
   'validating', // Running lint/typecheck
-  'ready', // Build complete, ready for testing
+  'completed', // Build complete, ready for testing
   'failed', // Job failed
   'cancelled', // Job cancelled
 ]);

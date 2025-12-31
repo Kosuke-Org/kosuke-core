@@ -53,7 +53,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
 
   // Quality check status derived from build status
   const qualityCheckStatus: BuildTask['status'] =
-    buildJob?.status === 'ready'
+    buildJob?.status === 'completed'
       ? 'done'
       : buildJob?.status === 'validating'
         ? 'in_progress'
@@ -70,15 +70,15 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
     status: qualityCheckStatus,
     error: null,
     cost: null,
-    createdAt: '',
-    updatedAt: '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   const tasks = [...rawTasks, qualityCheckTask];
 
   const isActive =
     buildJob?.status === 'pending' ||
-    buildJob?.status === 'implementing' ||
+    buildJob?.status === 'running' ||
     buildJob?.status === 'validating';
 
   // Error state
@@ -249,7 +249,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
               In progress
             </div>
           )}
-          {buildJob?.status === 'ready' && (
+          {buildJob?.status === 'completed' && (
             <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-xs font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
               Ready to test

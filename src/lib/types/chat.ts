@@ -235,7 +235,7 @@ export interface BuildTask {
 export interface BuildJobResponse {
   buildJob: {
     id: string;
-    status: 'pending' | 'implementing' | 'validating' | 'ready' | 'failed' | 'cancelled';
+    status: 'pending' | 'running' | 'validating' | 'completed' | 'failed' | 'cancelled';
     totalCost: number;
     createdAt: string;
     startedAt: string | null;

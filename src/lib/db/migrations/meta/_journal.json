@@ -61,15 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1767038794472,
-      "tag": "0008_right_maginty",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1767187145450,
-      "tag": "0009_pink_grey_gargoyle",
+      "when": 1767193751407,
+      "tag": "0008_lean_tenebrous",
       "breakpoints": true
     }
   ]
