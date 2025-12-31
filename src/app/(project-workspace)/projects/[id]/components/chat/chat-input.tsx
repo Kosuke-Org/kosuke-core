@@ -116,7 +116,7 @@ export default function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isLoading || disabled}
-          className="min-h-[100px] max-h-[200px] resize-none border-0 !bg-transparent px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+          className="min-h-[100px] max-h-[200px] resize-none border-0 !bg-transparent px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm disabled:cursor-text"
           rows={3}
           style={{ height: '100px' }} // Set initial fixed height
           data-gramm="false"

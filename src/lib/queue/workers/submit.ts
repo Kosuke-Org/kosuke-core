@@ -153,9 +153,30 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
                     `[SUBMIT] ℹ️  Commit skipped: ${event.data.details?.reason || 'no changes'} (verified: ${event.data.details?.verified ?? false})`
                   );
                 } else if (event.data.subtype === 'progress') {
-                  console.log(
-                    `[SUBMIT] ℹ️  Commit progress: ${event.data.details?.phase || 'unknown'}`
-                  );
+                  const details = event.data.details as {
+                    phase?: string;
+                    attempt?: number;
+                    maxRetries?: number;
+                    commitCreated?: boolean;
+                    isClean?: boolean;
+                    success?: boolean;
+                  };
+                  if (details?.phase === 'retry') {
+                    console.log(
+                      `[SUBMIT] 🔄 Commit retry ${(details.attempt ?? 1) - 1}/${details.maxRetries ?? 3}: retrying...`
+                    );
+                  } else if (details?.phase === 'validation') {
+                    const statusIcon = details.success
+                      ? '✅'
+                      : details.commitCreated === false
+                        ? '⏳'
+                        : '❌';
+                    console.log(
+                      `[SUBMIT] ${statusIcon} Commit validation (attempt ${details.attempt}/${details.maxRetries}): created=${details.commitCreated ?? 'unknown'}, clean=${details.isClean ?? 'unknown'}`
+                    );
+                  } else {
+                    console.log(`[SUBMIT] ℹ️  Commit progress: ${details?.phase || 'unknown'}`);
+                  }
                 } else if (event.data.subtype === 'tool_call') {
                   const action = event.data.details?.action || 'unknown';
                   const params = event.data.details?.params as Record<string, unknown> | undefined;

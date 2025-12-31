@@ -286,7 +286,7 @@ export default function PreviewPanel({
               <TooltipContent>
                 {!canSubmit
                   ? 'A successful build is required before submitting'
-                  : isSubmitting || hasSubmitted || submitStatus === 'pending'
+                  : isSubmitting || (hasSubmitted && !submitStatus) || submitStatus === 'pending'
                     ? 'Preparing submission...'
                     : submitStatus === 'reviewing'
                       ? 'Reviewing code quality...'
