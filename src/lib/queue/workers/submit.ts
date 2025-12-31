@@ -246,15 +246,23 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
     // Update build job submit status
     await db.update(buildJobs).set({ submitStatus: 'done' }).where(eq(buildJobs.id, buildJobId));
 
-    // Update chat session with PR number (extract from URL: /pull/123)
+    // Update chat session with PR number (extract from URL pathname)
     if (prUrl) {
-      const prNumberMatch = prUrl.match(/\/pull\/(\d+)/);
-      if (prNumberMatch) {
-        const pullRequestNumber = parseInt(prNumberMatch[1], 10);
-        await db
-          .update(chatSessions)
-          .set({ pullRequestNumber })
-          .where(eq(chatSessions.id, chatSessionId));
+      try {
+        const url = new URL(prUrl);
+        const pathSegments = url.pathname.split('/');
+        const pullIndex = pathSegments.indexOf('pull');
+        if (pullIndex !== -1 && pathSegments[pullIndex + 1]) {
+          const pullRequestNumber = parseInt(pathSegments[pullIndex + 1], 10);
+          if (!isNaN(pullRequestNumber)) {
+            await db
+              .update(chatSessions)
+              .set({ pullRequestNumber })
+              .where(eq(chatSessions.id, chatSessionId));
+          }
+        }
+      } catch {
+        console.warn(`[SUBMIT] ⚠️  Failed to parse PR URL: ${prUrl}`);
       }
     }
 
