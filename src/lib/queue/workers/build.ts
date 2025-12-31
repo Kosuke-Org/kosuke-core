@@ -28,8 +28,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     ticketsPath,
     dbUrl,
     githubToken,
-    baseBranch,
-    enableReview,
     enableTest: _enableTest,
     testUrl,
   } = job.data;
@@ -42,12 +40,13 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
   console.log(`[BUILD] 🗄️  Database: ${dbUrl.replace(/:[^:]+@/, ':****@')}`);
   console.log('='.repeat(80) + '\n');
 
-  // Update build job status to running
+  // Update build job status to implementing and save tickets path
   await db
     .update(buildJobs)
     .set({
-      status: 'running',
+      status: 'implementing',
       startedAt: new Date(),
+      ticketsPath,
     })
     .where(eq(buildJobs.id, buildJobId));
 
@@ -62,7 +61,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
 
     console.log(`[BUILD] 🔗 Connecting to sandbox build API...`);
     console.log(`[BUILD]    URL: ${buildUrl}`);
-    console.log(`[BUILD]    Review: ${enableReview ? 'enabled' : 'disabled'}`);
     console.log(`[BUILD]    Test: ${_enableTest ? 'enabled' : 'disabled'}\n`);
 
     const response = await fetch(buildUrl, {
@@ -77,9 +75,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         buildId: buildJobId, // For cancellation tracking
         dbUrl,
         githubToken,
-        baseBranch,
         reset: false,
-        review: enableReview,
         url: testUrl,
         headless: true,
         verbose: false,
@@ -242,9 +238,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                     `[BUILD]    📊 Implementation fixes: ${result.implementationFixCount}`
                   );
                   console.log(`[BUILD]    🔧 Linting fixes: ${result.lintFixCount}`);
-                  if (result.reviewFixCount > 0) {
-                    console.log(`[BUILD]    🔍 Review fixes: ${result.reviewFixCount}`);
-                  }
                   console.log(`[BUILD]    💰 Cost: $${result.cost.toFixed(4)}`);
                 }
                 break;
@@ -266,17 +259,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                   if (event.data.result) {
                     console.log(`[BUILD]    Lint fixes: ${event.data.result.lintFixCount || 0}`);
                     // Track linting cost
-                    if (event.data.result.cost) {
-                      currentTicketCost += event.data.result.cost;
-                    }
-                  }
-                } else if (event.data.phase === 'review') {
-                  console.log(`[BUILD] ℹ️  Review phase: ${event.data.status}`);
-                  if (event.data.result) {
-                    console.log(
-                      `[BUILD]    Review fixes: ${event.data.result.reviewFixCount || 0}`
-                    );
-                    // Track review cost
                     if (event.data.result.cost) {
                       currentTicketCost += event.data.result.cost;
                     }
@@ -452,39 +434,26 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
               // Build-level lint phase (runs once after all tickets)
               case 'lint_phase_started':
                 console.log('\n' + '-'.repeat(60));
-                console.log('[BUILD] 🔧 Phase: LINTING (started)');
+                console.log('[BUILD] 🔧 Phase: VALIDATING (started)');
                 console.log('-'.repeat(60) + '\n');
+
+                // Update status to 'validating'
+                await db
+                  .update(buildJobs)
+                  .set({ status: 'validating' })
+                  .where(eq(buildJobs.id, buildJobId));
                 break;
 
               case 'lint_phase_completed':
                 console.log(
-                  `[BUILD] ✅ Linting completed (${event.data.fixCount || 0} fixes applied)\n`
+                  `[BUILD] ✅ Validation completed (${event.data.fixCount || 0} fixes applied)\n`
                 );
-                break;
 
-              // Build-level review phase (runs once after linting)
-              case 'review_phase_started':
-                console.log('\n' + '-'.repeat(60));
-                console.log('[BUILD] 🔍 Phase: REVIEW (started)');
-                console.log('-'.repeat(60) + '\n');
-                break;
-
-              case 'review_phase_completed':
-                console.log(
-                  `[BUILD] ✅ Review completed (${event.data.fixesApplied || 0} fixes applied)\n`
-                );
-                break;
-
-              // Review events (tool calls and messages during review)
-              case 'review_tool_call':
-                console.log(`[BUILD] 🔧 Review tool: ${event.data.action}`);
-                break;
-
-              case 'review_message':
-                if (event.data.text && event.data.text.length > 0) {
-                  const text = event.data.text.substring(0, 150);
-                  console.log(`[BUILD] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
-                }
+                // Update status to 'ready'
+                await db
+                  .update(buildJobs)
+                  .set({ status: 'ready' })
+                  .where(eq(buildJobs.id, buildJobId));
                 break;
 
               case 'done':
@@ -537,8 +506,8 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     const completedCount = allTasks.filter(t => t.status === 'done').length;
     const failedCount = allTasks.filter(t => t.status === 'error').length;
 
-    // Determine final status: failed if any tasks failed, otherwise completed
-    const finalStatus = failedCount > 0 ? 'failed' : 'completed';
+    // Determine final status: failed if any tasks failed, otherwise ready
+    const finalStatus = failedCount > 0 ? 'failed' : 'ready';
 
     // Update build job to final status
     await db

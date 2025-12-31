@@ -49,9 +49,37 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
 
   const buildJob = data?.buildJob;
   const progress = data?.progress;
-  const tasks = data?.tasks || [];
+  const rawTasks = data?.tasks || [];
 
-  const isActive = buildJob?.status === 'pending' || buildJob?.status === 'running';
+  // Quality check status derived from build status
+  const qualityCheckStatus: BuildTask['status'] =
+    buildJob?.status === 'ready'
+      ? 'done'
+      : buildJob?.status === 'validating'
+        ? 'in_progress'
+        : 'todo';
+
+  const qualityCheckTask: BuildTask = {
+    id: 'quality-check',
+    externalId: 'quality-check',
+    title: 'Quality check',
+    description: '',
+    type: null,
+    category: null,
+    estimatedEffort: 0,
+    status: qualityCheckStatus,
+    error: null,
+    cost: null,
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  const tasks = [...rawTasks, qualityCheckTask];
+
+  const isActive =
+    buildJob?.status === 'pending' ||
+    buildJob?.status === 'implementing' ||
+    buildJob?.status === 'validating';
 
   // Error state
   if (error) {
@@ -95,11 +123,6 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
     );
   }
 
-  const progressPercentage =
-    progress.totalTasks > 0
-      ? Math.round(((progress.completedTasks + progress.failedTasks) / progress.totalTasks) * 100)
-      : 0;
-
   // Get task status icon
   const getTaskIcon = (task: BuildTask) => {
     if (task.status === 'done') {
@@ -128,27 +151,10 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
   const hasFailed = buildJob.status === 'failed';
   const isCancelled = buildJob.status === 'cancelled';
 
-  // Get status icon
-  const getStatusIcon = () => {
-    if (isActive) {
-      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
-    }
-    if (isCancelled) {
-      return <StopCircle className="h-5 w-5 text-destructive" />;
-    }
-    if (hasFailed) {
-      return <CircleX className="h-5 w-5 text-red-500 fill-red-500/10" />;
-    }
-    return <CircleCheck className="h-5 w-5 text-green-500 fill-green-500/10" />;
-  };
-
-  // Get status text
-  const getStatusText = () => {
-    if (isActive) return 'In progress';
-    if (isCancelled) return 'Cancelled';
-    if (hasFailed) return 'Failed';
-    return 'Completed';
-  };
+  // Calculate progress from tasks array (includes quality check)
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(t => t.status === 'done' || t.status === 'error').length;
+  const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
     <div className={cn('w-full', className)}>
@@ -157,7 +163,6 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="shrink-0">{getStatusIcon()}</div>
             <span className="text-sm font-semibold text-foreground">Build</span>
             {isActive && (
               <AlertDialog>
@@ -237,24 +242,46 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
               </AlertDialog>
             )}
           </div>
-          <span className="text-xs font-medium text-muted-foreground">{getStatusText()}</span>
+          {/* Status pills */}
+          {isActive && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              In progress
+            </div>
+          )}
+          {buildJob?.status === 'ready' && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              Ready to test
+            </div>
+          )}
+          {buildJob?.status === 'failed' && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+              Failed
+            </div>
+          )}
+          {buildJob?.status === 'cancelled' && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+              Cancelled
+            </div>
+          )}
         </div>
 
-        {/* Progress bar and description - only while active */}
-        {isActive && (
-          <div className="bg-muted/60 border border-border rounded-md p-3 flex items-center gap-3">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {progress.completedTasks + progress.failedTasks} / {progress.totalTasks} tasks
-            </span>
-            <div className="flex-1 h-2 bg-background rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
-            <span className="text-xs text-muted-foreground">{progressPercentage}%</span>
+        {/* Progress bar and description - always visible */}
+        <div className="bg-muted/60 border border-border rounded-md p-3 flex items-center gap-3">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {completedTasks} / {totalTasks} tasks
+          </span>
+          <div className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${progressPercentage}%` }}
+            />
           </div>
-        )}
+          <span className="text-xs text-muted-foreground">{progressPercentage}%</span>
+        </div>
 
         {/* Task list */}
         {tasks.length > 0 && (

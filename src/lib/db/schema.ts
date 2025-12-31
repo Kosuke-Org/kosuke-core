@@ -18,15 +18,27 @@ import {
 export const fileTypeEnum = pgEnum('file_type', ['image', 'document']);
 export type FileType = (typeof fileTypeEnum.enumValues)[number];
 
-// Build status enum
+// Build status enum (merged with phase for simpler model)
 export const buildStatusEnum = pgEnum('build_status', [
-  'pending',
-  'running',
-  'completed',
-  'failed',
-  'cancelled',
+  'pending', // Job waiting to start
+  'implementing', // Processing tickets
+  'validating', // Running lint/typecheck
+  'ready', // Build complete, ready for testing
+  'failed', // Job failed
+  'cancelled', // Job cancelled
 ]);
 export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
+
+// Submit status enum (for post-build review/commit/PR workflow)
+export const submitStatusEnum = pgEnum('submit_status', [
+  'pending',
+  'reviewing',
+  'committing',
+  'creating_pr',
+  'done',
+  'failed',
+]);
+export type SubmitStatus = (typeof submitStatusEnum.enumValues)[number];
 
 // Task status enum
 export const taskStatusEnum = pgEnum('task_status', [
@@ -239,8 +251,14 @@ export const buildJobs = pgTable(
     // Git commit SHA before build starts (for revert on cancel)
     startCommit: varchar('start_commit', { length: 40 }),
 
-    // Status
+    // Path to tickets.json file (for submit review context)
+    ticketsPath: varchar('tickets_path', { length: 255 }),
+
+    // Status (includes phase: pending → implementing → validating → ready)
     status: buildStatusEnum('status').notNull().default('pending'),
+
+    // Submit workflow status (review → commit → PR)
+    submitStatus: submitStatusEnum('submit_status'),
 
     // Cost
     totalCost: real('total_cost').default(0),

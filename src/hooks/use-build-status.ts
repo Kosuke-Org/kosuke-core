@@ -27,7 +27,7 @@ export function useBuildStatus({ projectId, sessionId, buildJobId }: UseBuildSta
       const buildJob = query.state.data?.buildJob;
       // Stop polling only when we have data AND build is done
       if (
-        buildJob?.status === 'completed' ||
+        buildJob?.status === 'ready' ||
         buildJob?.status === 'failed' ||
         buildJob?.status === 'cancelled'
       ) {

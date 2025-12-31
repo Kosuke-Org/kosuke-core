@@ -2,8 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 
 interface LatestBuildResponse {
   hasBuild: boolean;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | null;
+  status: 'pending' | 'implementing' | 'validating' | 'ready' | 'failed' | 'cancelled' | null;
   buildJobId: string | null;
+  submitStatus: 'pending' | 'reviewing' | 'committing' | 'creating_pr' | 'done' | 'failed' | null;
+  prUrl: string | null;
 }
 
 /**
@@ -14,7 +16,7 @@ export function useLatestBuild(projectId: string, sessionId: string | null) {
     queryKey: ['latest-build', projectId, sessionId],
     queryFn: async (): Promise<LatestBuildResponse> => {
       if (!sessionId) {
-        return { hasBuild: false, status: null, buildJobId: null };
+        return { hasBuild: false, status: null, buildJobId: null, submitStatus: null, prUrl: null };
       }
 
       const response = await fetch(
@@ -30,10 +32,18 @@ export function useLatestBuild(projectId: string, sessionId: string | null) {
     enabled: Boolean(projectId && sessionId),
     staleTime: 1000 * 5, // 5 seconds
     refetchInterval: query => {
-      const status = query.state.data?.status;
-      // Poll more frequently during active builds
-      if (status === 'pending' || status === 'running') {
+      const data = query.state.data;
+      // Poll more frequently during active builds or submit
+      if (
+        data?.status === 'pending' ||
+        data?.status === 'implementing' ||
+        data?.status === 'validating'
+      ) {
         return 1000 * 3; // 3 seconds during active build
+      }
+      // Poll during submit process
+      if (data?.submitStatus && data.submitStatus !== 'done' && data.submitStatus !== 'failed') {
+        return 1000 * 2; // 2 seconds during submit
       }
       return 1000 * 10; // 10 seconds otherwise
     },
