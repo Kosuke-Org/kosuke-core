@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
 import { eq } from 'drizzle-orm';
@@ -64,21 +64,8 @@ export async function GET(
     // Sandbox not running - need to create/start it
     console.log('Sandbox is not running, starting...');
 
-    // Get GitHub token - use project owner's token for imported projects
-    // This allows invited members to work without their own GitHub connection
-    const tokenUserId = project.isImported ? project.createdBy : userId;
-    if (!tokenUserId) {
-      return ApiErrorHandler.badRequest('Project owner not found');
-    }
-    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
-
-    if (!githubToken) {
-      return ApiErrorHandler.badRequest(
-        project.isImported
-          ? 'Project owner needs to reconnect their GitHub account'
-          : 'GitHub token not available'
-      );
-    }
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     // Determine mode: main session uses production, others use development
     const isMainSession = session.isDefault;

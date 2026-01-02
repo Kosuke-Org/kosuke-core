@@ -12,7 +12,7 @@ import {
   messageAttachments,
   tasks,
 } from '@/lib/db/schema';
-import { getGitHubToken, getOctokit } from '@/lib/github/client';
+import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
@@ -111,7 +111,7 @@ async function processFormDataRequest(
  * Close a GitHub PR
  */
 async function closePullRequest(
-  github: Awaited<ReturnType<typeof getOctokit>>,
+  github: ReturnType<typeof getProjectOctokit>,
   owner: string,
   repo: string,
   pullNumber: number
@@ -135,7 +135,7 @@ async function closePullRequest(
  * Reopen a GitHub PR
  */
 async function reopenPullRequest(
-  github: Awaited<ReturnType<typeof getOctokit>>,
+  github: ReturnType<typeof getProjectOctokit>,
   owner: string,
   repo: string,
   pullNumber: number
@@ -204,12 +204,8 @@ export async function PUT(
       session.pullRequestNumber
     ) {
       try {
-        // Use project owner's token for imported projects
-        const tokenUserId = project.isImported ? project.createdBy : userId;
-        if (!tokenUserId) {
-          console.warn('Cannot update PR: project owner not found');
-        }
-        const github = await getOctokit(project.isImported, tokenUserId || userId);
+        // Get GitHub client using project's App installation
+        const github = getProjectOctokit(project);
 
         if (updateData.status === 'archived' && session.status === 'active') {
           // Archiving: close the PR
@@ -325,12 +321,8 @@ export async function DELETE(
     // Step 1: Close the associated PR if one exists
     if (session.pullRequestNumber && project.githubOwner && project.githubRepoName) {
       try {
-        // Use project owner's token for imported projects
-        const tokenUserId = project.isImported ? project.createdBy : userId;
-        if (!tokenUserId) {
-          console.warn('Cannot close PR: project owner not found');
-        }
-        const github = await getOctokit(project.isImported, tokenUserId || userId);
+        // Get GitHub client using project's App installation
+        const github = getProjectOctokit(project);
         await closePullRequest(
           github,
           project.githubOwner,
@@ -537,30 +529,8 @@ export async function POST(
 
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
 
-    // Get GitHub token based on project ownership
-    // Use project owner's token for imported projects so invited members can collaborate
-    const tokenUserId = project.isImported ? project.createdBy : userId;
-    if (!tokenUserId) {
-      return new Response(JSON.stringify({ error: 'Project owner not found' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
-
-    if (!githubToken) {
-      return new Response(
-        JSON.stringify({
-          error: project.isImported
-            ? 'Project owner needs to reconnect their GitHub account.'
-            : 'GitHub token not available. Please connect your GitHub account.',
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     console.log(`🔗 GitHub integration enabled for session: ${chatSession.id}`);
 

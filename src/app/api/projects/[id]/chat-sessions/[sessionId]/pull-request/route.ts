@@ -5,7 +5,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
-import { getOctokit } from '@/lib/github/client';
+import { getProjectOctokit } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { desc, eq } from 'drizzle-orm';
 
@@ -82,13 +82,8 @@ export async function POST(
       `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
 
     try {
-      // Get GitHub client based on project ownership
-      // Use project owner's token for imported projects so invited members can create PRs
-      const tokenUserId = project.isImported ? project.createdBy : userId;
-      if (!tokenUserId) {
-        return ApiErrorHandler.badRequest('Project owner not found');
-      }
-      const github = await getOctokit(project.isImported, tokenUserId);
+      // Get GitHub client using project's App installation
+      const github = getProjectOctokit(project);
 
       // Check if source branch exists
       try {

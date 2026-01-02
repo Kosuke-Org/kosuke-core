@@ -56,6 +56,7 @@ export const projects = pgTable('projects', {
   lastGithubSync: timestamp('last_github_sync'),
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
   githubWebhookId: integer('github_webhook_id'), // GitHub webhook ID for cleanup on project deletion
+  githubInstallationId: integer('github_installation_id'), // GitHub App installation ID for this repo (null = use env var for Kosuke-Org)
 });
 
 export const chatSessions = pgTable(
@@ -395,6 +396,23 @@ export const organizationApiKeys = pgTable('organization_api_keys', {
 
 export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
 export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
+
+// User GitHub connections - stores GitHub App OAuth tokens per user
+export const userGithubConnections = pgTable('user_github_connections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clerkUserId: text('clerk_user_id').notNull().unique(), // Clerk user ID
+  githubAccessToken: text('github_access_token').notNull(), // GitHub App user access token
+  githubRefreshToken: text('github_refresh_token'), // Refresh token (if available)
+  githubTokenExpiresAt: timestamp('github_token_expires_at'), // Token expiration
+  githubUserId: integer('github_user_id').notNull(), // GitHub user ID
+  githubUsername: varchar('github_username', { length: 255 }).notNull(), // GitHub username
+  githubAvatarUrl: text('github_avatar_url'), // GitHub avatar URL
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type UserGithubConnection = typeof userGithubConnections.$inferSelect;
+export type NewUserGithubConnection = typeof userGithubConnections.$inferInsert;
 
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {

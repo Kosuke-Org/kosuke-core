@@ -2,7 +2,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatMessages } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { SandboxClient } from '@/lib/sandbox/client';
 import type { RevertToMessageRequest } from '@/lib/types/chat';
@@ -95,21 +95,8 @@ export async function POST(
       `🔄 Reverting project ${projectId} session ${session.branchName} to commit ${message.commitSha.substring(0, 8)}`
     );
 
-    // Get GitHub token based on project ownership (required for pushing to remote)
-    // Use project owner's token for imported projects so invited members can collaborate
-    const tokenUserId = project.isImported ? project.createdBy : userId;
-    if (!tokenUserId) {
-      return ApiErrorHandler.badRequest('Project owner not found');
-    }
-    const githubToken = await getGitHubToken(project.isImported, tokenUserId);
-
-    if (!githubToken) {
-      return ApiErrorHandler.badRequest(
-        project.isImported
-          ? 'Project owner needs to reconnect their GitHub account'
-          : 'GitHub not connected'
-      );
-    }
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     // Perform git revert operation via sandbox - use session.id (UUID) for sandbox identification
     const sandboxClient = new SandboxClient(session.id);
