@@ -50,6 +50,20 @@
       "when": 1765982603961,
       "tag": "0006_panoramic_iron_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1766588118611,
+      "tag": "0007_light_celestials",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767038794472,
+      "tag": "0008_right_maginty",
+      "breakpoints": true
     }
   ]
 }

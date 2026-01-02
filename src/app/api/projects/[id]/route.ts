@@ -134,6 +134,19 @@ export async function DELETE(
       // No body provided; keep defaults
     }
 
+    // Step 0: Cancel all active builds for this project
+    try {
+      console.log(`Cancelling all active builds for project ${projectId}`);
+      const { cancelBuild } = await import('@/lib/queue');
+      const cancelResult = await cancelBuild({ projectId });
+      if (cancelResult.cancelled > 0) {
+        console.log(`Cancelled ${cancelResult.cancelled} active build(s) for project ${projectId}`);
+      }
+    } catch (cancelError) {
+      console.error(`Error cancelling builds for project ${projectId}:`, cancelError);
+      // Continue with deletion even if cancellation fails
+    }
+
     // Step 1: Destroy all sandbox containers for this project
     try {
       console.log(`Destroying all sandboxes for project ${projectId}`);

@@ -34,7 +34,6 @@ const knipConfig: KnipConfig = {
         'ts-node',
         'react-hook-form',
         // Dependencies used in configuration files or by frameworks
-        'recharts',
         'sonner',
         'eslint-config-next',
         'eslint-config-prettier',

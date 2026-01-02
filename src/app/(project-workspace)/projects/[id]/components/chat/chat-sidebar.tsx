@@ -1,6 +1,8 @@
 'use client';
 
-import { Filter, Plus } from 'lucide-react';
+import { Filter, FilterX, Plus } from 'lucide-react';
+
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { useChatSidebar } from '@/hooks/use-chat-sidebar';
 
@@ -9,7 +11,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -81,6 +82,10 @@ export default function ChatSidebar({
     }
   };
 
+  const handleShowAll = () => {
+    setStatusFilter(['active', 'archived', 'completed']);
+  };
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header with New Chat button and Filter */}
@@ -102,8 +107,29 @@ export default function ChatSidebar({
                 <Filter className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Filter by status</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-40">
+              <div className="flex items-center justify-between px-2 py-1.5">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Status
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleShowAll}
+                      disabled={statusFilter.length === 3}
+                      className={cn(
+                        'text-muted-foreground',
+                        statusFilter.length < 3
+                          ? 'hover:text-foreground'
+                          : 'opacity-30 cursor-default'
+                      )}
+                    >
+                      <FilterX className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Clear</TooltipContent>
+                </Tooltip>
+              </div>
               <DropdownMenuSeparator />
               {STATUS_OPTIONS.map(option => (
                 <DropdownMenuCheckboxItem
@@ -121,33 +147,35 @@ export default function ChatSidebar({
       </div>
 
       {/* Chat Sessions List */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-2">
-          {filteredSessions.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-8">
-              No sessions match the selected filters
-            </div>
-          ) : (
-            filteredSessions.map(session => (
-              <ChatSessionItem
-                key={session.id}
-                session={session}
-                isActive={activeChatSessionId === session.id}
-                onClick={() => onChatSessionChange(session.id)}
-                onRename={setEditingSession}
-                onDuplicate={handleDuplicateSession}
-                onViewBranch={handleViewGitHubBranch}
-                onToggleArchive={s =>
-                  handleUpdateSession(s, {
-                    status: s.status === 'archived' ? 'active' : 'archived',
-                  })
-                }
-                onDelete={handleDeleteSession}
-              />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="p-4 space-y-2">
+            {filteredSessions.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                No sessions match the selected filters
+              </div>
+            ) : (
+              filteredSessions.map(session => (
+                <ChatSessionItem
+                  key={session.id}
+                  session={session}
+                  isActive={activeChatSessionId === session.id}
+                  onClick={() => onChatSessionChange(session.id)}
+                  onRename={setEditingSession}
+                  onDuplicate={handleDuplicateSession}
+                  onViewBranch={handleViewGitHubBranch}
+                  onToggleArchive={s =>
+                    handleUpdateSession(s, {
+                      status: s.status === 'archived' ? 'active' : 'archived',
+                    })
+                  }
+                  onDelete={handleDeleteSession}
+                />
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       <NewChatDialog
         open={isNewChatModalOpen}

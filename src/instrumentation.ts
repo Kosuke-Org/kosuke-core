@@ -54,6 +54,9 @@ function validateEnvironmentVariables() {
     // Sessions
     { key: 'SESSION_BRANCH_PREFIX', description: 'Git branch prefix for sessions' },
 
+    // Security
+    { key: 'ENCRYPTION_KEY', description: 'Encryption key for API key storage (min 32 chars)' },
+
     // Domain Configuration
     { key: 'TRAEFIK_ENABLED', description: 'Enable Traefik reverse proxy' },
 

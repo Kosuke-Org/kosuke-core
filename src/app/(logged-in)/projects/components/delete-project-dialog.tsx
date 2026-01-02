@@ -198,6 +198,11 @@ export default function DeleteProjectDialog({
                           placeholder={project.name}
                           value={repoConfirmationText}
                           onChange={e => setRepoConfirmationText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && isRepoConfirmationValid) {
+                              handleDelete();
+                            }
+                          }}
                           className="text-sm"
                           autoFocus
                         />

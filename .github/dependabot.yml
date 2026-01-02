@@ -29,6 +29,12 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+    # Ignore updates for packages with breaking API changes
+    ignore:
+      - dependency-name: 'react-resizable-panels'
+        versions: ['>=4.0.0']
+      - dependency-name: 'next'
+        versions: ['>=16.0.0']
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: 'github-actions'

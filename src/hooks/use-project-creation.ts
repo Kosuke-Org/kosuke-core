@@ -3,7 +3,6 @@ import type { Project } from '@/lib/db/schema';
 import type { ApiSuccess, ChatSession } from '@/lib/types';
 import type { CreateProjectData, ProjectCreationStep } from '@/lib/types/project';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 interface CreateProjectResponse {
@@ -16,7 +15,6 @@ export function useProjectCreation() {
     step: 'project-details',
   });
   const queryClient = useQueryClient();
-  const router = useRouter();
   const { toast } = useToast();
 
   const createProjectMutation = useMutation({
@@ -48,11 +46,6 @@ export function useProjectCreation() {
         title: 'Project Created',
         description: `Successfully created ${project.name} with GitHub integration.`,
       });
-
-      // Navigate after a brief delay to show success state
-      setTimeout(() => {
-        router.replace(`/projects/${project.id}`);
-      }, 200);
     },
     onError: error => {
       setCurrentStep({

@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
-import { useQueryClient } from '@tanstack/react-query';
 
 // Import types and hooks
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
@@ -25,9 +24,10 @@ export default function ChatInterface({
   projectId,
   className,
   activeChatSessionId,
-  currentBranch,
   sessionId,
   model,
+  isBuildInProgress = false,
+  isBuildFailed = false,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -123,7 +123,7 @@ export default function ChatInterface({
   // Keep streaming UI visible while waiting for webhook-saved message
   const showStreamingAssistant = Boolean(
     (isStreaming || expectingWebhookUpdate) &&
-      (!streamingAssistantMessageId || !hasSavedStreamedMessage)
+    (!streamingAssistantMessageId || !hasSavedStreamedMessage)
   );
 
   // Handle sending messages
@@ -164,21 +164,6 @@ export default function ChatInterface({
     return true;
   });
 
-  // Check if any build is currently active by checking query cache
-  const queryClient = useQueryClient();
-  const hasBuildInProgress = useMemo(() => {
-    const buildMessages = messages.filter(msg => msg.metadata?.buildJobId);
-    return buildMessages.some(msg => {
-      const buildJobId = String(msg.metadata?.buildJobId);
-      const cachedData = queryClient.getQueryData<{
-        buildJob: { status: string };
-      }>(['build-job', buildJobId]);
-      return (
-        cachedData?.buildJob?.status === 'pending' || cachedData?.buildJob?.status === 'running'
-      );
-    });
-  }, [messages, queryClient]);
-
   // Enhance messages with showAvatar property
   const enhancedMessages = filteredMessages.map((message, index) => {
     let showAvatar = true;
@@ -190,6 +175,12 @@ export default function ChatInterface({
       }
     }
 
+    // Always show avatar for build messages (they should appear as separate messages)
+    const hasBuildJobId = message.metadata && 'buildJobId' in message.metadata;
+    if (hasBuildJobId) {
+      showAvatar = true;
+    }
+
     return {
       ...message,
       showAvatar,
@@ -199,11 +190,7 @@ export default function ChatInterface({
 
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
-      <ModelBanner
-        currentBranch={currentBranch}
-        chatSessionId={activeChatSessionId}
-        model={model}
-      />
+      <ModelBanner model={model} />
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
@@ -353,8 +340,14 @@ export default function ChatInterface({
           isLoading={isSending || isRegenerating}
           isStreaming={isStreaming}
           onStop={cancelStream}
-          placeholder={hasBuildInProgress ? 'Build in progress...' : 'Type your message...'}
-          disabled={hasBuildInProgress}
+          placeholder={
+            isBuildFailed
+              ? 'Build stopped. Use the restart button above to try again.'
+              : isBuildInProgress
+                ? 'Build in progress...'
+                : 'Type your message...'
+          }
+          disabled={isBuildInProgress || isBuildFailed}
           data-testid="chat-input"
           className="chat-input"
         />

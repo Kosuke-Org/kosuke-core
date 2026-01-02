@@ -28,11 +28,18 @@ export const buildStatusEnum = pgEnum('build_status', [
   'running',
   'completed',
   'failed',
+  'cancelled',
 ]);
 export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
 
 // Task status enum
-export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done', 'error']);
+export const taskStatusEnum = pgEnum('task_status', [
+  'todo',
+  'in_progress',
+  'done',
+  'error',
+  'cancelled',
+]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
 // ------------------------------------------------------------
@@ -152,6 +159,9 @@ export const buildJobs = pgTable(
     // Claude planning session that produced this build (for audit trail)
     claudeSessionId: varchar('claude_session_id', { length: 100 }),
 
+    // Git commit SHA before build starts (for revert on cancel)
+    startCommit: varchar('start_commit', { length: 40 }),
+
     // Status
     status: buildStatusEnum('status').notNull().default('pending'),
 
@@ -162,9 +172,6 @@ export const buildJobs = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     startedAt: timestamp('started_at'),
     completedAt: timestamp('completed_at'),
-
-    // BullMQ reference
-    bullJobId: varchar('bull_job_id', { length: 100 }),
   },
   table => [
     index('idx_build_jobs_session').on(table.chatSessionId),
@@ -258,6 +265,15 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   }),
 }));
 
+// Organization API keys - for BYOK (Bring Your Own Key) functionality
+export const organizationApiKeys = pgTable('organization_api_keys', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orgId: text('org_id').notNull().unique(), // Clerk organization ID
+  anthropicApiKey: text('anthropic_api_key'), // Encrypted with AES-256
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],
@@ -295,3 +311,5 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
+export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;

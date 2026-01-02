@@ -21,6 +21,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
 import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
+import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
 import { useUser as useUserHook } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
@@ -132,14 +133,22 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Pull request functionality
   const createPullRequestMutation = useCreatePullRequest(projectId);
 
+  // Chat session state management - declare activeChatSessionId first
+  const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
+
+  // Build status for PR creation and chat input
+  const { data: latestBuildData } = useLatestBuild(projectId, activeChatSessionId);
+  const canCreatePR = latestBuildData?.status === 'completed';
+  const isBuildInProgress =
+    latestBuildData?.status === 'pending' || latestBuildData?.status === 'running';
+  const isBuildFailed =
+    latestBuildData?.status === 'failed' || latestBuildData?.status === 'cancelled';
+
   // UI state management
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
-
-  // Chat session state management
-  const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(!sessionFromUrl); // Show sidebar unless we have a session in URL
+  const [showSidebar, setShowSidebar] = useState(!sessionFromUrl);
 
   // Auto-select session based on URL or default session when sessions are loaded
   useEffect(() => {
@@ -349,7 +358,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
                 {showSidebar ? (
-                  <div className="w-full">
+                  <div className="w-full h-full">
                     <ChatSidebar
                       projectId={projectId}
                       activeChatSessionId={activeChatSessionId}
@@ -357,13 +366,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                   </div>
                 ) : (
-                  <div className="w-full flex flex-col">
+                  <div className="w-full h-full flex flex-col">
                     <ChatInterface
                       projectId={projectId}
                       activeChatSessionId={activeChatSessionId}
-                      currentBranch={currentBranch}
                       sessionId={sessionId}
                       model={project?.model}
+                      isBuildInProgress={isBuildInProgress}
+                      isBuildFailed={isBuildFailed}
                     />
                   </div>
                 )}
@@ -428,6 +438,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 onToggleSidebar={toggleChatCollapsed}
                 showCreatePR={!showSidebar && Boolean(activeChatSessionId)}
                 onCreatePullRequest={handleCreatePullRequest}
+                canCreatePR={canCreatePR}
+                isCreatingPR={createPullRequestMutation.isPending}
+                prUrl={createPullRequestMutation.data?.pull_request_url}
               />
             </div>
           </div>

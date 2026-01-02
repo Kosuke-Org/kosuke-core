@@ -1,10 +1,26 @@
 'use client';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { BuildJobResponse, BuildTask } from '@/lib/types/chat';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useBuildStatus } from '@/hooks/use-build-status';
+import { useCancelBuild } from '@/hooks/use-cancel-build';
+import { useLatestBuild } from '@/hooks/use-latest-build';
+import { useRestartBuild } from '@/hooks/use-restart-build';
+import type { BuildTask } from '@/lib/types/chat';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
-import { Circle, CircleCheck, CircleX, Loader2 } from 'lucide-react';
+import { Circle, CircleCheck, CircleX, Loader2, RotateCcw, Square, StopCircle } from 'lucide-react';
 
 interface BuildMessageProps {
   buildJobId: string;
@@ -19,29 +35,17 @@ interface BuildMessageProps {
  */
 export function BuildMessage({ buildJobId, projectId, sessionId, className }: BuildMessageProps) {
   // Fetch build status with polling while active
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['build-job', buildJobId],
-    queryFn: async (): Promise<BuildJobResponse> => {
-      const response = await fetch(
-        `/api/projects/${projectId}/chat-sessions/${sessionId}/build-status/${buildJobId}`
-      );
-      if (!response.ok) {
-        throw new Error('Failed to fetch build status');
-      }
-      return response.json();
-    },
-    // Poll every 5 seconds while build is active
-    refetchInterval: query => {
-      const buildJob = query.state.data?.buildJob;
-      // Stop polling only when we have data AND build is done
-      if (buildJob?.status === 'completed' || buildJob?.status === 'failed') {
-        return false;
-      }
-      // Keep polling: no data yet, error recovery, or build in progress
-      return 5000;
-    },
-    staleTime: 1000,
-  });
+  const { data, isLoading, error } = useBuildStatus({ projectId, sessionId, buildJobId });
+
+  // Cancel build mutation
+  const cancelMutation = useCancelBuild({ projectId, sessionId, buildJobId });
+
+  // Restart build mutation
+  const restartMutation = useRestartBuild({ projectId, sessionId, buildJobId });
+
+  // Check if this is the latest build (only show restart for latest failed build)
+  const { data: latestBuildData } = useLatestBuild(projectId, sessionId);
+  const isLatestBuild = latestBuildData?.buildJobId === buildJobId;
 
   const buildJob = data?.buildJob;
   const progress = data?.progress;
@@ -104,6 +108,9 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
     if (task.status === 'error') {
       return <CircleX className="h-4 w-4 text-red-500 fill-red-500/10 shrink-0" />;
     }
+    if (task.status === 'cancelled') {
+      return <StopCircle className="h-4 w-4 text-muted-foreground shrink-0" />;
+    }
     if (task.status === 'in_progress') {
       // Pulsing blue circle for running
       return (
@@ -117,8 +124,31 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
     return <Circle className="h-4 w-4 text-muted-foreground/50 shrink-0" />;
   };
 
-  // Build status is already set to 'failed' when any tasks fail
+  // Build status states
   const hasFailed = buildJob.status === 'failed';
+  const isCancelled = buildJob.status === 'cancelled';
+
+  // Get status icon
+  const getStatusIcon = () => {
+    if (isActive) {
+      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+    }
+    if (isCancelled) {
+      return <StopCircle className="h-5 w-5 text-destructive" />;
+    }
+    if (hasFailed) {
+      return <CircleX className="h-5 w-5 text-red-500 fill-red-500/10" />;
+    }
+    return <CircleCheck className="h-5 w-5 text-green-500 fill-green-500/10" />;
+  };
+
+  // Get status text
+  const getStatusText = () => {
+    if (isActive) return 'In progress';
+    if (isCancelled) return 'Cancelled';
+    if (hasFailed) return 'Failed';
+    return 'Completed';
+  };
 
   return (
     <div className={cn('w-full', className)}>
@@ -127,20 +157,87 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="shrink-0">
-              {isActive ? (
-                <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
-              ) : hasFailed ? (
-                <CircleX className="h-5 w-5 text-red-500 fill-red-500/10" />
-              ) : (
-                <CircleCheck className="h-5 w-5 text-green-500 fill-green-500/10" />
-              )}
-            </div>
+            <div className="shrink-0">{getStatusIcon()}</div>
             <span className="text-sm font-semibold text-foreground">Build</span>
+            {isActive && (
+              <AlertDialog>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        disabled={cancelMutation.isPending}
+                      >
+                        {cancelMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Square className="h-3.5 w-3.5 fill-current" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Stop build</TooltipContent>
+                </Tooltip>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Stop build?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will cancel the current build. Any progress will be lost.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Continue</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => cancelMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Stop
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {(hasFailed || isCancelled) && isLatestBuild && (
+              <AlertDialog>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                        disabled={restartMutation.isPending}
+                      >
+                        {restartMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Restart build</TooltipContent>
+                </Tooltip>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restart build?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will revert all changes and restart the build from scratch.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => restartMutation.mutate()}>
+                      Restart
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
-          <span className="text-xs font-medium text-muted-foreground">
-            {isActive ? 'In progress' : hasFailed ? 'Failed' : 'Completed'}
-          </span>
+          <span className="text-xs font-medium text-muted-foreground">{getStatusText()}</span>
         </div>
 
         {/* Progress bar and description - only while active */}
@@ -170,6 +267,7 @@ export function BuildMessage({ buildJobId, projectId, sessionId, className }: Bu
                     'truncate',
                     task.status === 'done' && 'text-muted-foreground line-through',
                     task.status === 'error' && 'text-red-500',
+                    task.status === 'cancelled' && 'text-muted-foreground',
                     task.status === 'in_progress' && 'text-blue-500 font-medium'
                   )}
                 >

@@ -114,9 +114,10 @@ export interface ChatInterfaceProps {
   projectId: string;
   className?: string;
   activeChatSessionId?: string | null;
-  currentBranch?: string;
   sessionId?: string; // Session ID for fetching session-specific messages
   model?: string; // AI model name from server config
+  isBuildInProgress?: boolean; // Whether a build is currently in progress
+  isBuildFailed?: boolean; // Whether the build has failed or been cancelled
 }
 
 // Content Block Types (for streaming UI state)
@@ -223,7 +224,7 @@ export interface BuildTask {
   type: string | null;
   category: string | null;
   estimatedEffort: number;
-  status: 'todo' | 'in_progress' | 'done' | 'error';
+  status: 'todo' | 'in_progress' | 'done' | 'error' | 'cancelled';
   error: string | null;
   cost: number | null;
   createdAt: string;
@@ -233,12 +234,11 @@ export interface BuildTask {
 export interface BuildJobResponse {
   buildJob: {
     id: string;
-    status: 'pending' | 'running' | 'completed' | 'failed';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
     totalCost: number;
     createdAt: string;
     startedAt: string | null;
     completedAt: string | null;
-    bullJobId: string | null;
   };
   progress: {
     totalTasks: number;

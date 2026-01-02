@@ -110,6 +110,39 @@ export function createQueueEvents(name: string) {
   });
 }
 
+// ============================================================
+// Build Cancellation Signal (Redis-based, cross-process)
+// ============================================================
+
+const CANCEL_KEY_PREFIX = 'build:cancel:';
+const CANCEL_KEY_TTL = 3600; // 1 hour
+
+/**
+ * Signal that a build should be cancelled (set Redis key)
+ */
+export async function signalBuildCancel(buildJobId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.set(`${CANCEL_KEY_PREFIX}${buildJobId}`, '1', 'EX', CANCEL_KEY_TTL);
+  console.log(`[CANCEL] 📡 Cancel signal set for build ${buildJobId}`);
+}
+
+/**
+ * Check if a build has been cancelled (check Redis key)
+ */
+export async function isBuildCancelled(buildJobId: string): Promise<boolean> {
+  const redis = getRedis();
+  const value = await redis.get(`${CANCEL_KEY_PREFIX}${buildJobId}`);
+  return value === '1';
+}
+
+/**
+ * Clear the cancel signal (after processing)
+ */
+export async function clearBuildCancelSignal(buildJobId: string): Promise<void> {
+  const redis = getRedis();
+  await redis.del(`${CANCEL_KEY_PREFIX}${buildJobId}`);
+}
+
 /**
  * Graceful shutdown handler for workers and Redis connection
  * Call this when shutting down the application to ensure jobs are completed
