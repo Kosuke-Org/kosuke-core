@@ -1,19 +1,15 @@
 'use client';
 
 import { Bell, Palette, Shield, User } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Link from 'next/link';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const currentTab = pathname === '/settings' ? 'account' : pathname.split('/').pop() || 'account';
-
-  const handleTabChange = (value: string) => {
-    router.push(`/settings/${value === 'account' ? '' : value}`);
-  };
 
   return (
     <div className="container mx-auto py-6 px-4">
@@ -25,23 +21,31 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           </p>
         </div>
 
-        <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
+        <Tabs value={currentTab} className="w-full">
           <TabsList className="w-full max-w-3xl">
-            <TabsTrigger value="account" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span>Account</span>
+            <TabsTrigger value="account" className="flex items-center gap-2" asChild>
+              <Link href="/settings">
+                <User className="h-4 w-4" />
+                <span>Account</span>
+              </Link>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              <span>Notifications</span>
+            <TabsTrigger value="notifications" className="flex items-center gap-2" asChild>
+              <Link href="/settings/notifications">
+                <Bell className="h-4 w-4" />
+                <span>Notifications</span>
+              </Link>
             </TabsTrigger>
-            <TabsTrigger value="security" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              <span>Security</span>
+            <TabsTrigger value="security" className="flex items-center gap-2" asChild>
+              <Link href="/settings/security">
+                <Shield className="h-4 w-4" />
+                <span>Security</span>
+              </Link>
             </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex items-center gap-2">
-              <Palette className="h-4 w-4" />
-              <span>Appearance</span>
+            <TabsTrigger value="appearance" className="flex items-center gap-2" asChild>
+              <Link href="/settings/appearance">
+                <Palette className="h-4 w-4" />
+                <span>Appearance</span>
+              </Link>
             </TabsTrigger>
           </TabsList>
         </Tabs>
