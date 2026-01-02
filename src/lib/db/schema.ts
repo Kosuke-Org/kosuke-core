@@ -13,8 +13,6 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { createInsertSchema } from 'drizzle-zod';
-import { z } from 'zod';
 
 // ------------------------------------------------------------
 // ENUMS
@@ -36,12 +34,6 @@ export type BuildStatus = (typeof buildStatusEnum.enumValues)[number];
 // Task status enum
 export const taskStatusEnum = pgEnum('task_status', ['todo', 'in_progress', 'done', 'error']);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
-
-// Agent log status enum
-export const agentLogStatusEnum = pgEnum('agent_log_status', ['success', 'error', 'cancelled']);
-
-// Agent log command enum
-export const agentLogCommandEnum = pgEnum('agent_log_command', ['requirements', 'plan', 'build']);
 
 // ------------------------------------------------------------
 // TABLES
@@ -217,66 +209,6 @@ export const tasks = pgTable(
   ]
 );
 
-export const agentLogs = pgTable(
-  'agent_logs',
-  {
-    // Identifiers
-    id: uuid('id').defaultRandom().primaryKey(),
-    projectId: uuid('project_id')
-      .references(() => projects.id, { onDelete: 'cascade' })
-      .notNull(),
-    orgId: text('org_id'),
-    userId: text('user_id'),
-
-    // Command Info
-    command: agentLogCommandEnum('command').notNull(),
-    commandArgs: jsonb('command_args'),
-
-    // Execution Status
-    status: agentLogStatusEnum('status').notNull(),
-    errorMessage: text('error_message'),
-
-    // Token Usage & Cost
-    tokensInput: integer('tokens_input').notNull(),
-    tokensOutput: integer('tokens_output').notNull(),
-    tokensCacheCreation: integer('tokens_cache_creation').default(0),
-    tokensCacheRead: integer('tokens_cache_read').default(0),
-    cost: varchar('cost', { length: 20 }).notNull(), // Stored as string to avoid decimal precision issues
-
-    // Performance
-    executionTimeMs: integer('execution_time_ms').notNull(),
-    inferenceTimeMs: integer('inference_time_ms'),
-
-    // Command-Specific Results
-    fixesApplied: integer('fixes_applied'),
-    testsRun: integer('tests_run'),
-    testsPassed: integer('tests_passed'),
-    testsFailed: integer('tests_failed'),
-    iterations: integer('iterations'),
-    filesModified: jsonb('files_modified'), // Array of file paths
-
-    // Kosuke CLI version
-    agentVersion: varchar('agent_version', { length: 50 }),
-
-    // Conversation Data (full capture for tickets/requirements commands)
-    conversationMessages: jsonb('conversation_messages'), // Array of { role, content, timestamp, toolCalls }
-
-    // Timestamps
-    startedAt: timestamp('started_at').notNull(),
-    completedAt: timestamp('completed_at').notNull(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  table => [
-    // Indexes for performance
-    index('idx_agent_logs_project_id').on(table.projectId),
-    index('idx_agent_logs_org_id').on(table.orgId),
-    index('idx_agent_logs_user_id').on(table.userId),
-    index('idx_agent_logs_command').on(table.command),
-    index('idx_agent_logs_status').on(table.status),
-    index('idx_agent_logs_started_at').on(table.startedAt),
-  ]
-);
-
 // ------------------------------------------------------------
 // RELATIONS
 // ------------------------------------------------------------
@@ -346,17 +278,6 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 }));
 
 // ------------------------------------------------------------
-// ZOD SCHEMAS
-// ------------------------------------------------------------
-
-export const agentLogInsertSchema = createInsertSchema(agentLogs, {
-  // Override timestamp fields to coerce ISO strings to Date objects
-  startedAt: z.coerce.date(),
-  completedAt: z.coerce.date(),
-  createdAt: z.coerce.date().optional(),
-});
-
-// ------------------------------------------------------------
 // TYPES
 // ------------------------------------------------------------
 
@@ -374,4 +295,3 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
-export type NewAgentLog = typeof agentLogs.$inferInsert;
