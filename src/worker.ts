@@ -12,8 +12,10 @@
 import { gracefulShutdown } from '@/lib/queue/client';
 import { buildQueue } from '@/lib/queue/queues/build';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { submitQueue } from '@/lib/queue/queues/submit';
 import { createBuildWorker } from '@/lib/queue/workers/build';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
+import { createSubmitWorker } from '@/lib/queue/workers/submit';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
@@ -25,15 +27,17 @@ async function main() {
     // Initialize workers (explicit - no side effects on import)
     const previewWorker = createPreviewWorker();
     const buildWorker = createBuildWorker();
+    const submitWorker = createSubmitWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
     console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
-    console.log('[WORKER]   - Build (concurrency: 1)\n');
+    console.log('[WORKER]   - Build (concurrency: 1)');
+    console.log('[WORKER]   - Submit (concurrency: 1)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker];
-    const queues = [previewQueue, buildQueue];
+    const workers = [previewWorker, buildWorker, submitWorker];
+    const queues = [previewQueue, buildQueue, submitQueue];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

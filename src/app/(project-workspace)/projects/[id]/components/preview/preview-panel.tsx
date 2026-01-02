@@ -28,6 +28,15 @@ import { usePreviewPanel } from '@/hooks/use-preview-panel';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
 
+type SubmitStatus =
+  | 'pending'
+  | 'reviewing'
+  | 'committing'
+  | 'creating_pr'
+  | 'done'
+  | 'failed'
+  | null;
+
 interface PreviewPanelProps {
   projectId: string;
   projectName: string;
@@ -40,16 +49,55 @@ interface PreviewPanelProps {
   isSidebarCollapsed?: boolean;
   /** Callback to toggle sidebar visibility */
   onToggleSidebar?: () => void;
-  /** When true, shows the Create PR button */
-  showCreatePR?: boolean;
-  /** Callback to create a pull request */
-  onCreatePullRequest?: () => void;
-  /** When true, the Create PR button is enabled (requires completed build) */
-  canCreatePR?: boolean;
-  /** When true, the Create PR mutation is in progress */
-  isCreatingPR?: boolean;
-  /** URL of the created PR (when available, shows View PR button) */
+  /** When true, shows the Submit button */
+  showSubmit?: boolean;
+  /** Callback to submit the build */
+  onSubmit?: () => void;
+  /** When true, the Submit button is enabled (requires completed build) */
+  canSubmit?: boolean;
+  /** Current submit status from build job */
+  submitStatus?: SubmitStatus;
+  /** URL of the created PR (when available, shows View Changes button) */
   prUrl?: string | null;
+  /** When true, submit mutation is in progress (disables button immediately) */
+  isSubmitting?: boolean;
+  /** When true, submit mutation succeeded but status hasn't updated yet */
+  hasSubmitted?: boolean;
+}
+
+/**
+ * Get button label based on submit status
+ */
+function getSubmitButtonLabel(
+  submitStatus: SubmitStatus,
+  isSubmitting: boolean,
+  hasSubmitted: boolean
+): string {
+  // Show "Preparing..." during mutation or while waiting for status to update
+  if (isSubmitting || (hasSubmitted && !submitStatus)) return 'Preparing...';
+  switch (submitStatus) {
+    case 'pending':
+      return 'Preparing...';
+    case 'reviewing':
+      return 'Reviewing...';
+    case 'committing':
+    case 'creating_pr':
+      return 'Cleaning up...';
+    default:
+      return 'Submit';
+  }
+}
+
+/**
+ * Check if submit is in progress (any status that means work is happening)
+ */
+function isSubmitInProgress(submitStatus: SubmitStatus): boolean {
+  return (
+    submitStatus === 'pending' ||
+    submitStatus === 'reviewing' ||
+    submitStatus === 'committing' ||
+    submitStatus === 'creating_pr'
+  );
 }
 
 export default function PreviewPanel({
@@ -61,11 +109,13 @@ export default function PreviewPanel({
   isNewProject = false,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  showCreatePR = false,
-  onCreatePullRequest,
-  canCreatePR = false,
-  isCreatingPR = false,
+  showSubmit = false,
+  onSubmit,
+  canSubmit = false,
+  submitStatus = null,
   prUrl = null,
+  isSubmitting = false,
+  hasSubmitted = false,
 }: PreviewPanelProps) {
   const {
     // State
@@ -195,11 +245,11 @@ export default function PreviewPanel({
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
-          {showCreatePR && prUrl ? (
+          {showSubmit && (submitStatus === 'done' || prUrl) ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={prUrl} target="_blank" rel="noopener noreferrer">
+                  <Link href={prUrl || '#'} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-1" />
                     View Changes
                   </Link>
@@ -207,29 +257,44 @@ export default function PreviewPanel({
               </TooltipTrigger>
               <TooltipContent>View your submitted changes on GitHub</TooltipContent>
             </Tooltip>
-          ) : showCreatePR && onCreatePullRequest ? (
+          ) : showSubmit && onSubmit ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={onCreatePullRequest}
-                    disabled={!canCreatePR || isCreatingPR}
+                    onClick={onSubmit}
+                    disabled={
+                      !canSubmit || isSubmitting || hasSubmitted || isSubmitInProgress(submitStatus)
+                    }
                   >
-                    {isCreatingPR ? (
+                    {canSubmit &&
+                    (isSubmitting ||
+                      (hasSubmitted && !submitStatus) ||
+                      isSubmitInProgress(submitStatus)) ? (
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4 mr-1" />
                     )}
-                    {isCreatingPR ? 'Creating...' : 'Submit'}
+                    {canSubmit
+                      ? getSubmitButtonLabel(submitStatus, isSubmitting, hasSubmitted)
+                      : 'Submit'}
                   </Button>
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                {!canCreatePR
+                {!canSubmit
                   ? 'A successful build is required before submitting'
-                  : 'Submit your changes'}
+                  : isSubmitting || (hasSubmitted && !submitStatus) || submitStatus === 'pending'
+                    ? 'Preparing submission...'
+                    : submitStatus === 'reviewing'
+                      ? 'Reviewing code quality...'
+                      : submitStatus === 'committing' || submitStatus === 'creating_pr'
+                        ? 'Finalizing changes...'
+                        : submitStatus === 'failed'
+                          ? 'Previous submit failed. Click to retry.'
+                          : 'Submit your changes for review and create a pull request'}
               </TooltipContent>
             </Tooltip>
           ) : null}

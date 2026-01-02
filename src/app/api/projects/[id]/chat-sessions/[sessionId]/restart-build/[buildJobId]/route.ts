@@ -201,8 +201,6 @@ export async function POST(
       cwd: '/app/project',
       dbUrl: getSandboxDatabaseUrl(session.id),
       githubToken,
-      baseBranch: project.defaultBranch || 'main',
-      enableReview: true,
       enableTest: sandboxConfig.test,
       testUrl,
     });
