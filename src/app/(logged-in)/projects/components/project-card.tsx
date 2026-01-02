@@ -15,17 +15,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/lib/db/schema';
-import { useUser } from '@clerk/nextjs';
+import type { ProjectWithOwnerStatus } from '@/lib/types/project';
 import DeleteProjectDialog from './delete-project-dialog';
 
 interface ProjectCardProps {
-  project: Project;
+  project: Project & ProjectWithOwnerStatus;
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const { user } = useUser();
 
   const handleOpenDeleteDialog = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -35,12 +34,10 @@ export default function ProjectCard({ project }: ProjectCardProps) {
     setShowDeleteDialog(true);
   };
 
-  // Check if project is imported and GitHub is disconnected
-  const githubAccount = user?.externalAccounts?.find(
-    account => account.verification?.strategy === 'oauth_github'
-  );
+  // Check if imported project's owner has disconnected GitHub
+  // This affects ALL members, not just the viewing user
   const isImportedProject = project.isImported;
-  const needsReconnection = isImportedProject && !githubAccount;
+  const needsReconnection = isImportedProject && project.ownerHasGithub === false;
 
   return (
     <>
@@ -48,11 +45,11 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         href={needsReconnection ? '#' : `/projects/${project.id}`}
         className={`block group ${needsReconnection ? 'pointer-events-none' : ''}`}
       >
-        <Card className={`overflow-hidden h-full transition-all duration-300 border border-border relative bg-card pb-0 min-h-[140px] ${
-          needsReconnection
-            ? ''
-            : 'hover:border-muted group-hover:translate-y-[-2px]'
-        }`}>
+        <Card
+          className={`overflow-hidden h-full transition-all duration-300 border border-border relative bg-card pb-0 min-h-[140px] ${
+            needsReconnection ? '' : 'hover:border-muted group-hover:translate-y-[-2px]'
+          }`}
+        >
           <CardHeader className="pb-2">
             <div className="flex justify-between items-start">
               <div className="flex-1 gap-2 flex flex-col">
@@ -86,23 +83,25 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Reconnect Github</p>
+                        <p>Project owner needs to reconnect GitHub</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
                 <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.preventDefault()}>
+                  <DropdownMenuTrigger asChild onClick={e => e.preventDefault()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={e => e.preventDefault()}
+                    >
                       <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                       <span className="sr-only">Open menu</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-card border-border">
-                    <DropdownMenuItem
-                      onClick={handleOpenDeleteDialog}
-                      className="focus:bg-muted"
-                    >
+                    <DropdownMenuItem onClick={handleOpenDeleteDialog} className="focus:bg-muted">
                       <Trash className="mr-2 h-4 w-4" />
                       <span>Delete Project</span>
                     </DropdownMenuItem>

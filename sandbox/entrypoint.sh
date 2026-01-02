@@ -64,8 +64,8 @@ else
     echo "✅ Repository cloned (branch: $BRANCH)"
 fi
 
-# Configure git user (for commits)
-git config user.name "Kosuke Bot"
+# Configure git user (for commits) - uses Kosuke GitHub App identity
+git config user.name "${KOSUKE_GIT_NAME:-kosuke-github-app[bot]}"
 git config user.email "${KOSUKE_GIT_EMAIL:-bot@kosuke.dev}"
 
 # Store original URL (without token) for display

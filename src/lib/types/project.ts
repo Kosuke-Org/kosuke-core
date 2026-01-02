@@ -13,3 +13,9 @@ export interface ProjectCreationStep {
   data?: Partial<CreateProjectData>;
   error?: string;
 }
+
+// Extended project type with owner GitHub status
+// Used for checking if invited members can access imported projects
+export interface ProjectWithOwnerStatus {
+  ownerHasGithub?: boolean;
+}

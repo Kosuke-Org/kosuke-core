@@ -1,28 +1,29 @@
 'use client';
 
-import { useUser } from '@clerk/nextjs';
-import { AlertCircle, ArrowRight, CheckCircle2, FolderPlus, Github, Loader2 } from 'lucide-react';
+import { ArrowRight, ExternalLink, FolderPlus, Github, Info, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useGitHubOAuth } from '@/hooks/use-github-oauth';
 import { useProjectCreation } from '@/hooks/use-project-creation';
 import type { GitHubRepository } from '@/lib/types/github';
 import type { CreateProjectData } from '@/lib/types/project';
 import { RepositorySelector } from './repository-selector';
+
+const GITHUB_APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app';
+const GITHUB_APP_INSTALL_URL = `https://github.com/apps/${GITHUB_APP_SLUG}`;
 
 interface ProjectCreationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialProjectName?: string;
   initialTab?: 'create' | 'import';
-  showGitHubConnected?: boolean;
 }
 
 export default function ProjectCreationModal({
@@ -30,23 +31,14 @@ export default function ProjectCreationModal({
   onOpenChange,
   initialProjectName = '',
   initialTab = 'create',
-  showGitHubConnected = false,
 }: ProjectCreationModalProps) {
-  const { user } = useUser();
   const [activeTab, setActiveTab] = useState<'create' | 'import'>(initialTab);
   const [projectName, setProjectName] = useState(initialProjectName);
-  const [showConnectedMessage, setShowConnectedMessage] = useState(false);
 
   // Import mode state
   const [selectedRepository, setSelectedRepository] = useState<GitHubRepository>();
 
   const { currentStep, createProject, isCreating, resetCreation } = useProjectCreation();
-  const {
-    isConnected: isGitHubConnected,
-    isConnecting: isConnectingGitHub,
-    connectGitHub,
-    clearConnectingState,
-  } = useGitHubOAuth();
 
   // Auto-set project name from repository name (import mode)
   useEffect(() => {
@@ -62,30 +54,8 @@ export default function ProjectCreationModal({
       setProjectName(initialProjectName);
       setSelectedRepository(undefined);
       setActiveTab(initialTab);
-
-      // Show success message only when coming from OAuth redirect
-      if (showGitHubConnected && initialTab === 'import') {
-        // Clear the connecting state now that we're back from OAuth
-        clearConnectingState();
-
-        setShowConnectedMessage(true);
-        // Auto-hide message after 5 seconds
-        const timer = setTimeout(() => {
-          setShowConnectedMessage(false);
-        }, 5000);
-        return () => clearTimeout(timer);
-      }
-    } else {
-      setShowConnectedMessage(false);
     }
-  }, [
-    open,
-    initialProjectName,
-    initialTab,
-    showGitHubConnected,
-    resetCreation,
-    clearConnectingState,
-  ]);
+  }, [open, initialProjectName, initialTab, resetCreation]);
 
   // Close modal on successful creation
   useEffect(() => {
@@ -207,75 +177,42 @@ export default function ProjectCreationModal({
               )}
 
               <TabsContent value="import" className="space-y-4 mt-0">
-                {(!isGitHubConnected || isConnectingGitHub) && (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>GitHub Connection Required</AlertTitle>
-                    <AlertDescription className="justify-items-center">
-                      <p className="mb-3 justify-self-start">
-                        Connect your GitHub account to import your existing repositories.
-                      </p>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() =>
-                          connectGitHub('/projects?openImport=true&githubConnected=true')
-                        }
-                        disabled={isConnectingGitHub}
-                        className={isConnectingGitHub ? 'animate-pulse' : ''}
-                      >
-                        {isConnectingGitHub ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Connecting...
-                          </>
-                        ) : (
-                          <>
-                            <Github className="h-4 w-4 mr-2" />
-                            Connect GitHub
-                          </>
-                        )}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {isGitHubConnected && !isConnectingGitHub && showConnectedMessage && (
-                  <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    <AlertTitle className="text-green-900 dark:text-green-100">
-                      GitHub Connected Successfully
-                    </AlertTitle>
-                    <AlertDescription className="text-green-700 dark:text-green-300">
-                      You can now select a repository to import.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {isGitHubConnected && !isConnectingGitHub && (
-                  <Card>
-                    <CardHeader className="pb-4">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Github className="h-4 w-4" />
-                        Select Repository
-                      </CardTitle>
-                      <CardDescription>
-                        Choose an existing GitHub repository to import into your project.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">GitHub Repository</Label>
-                        <RepositorySelector
-                          userId={user?.id || ''}
-                          selectedRepository={selectedRepository}
-                          onRepositorySelect={setSelectedRepository}
-                          placeholder="Select a repository..."
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <Card>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Github className="h-4 w-4" />
+                      Select Repository
+                    </CardTitle>
+                    <CardDescription>
+                      Choose an existing GitHub repository to import into your project.
+                    </CardDescription>
+                    <Alert className="mt-3 py-2">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Can&apos;t find your repository?{' '}
+                        <Link
+                          href={GITHUB_APP_INSTALL_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-medium underline underline-offset-4 hover:text-primary"
+                        >
+                          Configure the Kosuke GitHub App
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </AlertDescription>
+                    </Alert>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">GitHub Repository</Label>
+                      <RepositorySelector
+                        selectedRepository={selectedRepository}
+                        onRepositorySelect={setSelectedRepository}
+                        placeholder="Select a repository..."
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Actions */}

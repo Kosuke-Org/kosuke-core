@@ -2,7 +2,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatMessages } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { SandboxClient } from '@/lib/sandbox/client';
 import type { RevertToMessageRequest } from '@/lib/types/chat';
@@ -95,12 +95,8 @@ export async function POST(
       `🔄 Reverting project ${projectId} session ${session.branchName} to commit ${message.commitSha.substring(0, 8)}`
     );
 
-    // Get GitHub token based on project ownership (required for pushing to remote)
-    const githubToken = await getGitHubToken(project.isImported, userId);
-
-    if (!githubToken) {
-      return ApiErrorHandler.badRequest('GitHub not connected');
-    }
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     // Perform git revert operation via sandbox - use session.id (UUID) for sandbox identification
     const sandboxClient = new SandboxClient(session.id);
