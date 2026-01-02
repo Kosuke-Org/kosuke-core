@@ -82,8 +82,31 @@ export async function POST(
       `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
 
     try {
+      // Log project data for debugging PR creation auth
+      console.log('[PR Creation] Project data:', {
+        projectId: project.id,
+        githubOwner: project.githubOwner,
+        githubRepoName: project.githubRepoName,
+        githubInstallationId: project.githubInstallationId,
+        isImported: project.isImported,
+      });
+
       // Get GitHub client using project's App installation
       const github = getProjectOctokit(project);
+
+      // Verify the authenticated identity (should be the GitHub App)
+      try {
+        const { data: authUser } = await github.rest.apps.getAuthenticated();
+        if (authUser) {
+          console.log('[PR Creation] Authenticated as GitHub App:', {
+            appId: authUser.id,
+            appName: authUser.name,
+            appSlug: authUser.slug,
+          });
+        }
+      } catch (authError) {
+        console.error('[PR Creation] Failed to verify GitHub App auth:', authError);
+      }
 
       // Check if source branch exists
       try {
@@ -117,6 +140,15 @@ export async function POST(
         body: prDescription,
         head: sourceBranch,
         base: targetBranch,
+      });
+
+      // Log PR creation result to see who created it
+      console.log('[PR Creation] PR created successfully:', {
+        prNumber: pr.number,
+        prUrl: pr.html_url,
+        createdBy: pr.user?.login,
+        createdByType: pr.user?.type,
+        createdById: pr.user?.id,
       });
 
       return NextResponse.json({

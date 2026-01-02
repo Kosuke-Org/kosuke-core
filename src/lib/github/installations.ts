@@ -239,7 +239,17 @@ export async function listUserRepositoriesWithAppStatus(
  * Uses project's installationId if set, otherwise falls back to Kosuke-Org
  */
 export function getProjectOctokit(project: Pick<Project, 'githubInstallationId'>): Octokit {
-  const installationId = project.githubInstallationId || parseInt(GITHUB_APP_INSTALLATION_ID, 10);
+  const projectInstallationId = project.githubInstallationId;
+  const fallbackInstallationId = parseInt(GITHUB_APP_INSTALLATION_ID, 10);
+  const installationId = projectInstallationId || fallbackInstallationId;
+
+  console.log('[GitHub] getProjectOctokit:', {
+    projectInstallationId,
+    fallbackInstallationId,
+    usingInstallationId: installationId,
+    usingFallback: !projectInstallationId,
+  });
+
   return createInstallationOctokit(installationId);
 }
 
