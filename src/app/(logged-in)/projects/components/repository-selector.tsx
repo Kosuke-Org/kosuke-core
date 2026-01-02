@@ -42,24 +42,8 @@ export function RepositorySelector({
     hasNextPage,
     isFetchingNextPage,
     needsGitHubConnection,
-    isFetching,
-    status,
     installUrl,
   } = useGitHubRepositories(true, search);
-
-  // Debug logging
-  console.log(
-    '[RepositorySelector] status:',
-    status,
-    'isLoading:',
-    isLoading,
-    'isFetching:',
-    isFetching,
-    'repos:',
-    repositories.length,
-    'needsGitHub:',
-    needsGitHubConnection
-  );
 
   const { connectGitHub, isConnecting } = useGitHubOAuth();
 
