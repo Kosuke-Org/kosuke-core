@@ -19,7 +19,6 @@ export function useGitHubRepositories(enabled: boolean = true, search: string = 
   const query = useInfiniteQuery({
     queryKey: ['github-repos-with-status', search],
     queryFn: async ({ pageParam }): Promise<RepositoriesResponse> => {
-      console.log('[useGitHubRepositories] Fetching page:', pageParam, 'search:', search);
       const params = new URLSearchParams({
         page: pageParam.toString(),
         per_page: '10',
@@ -32,7 +31,6 @@ export function useGitHubRepositories(enabled: boolean = true, search: string = 
         throw new Error('Failed to fetch GitHub repositories');
       }
       const data: ApiResponse<RepositoriesResponse> = await response.json();
-      console.log('[useGitHubRepositories] Response:', data.data);
       return data.data;
     },
     initialPageParam: 1,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
+import { ClerkService } from '@/lib/clerk/service';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
 import { getProjectOctokit } from '@/lib/github/client';
@@ -77,9 +78,20 @@ export async function POST(
     const sourceBranch = session.branchName;
     const targetBranch = target_branch || project.defaultBranch || 'main';
     const prTitle = title || session.title;
-    const prDescription =
-      description ||
-      `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
+
+    // Build fallback description with optional user email
+    let fallbackDescription = `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
+    try {
+      const clerkService = new ClerkService();
+      const user = await clerkService.getUser(userId);
+      if (user.email) {
+        fallbackDescription += `\n\nCreated by: ${user.email}`;
+      }
+    } catch {
+      // If we can't fetch user email, continue without it
+    }
+
+    const prDescription = description || fallbackDescription;
 
     try {
       // Log project data for debugging PR creation auth

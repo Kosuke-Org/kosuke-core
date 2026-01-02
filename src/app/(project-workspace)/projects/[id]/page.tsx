@@ -232,11 +232,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return;
     }
 
+    // Build description with optional user email
+    let description = `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`;
+    if (dbUser?.email) {
+      description += `\n\nCreated by: ${dbUser.email}`;
+    }
+
     createPullRequestMutation.mutate({
       sessionId: currentSession.id,
       data: {
         title: currentSession.title,
-        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`,
+        description,
       },
     });
   };
