@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 // Import types and hooks
+import { useAgentHealth } from '@/hooks/use-agent-health';
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
 import { useChatState } from '@/hooks/use-chat-state';
 import { useRequirementsMessages } from '@/hooks/use-requirements-messages';
@@ -59,6 +60,16 @@ export default function ChatInterface({
   // Requirements mode hooks
   const reqMessagesQuery = useRequirementsMessages(projectId);
   const sendReqMessageMutation = useSendRequirementsMessage(projectId);
+
+  // Agent health - used to disable input until agent is ready
+  const { data: agentHealth } = useAgentHealth({
+    projectId,
+    enabled: Boolean(projectId),
+    pollingInterval: 10000,
+  });
+
+  // Agent is ready when running, alive, and explicitly ready
+  const isAgentReady = Boolean(agentHealth?.running && agentHealth?.alive && agentHealth?.ready);
 
   // Extract streaming state from requirements hook
   const {
@@ -258,8 +269,9 @@ export default function ChatInterface({
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
       <ModelBanner
         model={model}
-        projectId={isRequirementsMode ? projectId : undefined}
+        projectId={projectId}
         showAgentStatus={isRequirementsMode}
+        agentHealth={agentHealth}
       />
 
       <ScrollArea className="flex-1 overflow-y-auto">
@@ -411,17 +423,19 @@ export default function ChatInterface({
           isStreaming={activeIsStreaming}
           onStop={activeCancelStream}
           placeholder={
-            isRequirementsReadonly
-              ? 'Requirements have been submitted'
-              : isRequirementsMode
-                ? 'Describe your project requirements...'
-                : isBuildFailed
-                  ? 'Build stopped. Use the restart button above to try again.'
-                  : isBuildInProgress
-                    ? 'Build in progress...'
-                    : 'Type your message...'
+            !isAgentReady
+              ? 'Waiting for agent...'
+              : isRequirementsReadonly
+                ? 'Requirements have been submitted'
+                : isRequirementsMode
+                  ? 'Describe your project requirements...'
+                  : isBuildFailed
+                    ? 'Build stopped. Use the restart button above to try again.'
+                    : isBuildInProgress
+                      ? 'Build in progress...'
+                      : 'Type your message...'
           }
-          disabled={isBuildInProgress || isBuildFailed || isRequirementsReadonly}
+          disabled={!isAgentReady || isBuildInProgress || isBuildFailed || isRequirementsReadonly}
           data-testid="chat-input"
           className="chat-input"
         />

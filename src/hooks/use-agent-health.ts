@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-interface AgentHealthStatus {
+export interface AgentHealthStatus {
   ok: boolean;
   running: boolean;
   alive: boolean;

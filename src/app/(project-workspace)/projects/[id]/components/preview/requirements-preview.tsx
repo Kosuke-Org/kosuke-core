@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckCircle2, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,17 +13,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { RequirementsPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import MarkdownPreview from '../requirements/markdown-preview';
+import RequirementsEditor from '../requirements/requirements-editor';
 
 /**
  * Preview component for requirements gathering status
- * Shows the markdown requirements document with header actions
+ * Shows the BlockNote editor for requirements document with header actions
  */
 export default function RequirementsPreview({
+  projectId,
   content,
   className,
   onToggleSidebar,
@@ -40,6 +40,23 @@ export default function RequirementsPreview({
   const tooltipMessage = !hasContent
     ? 'Describe your requirements in the chat first'
     : 'Confirm your requirements';
+
+  // Save handler for auto-save
+  const handleSave = useCallback(
+    async (markdown: string) => {
+      const response = await fetch(`/api/projects/${projectId}/requirements`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: markdown }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save requirements');
+      }
+    },
+    [projectId]
+  );
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
@@ -87,11 +104,14 @@ export default function RequirementsPreview({
       </div>
 
       {content ? (
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-4">
-            <MarkdownPreview content={content} />
-          </div>
-        </ScrollArea>
+        <div className="flex-1 min-h-0 overflow-auto pt-4">
+          <RequirementsEditor
+            initialContent={content}
+            editable={true}
+            onSave={handleSave}
+            className="h-full"
+          />
+        </div>
       ) : (
         <div className="flex flex-1 items-center justify-center p-4">
           <Alert className="max-w-xl text-center">

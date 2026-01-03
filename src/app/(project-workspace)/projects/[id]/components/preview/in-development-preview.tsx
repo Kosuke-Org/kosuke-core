@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { InDevelopmentPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { FileText, Gamepad2 } from 'lucide-react';
-import MarkdownPreview from '../requirements/markdown-preview';
+import RequirementsEditor from '../requirements/requirements-editor';
 import SlotMachine from '../requirements/slot-machine';
 
 /**
@@ -68,15 +68,13 @@ export default function InDevelopmentPreview({
           </div>
         ) : (
           <ScrollArea className="h-full">
-            <div className="p-4">
-              {content ? (
-                <MarkdownPreview content={content} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No requirements document available
-                </div>
-              )}
-            </div>
+            {content ? (
+              <RequirementsEditor initialContent={content} editable={false} className="h-full" />
+            ) : (
+              <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+                No requirements document available
+              </div>
+            )}
           </ScrollArea>
         )}
       </div>

@@ -2,14 +2,15 @@
 
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { RequirementsPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
-import MarkdownPreview from '../requirements/markdown-preview';
+import RequirementsEditor from '../requirements/requirements-editor';
 
-interface RequirementsReadyPreviewProps extends RequirementsPreviewProps {
+interface RequirementsReadyPreviewProps {
+  content?: string;
   projectName?: string;
+  className?: string;
 }
 
 /**
@@ -36,9 +37,7 @@ export default function RequirementsReadyPreview({
           </button>
         </div>
         <ScrollArea className="flex-1">
-          <div className="p-4">
-            <MarkdownPreview content={content} />
-          </div>
+          <RequirementsEditor initialContent={content} editable={false} className="h-full" />
         </ScrollArea>
       </div>
     );

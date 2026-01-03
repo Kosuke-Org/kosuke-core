@@ -24,6 +24,7 @@ export type RequirementsViewMode = 'game' | 'docs';
 
 // Props for requirements-specific preview components
 export interface RequirementsPreviewProps {
+  projectId: string;
   content?: string;
   className?: string;
   // Sidebar toggle props

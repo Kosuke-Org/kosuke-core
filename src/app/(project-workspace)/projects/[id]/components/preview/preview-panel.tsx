@@ -130,6 +130,7 @@ export default function PreviewPanel({
       case 'requirements':
         return (
           <RequirementsPreview
+            projectId={projectId}
             content={requirementsContent}
             onToggleSidebar={onToggleSidebar}
             isSidebarCollapsed={isSidebarCollapsed}

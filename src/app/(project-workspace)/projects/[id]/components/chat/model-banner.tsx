@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { useAgentHealth } from '@/hooks/use-agent-health';
+import { useAgentHealth, type AgentHealthStatus } from '@/hooks/use-agent-health';
 import { cn } from '@/lib/utils';
 
 interface ModelBannerProps {
@@ -10,6 +10,7 @@ interface ModelBannerProps {
   model?: string;
   projectId?: string;
   showAgentStatus?: boolean;
+  agentHealth?: AgentHealthStatus;
 }
 
 // Number of consecutive failed checks before showing "Sandbox stopped"
@@ -20,6 +21,7 @@ export default function ModelBanner({
   model,
   projectId,
   showAgentStatus = false,
+  agentHealth: passedAgentHealth,
 }: ModelBannerProps) {
   // Format model name for display
   const getModelDisplayName = (modelId?: string) => {
@@ -33,13 +35,18 @@ export default function ModelBanner({
   const modelName = getModelDisplayName(model);
 
   // Agent health check - only when showing agent status and projectId is provided
-  const shouldCheckHealth = showAgentStatus && projectId !== undefined && projectId !== '';
+  // Skip fetching if agentHealth is passed from parent
+  const shouldCheckHealth =
+    showAgentStatus && projectId !== undefined && projectId !== '' && !passedAgentHealth;
 
-  const { data: agentHealth, dataUpdatedAt } = useAgentHealth({
+  const { data: fetchedAgentHealth, dataUpdatedAt } = useAgentHealth({
     projectId: projectId || '',
     enabled: shouldCheckHealth,
     pollingInterval: 10000,
   });
+
+  // Use passed data if provided, otherwise use fetched data
+  const agentHealth = passedAgentHealth || fetchedAgentHealth;
 
   // Track consecutive "not running" checks
   const [failureCount, setFailureCount] = useState(0);
@@ -47,9 +54,12 @@ export default function ModelBanner({
 
   // Update failure count when agentHealth changes
   useEffect(() => {
-    // Only process if we have new data (dataUpdatedAt changed)
-    if (dataUpdatedAt === lastDataUpdatedAtRef.current) return;
-    lastDataUpdatedAtRef.current = dataUpdatedAt;
+    // When using passed data, track based on the data itself
+    // When fetching, track based on dataUpdatedAt to detect new fetches
+    if (!passedAgentHealth) {
+      if (dataUpdatedAt === lastDataUpdatedAtRef.current) return;
+      lastDataUpdatedAtRef.current = dataUpdatedAt;
+    }
 
     if (!agentHealth) return;
 
@@ -59,7 +69,7 @@ export default function ModelBanner({
       // Reset on successful check
       setFailureCount(0);
     }
-  }, [agentHealth, dataUpdatedAt]);
+  }, [agentHealth, dataUpdatedAt, passedAgentHealth]);
 
   // Determine agent status display
   const getAgentStatusDisplay = () => {
