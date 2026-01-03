@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+
 import { useAgentHealth } from '@/hooks/use-agent-health';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +11,9 @@ interface ModelBannerProps {
   projectId?: string;
   showAgentStatus?: boolean;
 }
+
+// Number of consecutive failed checks before showing "Sandbox stopped"
+const FAILURE_THRESHOLD = 3;
 
 export default function ModelBanner({
   className,
@@ -30,11 +35,31 @@ export default function ModelBanner({
   // Agent health check - only when showing agent status and projectId is provided
   const shouldCheckHealth = showAgentStatus && projectId !== undefined && projectId !== '';
 
-  const { data: agentHealth } = useAgentHealth({
+  const { data: agentHealth, dataUpdatedAt } = useAgentHealth({
     projectId: projectId || '',
     enabled: shouldCheckHealth,
     pollingInterval: 10000,
   });
+
+  // Track consecutive "not running" checks
+  const [failureCount, setFailureCount] = useState(0);
+  const lastDataUpdatedAtRef = useRef(0);
+
+  // Update failure count when agentHealth changes
+  useEffect(() => {
+    // Only process if we have new data (dataUpdatedAt changed)
+    if (dataUpdatedAt === lastDataUpdatedAtRef.current) return;
+    lastDataUpdatedAtRef.current = dataUpdatedAt;
+
+    if (!agentHealth) return;
+
+    if (!agentHealth.running) {
+      setFailureCount(prev => prev + 1);
+    } else {
+      // Reset on successful check
+      setFailureCount(0);
+    }
+  }, [agentHealth, dataUpdatedAt]);
 
   // Determine agent status display
   const getAgentStatusDisplay = () => {
@@ -49,10 +74,19 @@ export default function ModelBanner({
     }
 
     if (!agentHealth.running) {
+      // Only show "Sandbox stopped" after reaching failure threshold
+      if (failureCount >= FAILURE_THRESHOLD) {
+        return {
+          color: 'bg-muted-foreground',
+          text: 'Sandbox stopped',
+          pulse: false,
+        };
+      }
+      // Still checking - show checking state until threshold reached
       return {
         color: 'bg-muted-foreground',
-        text: 'Sandbox stopped',
-        pulse: false,
+        text: 'Checking...',
+        pulse: true,
       };
     }
 
