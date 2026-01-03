@@ -5,11 +5,13 @@ import '@blocknote/mantine/style.css';
 
 import { BlockNoteView } from '@blocknote/mantine';
 import { useCreateBlockNote } from '@blocknote/react';
-import { Check, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
+
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 // Custom themes matching app's design system (globals.css)
 // Light: --background: oklch(1 0 0), --popover: oklch(1 0 0), --accent: oklch(0.97 0 0)
@@ -87,20 +89,19 @@ interface RequirementsEditorProps {
   editable?: boolean;
   className?: string;
   onSave?: (markdown: string) => Promise<void>;
+  onSaveStatusChange?: (status: SaveStatus) => void;
   autoSaveDelay?: number;
 }
-
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function RequirementsEditor({
   initialContent,
   editable = true,
   className,
   onSave,
+  onSaveStatusChange,
   autoSaveDelay = 2000,
 }: RequirementsEditorProps) {
   const { resolvedTheme } = useTheme();
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isInitialized, setIsInitialized] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContentRef = useRef<string>(initialContent || '');
@@ -137,26 +138,26 @@ export default function RequirementsEditor({
       return;
     }
 
-    setSaveStatus('saving');
+    onSaveStatusChange?.('saving');
 
     try {
       await onSave(currentMarkdown);
       lastSavedContentRef.current = currentMarkdown;
-      setSaveStatus('saved');
+      onSaveStatusChange?.('saved');
 
       // Reset to idle after showing saved status
       setTimeout(() => {
-        setSaveStatus('idle');
+        onSaveStatusChange?.('idle');
       }, 2000);
     } catch (error) {
       console.error('Failed to save:', error);
-      setSaveStatus('error');
+      onSaveStatusChange?.('error');
 
       setTimeout(() => {
-        setSaveStatus('idle');
+        onSaveStatusChange?.('idle');
       }, 3000);
     }
-  }, [editor, onSave, editable]);
+  }, [editor, onSave, onSaveStatusChange, editable]);
 
   // Debounced auto-save on content change
   const handleChange = useCallback(() => {
@@ -198,13 +199,6 @@ export default function RequirementsEditor({
 
   return (
     <div className={cn('relative', className)}>
-      {/* Save status indicator */}
-      {editable && onSave && (
-        <div className="absolute right-2 top-2 z-10">
-          <SaveStatusIndicator status={saveStatus} />
-        </div>
-      )}
-
       <BlockNoteView
         editor={editor}
         editable={editable}
@@ -224,35 +218,6 @@ export default function RequirementsEditor({
           '[&_.mantine-Menu-item[aria-selected="true"]]:!bg-accent'
         )}
       />
-    </div>
-  );
-}
-
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
-  if (status === 'idle') return null;
-
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-opacity',
-        status === 'saving' && 'bg-muted text-muted-foreground',
-        status === 'saved' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-        status === 'error' && 'bg-destructive/10 text-destructive'
-      )}
-    >
-      {status === 'saving' && (
-        <>
-          <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Saving...</span>
-        </>
-      )}
-      {status === 'saved' && (
-        <>
-          <Check className="h-3 w-3" />
-          <span>Saved</span>
-        </>
-      )}
-      {status === 'error' && <span>Failed to save</span>}
     </div>
   );
 }

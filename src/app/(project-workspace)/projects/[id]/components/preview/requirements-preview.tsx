@@ -1,7 +1,9 @@
 'use client';
 
-import { CheckCircle2, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Check, CheckCircle2, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useState } from 'react';
+
+import type { SaveStatus } from '../requirements/requirements-editor';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -33,6 +35,7 @@ export default function RequirementsPreview({
   isConfirming,
 }: RequirementsPreviewProps) {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
   // Determine if button should be disabled and why
   const hasContent = Boolean(content?.trim());
@@ -82,25 +85,53 @@ export default function RequirementsPreview({
           <h3 className="text-sm font-medium text-muted-foreground">Requirements Document</h3>
         </div>
 
-        {/* Confirm Requirements Button */}
-        {onConfirmRequirements && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  onClick={() => setShowConfirmModal(true)}
-                  disabled={isButtonDisabled}
-                  size="sm"
-                  className="h-8"
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Confirm Requirements
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{tooltipMessage}</TooltipContent>
-          </Tooltip>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Save status indicator */}
+          {saveStatus !== 'idle' && (
+            <div
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium',
+                saveStatus === 'saving' && 'bg-muted text-muted-foreground',
+                saveStatus === 'saved' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                saveStatus === 'error' && 'bg-destructive/10 text-destructive'
+              )}
+            >
+              {saveStatus === 'saving' && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              )}
+              {saveStatus === 'saved' && (
+                <>
+                  <Check className="h-3 w-3" />
+                  <span>Saved</span>
+                </>
+              )}
+              {saveStatus === 'error' && <span>Failed to save</span>}
+            </div>
+          )}
+
+          {/* Confirm Requirements Button */}
+          {onConfirmRequirements && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    onClick={() => setShowConfirmModal(true)}
+                    disabled={isButtonDisabled}
+                    size="sm"
+                    className="h-8"
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Confirm Requirements
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{tooltipMessage}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {content ? (
@@ -109,6 +140,7 @@ export default function RequirementsPreview({
             initialContent={content}
             editable={true}
             onSave={handleSave}
+            onSaveStatusChange={setSaveStatus}
             className="h-full"
           />
         </div>
