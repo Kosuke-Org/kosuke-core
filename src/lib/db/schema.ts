@@ -42,6 +42,8 @@ export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 export const projectStatusEnum = pgEnum('project_status', [
   'requirements',
   'requirements_ready',
+  'waiting_for_payment',
+  'paid',
   'in_development',
   'active',
 ]);
@@ -70,6 +72,8 @@ export const projects = pgTable('projects', {
   status: projectStatusEnum('status').notNull().default('requirements'),
   requirementsCompletedAt: timestamp('requirements_completed_at'),
   requirementsCompletedBy: text('requirements_completed_by'),
+  // B2C flow: Payment - Stripe invoice URL for waiting_for_payment status
+  stripeInvoiceUrl: text('stripe_invoice_url'),
 });
 
 export const chatSessions = pgTable(

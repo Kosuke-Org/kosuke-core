@@ -216,6 +216,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     projectStatus: project?.status as
       | 'requirements'
       | 'requirements_ready'
+      | 'waiting_for_payment'
+      | 'paid'
       | 'in_development'
       | 'active'
       | undefined,
@@ -233,10 +235,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
-  // Requirements gathering mode - determine if in requirements flow
+  // Requirements gathering mode - determine if in requirements flow (B2C statuses)
   const isRequirementsMode =
     project.status === 'requirements' ||
     project.status === 'requirements_ready' ||
+    project.status === 'waiting_for_payment' ||
+    project.status === 'paid' ||
     project.status === 'in_development';
 
   const toggleSidebar = () => {
@@ -491,9 +495,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   project.status as
                     | 'requirements'
                     | 'requirements_ready'
+                    | 'waiting_for_payment'
+                    | 'paid'
                     | 'in_development'
                     | 'active'
                 }
+                stripeInvoiceUrl={project.stripeInvoiceUrl}
                 requirementsContent={requirementsContent}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}

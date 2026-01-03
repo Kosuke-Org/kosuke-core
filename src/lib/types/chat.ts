@@ -120,7 +120,13 @@ export interface ChatInterfaceProps {
   isBuildFailed?: boolean; // Whether the build has failed or been cancelled
   // Requirements mode props
   mode?: 'development' | 'requirements'; // Chat mode - development uses sessions, requirements uses project-level messages
-  projectStatus?: 'requirements' | 'requirements_ready' | 'in_development' | 'active'; // Project status for requirements mode
+  projectStatus?:
+    | 'requirements'
+    | 'requirements_ready'
+    | 'waiting_for_payment'
+    | 'paid'
+    | 'in_development'
+    | 'active'; // Project status for requirements mode
 }
 
 // Content Block Types (for streaming UI state)

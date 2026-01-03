@@ -54,7 +54,15 @@ interface PreviewPanelProps {
   prUrl?: string | null;
   // Requirements mode props
   /** Project status for status-based preview content */
-  projectStatus?: 'requirements' | 'requirements_ready' | 'in_development' | 'active';
+  projectStatus?:
+    | 'requirements'
+    | 'requirements_ready'
+    | 'waiting_for_payment'
+    | 'paid'
+    | 'in_development'
+    | 'active';
+  /** Stripe invoice URL for waiting_for_payment status */
+  stripeInvoiceUrl?: string | null;
   /** Markdown content for requirements preview */
   requirementsContent?: string;
   /** Current view mode for in_development status (game or docs) */
@@ -72,7 +80,7 @@ interface PreviewPanelProps {
 // Import requirements preview components
 import InDevelopmentPreview from './in-development-preview';
 import RequirementsPreview from './requirements-preview';
-import RequirementsReadyPreview from './requirements-ready-preview';
+import WaitingForPaymentPreview from './waiting-for-payment-preview';
 
 export default function PreviewPanel({
   projectId,
@@ -90,6 +98,7 @@ export default function PreviewPanel({
   prUrl = null,
   // Requirements mode props
   projectStatus = 'active',
+  stripeInvoiceUrl,
   requirementsContent,
   viewMode = 'game',
   onViewModeChange,
@@ -118,10 +127,12 @@ export default function PreviewPanel({
   } = usePreviewPanel({ projectId, sessionId, projectName, isNewProject });
   const isPreviewEnabled = Boolean(sessionId);
 
-  // Check if we're in requirements mode
+  // Check if we're in requirements mode (B2C flow statuses)
   const isRequirementsMode =
     projectStatus === 'requirements' ||
     projectStatus === 'requirements_ready' ||
+    projectStatus === 'waiting_for_payment' ||
+    projectStatus === 'paid' ||
     projectStatus === 'in_development';
 
   // Render requirements-specific preview content based on status
@@ -139,14 +150,18 @@ export default function PreviewPanel({
             isConfirming={isConfirmingRequirements}
           />
         );
+      case 'waiting_for_payment':
+        return <WaitingForPaymentPreview stripeInvoiceUrl={stripeInvoiceUrl} />;
       case 'requirements_ready':
-        return <RequirementsReadyPreview content={requirementsContent} projectName={projectName} />;
+      case 'paid':
       case 'in_development':
+        // These statuses show the game/docs toggle view with dynamic badges
         return (
           <InDevelopmentPreview
             content={requirementsContent}
             viewMode={viewMode}
             onViewModeChange={onViewModeChange || (() => {})}
+            projectStatus={projectStatus}
           />
         );
       default:

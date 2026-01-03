@@ -41,4 +41,11 @@ export interface InDevelopmentPreviewProps {
   viewMode: RequirementsViewMode;
   onViewModeChange: (mode: RequirementsViewMode) => void;
   className?: string;
+  /** Project status for dynamic badge display */
+  projectStatus?: 'requirements_ready' | 'paid' | 'in_development';
+}
+
+export interface WaitingForPaymentPreviewProps {
+  stripeInvoiceUrl?: string | null;
+  className?: string;
 }
