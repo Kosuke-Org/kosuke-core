@@ -1,4 +1,6 @@
-import { useUser } from '@clerk/nextjs';
+import type { ApiResponse } from '@/lib/api';
+import type { GitHubConnectionStatus } from '@/app/api/auth/github/status/route';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 
 const GITHUB_CONNECTING_KEY = 'github_oauth_connecting';
@@ -18,16 +20,38 @@ const clearConnectingStorage = () => {
   sessionStorage.removeItem(GITHUB_CONNECTING_KEY);
 };
 
+/**
+ * Hook for managing GitHub App OAuth connection.
+ * Uses the GitHub App's user authorization flow instead of Clerk OAuth.
+ */
 export function useGitHubOAuth() {
-  const { user } = useUser();
+  const queryClient = useQueryClient();
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-  const githubAccount = user?.externalAccounts?.find(
-    account => account.verification?.strategy === 'oauth_github'
-  );
+  // Fetch GitHub connection status from API
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['github-connection-status'],
+    queryFn: async (): Promise<GitHubConnectionStatus> => {
+      const response = await fetch('/api/auth/github/status');
+      if (!response.ok) {
+        throw new Error('Failed to fetch GitHub status');
+      }
+      const result: ApiResponse<GitHubConnectionStatus> = await response.json();
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
+    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
+  });
 
-  const isConnected = !!githubAccount;
+  const isConnected = data?.isConnected ?? false;
+  const githubAccount = data?.isConnected
+    ? {
+        username: data.username,
+        avatarUrl: data.avatarUrl,
+      }
+    : null;
 
   // Check sessionStorage on mount for persisted connecting state
   useEffect(() => {
@@ -36,82 +60,74 @@ export function useGitHubOAuth() {
     if (timestamp) {
       const elapsed = Date.now() - timestamp;
 
-      // Only clean up if timeout exceeded (NOT if connection completed)
-      // We need to keep the connecting state until we manually clear it
       if (elapsed > CONNECTION_TIMEOUT) {
         clearConnectingStorage();
         setIsConnecting(false);
       } else {
-        // Restore connecting state
         setIsConnecting(true);
       }
     }
   }, []);
 
-  const connectGitHub = useCallback(
-    async (redirectUrl?: string) => {
-      if (!user) return;
+  /**
+   * Initiates the GitHub App OAuth flow.
+   * Redirects to GitHub for authorization.
+   */
+  const connectGitHub = useCallback((redirectUrl?: string) => {
+    setIsConnecting(true);
+    setConnectingStorage();
 
-      setIsConnecting(true);
+    const finalRedirectUrl = redirectUrl || `${window.location.pathname}`;
 
-      // Persist connecting state with timestamp
-      setConnectingStorage();
+    // Redirect to our connect endpoint which handles the OAuth flow
+    window.location.href = `/api/auth/github/connect?redirect=${encodeURIComponent(finalRedirectUrl)}`;
+  }, []);
 
-      try {
-        const externalAccount = await user.createExternalAccount({
-          strategy: 'oauth_github',
-          redirectUrl: redirectUrl || `${window.location.origin}${window.location.pathname}`,
-        });
-
-        const verification = externalAccount.verification;
-        if (verification?.externalVerificationRedirectURL) {
-          window.location.href = verification.externalVerificationRedirectURL.toString();
-        } else {
-          // Just reload Clerk user data, UI will update automatically
-          await user.reload();
-          clearConnectingStorage();
-          setIsConnecting(false);
-        }
-      } catch (error) {
-        console.error('Failed to connect GitHub:', error);
-        clearConnectingStorage();
-        setIsConnecting(false);
-        throw error;
-      }
-    },
-    [user]
-  );
-
+  /**
+   * Disconnects the user's GitHub account.
+   */
   const disconnectGitHub = useCallback(async () => {
-    if (!user || !githubAccount?.id) return;
-
     setIsDisconnecting(true);
     try {
-      const externalAccount = user.externalAccounts.find(acc => acc.id === githubAccount.id);
-      if (externalAccount) {
-        await externalAccount.destroy();
-        await user.reload();
+      const response = await fetch('/api/auth/github/disconnect', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to disconnect GitHub');
       }
+
+      // Invalidate the status query to refresh the UI
+      await queryClient.invalidateQueries({ queryKey: ['github-connection-status'] });
+      // Also invalidate repositories query
+      await queryClient.invalidateQueries({ queryKey: ['github-repos-with-status'] });
     } catch (error) {
       console.error('Failed to disconnect GitHub:', error);
       throw error;
     } finally {
       setIsDisconnecting(false);
     }
-  }, [user, githubAccount]);
+  }, [queryClient]);
 
+  /**
+   * Clears the connecting state (e.g., after successful connection).
+   */
   const clearConnectingState = useCallback(() => {
     clearConnectingStorage();
     setIsConnecting(false);
-  }, []);
+    // Refetch status after clearing connecting state
+    refetch();
+  }, [refetch]);
 
   return {
     isConnected,
     isConnecting,
     isDisconnecting,
+    isLoading,
     connectGitHub,
     disconnectGitHub,
     clearConnectingState,
     githubAccount,
+    refetch,
   };
 }

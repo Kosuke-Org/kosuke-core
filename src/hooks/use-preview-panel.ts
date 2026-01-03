@@ -115,11 +115,10 @@ export function usePreviewPanel({
           setProgress(100);
         } else {
           console.log(
-            `[Preview Panel] Health check attempt ${attempts}/${maxAttempts} failed (non-200), retrying in 3s`
+            `[Preview Panel] Health check attempt ${attempts}/${maxAttempts} failed (non-200), retrying in 10s`
           );
-          // Use longer delays for more patient polling
-          const delay = attempts <= 3 ? 2000 : 1000; // 2s for first 3 attempts, then 1s
-          pollingTimeoutRef.current = setTimeout(poll, delay);
+          // Poll every 10s to match sandbox health polling interval
+          pollingTimeoutRef.current = setTimeout(poll, 10000);
         }
       };
 

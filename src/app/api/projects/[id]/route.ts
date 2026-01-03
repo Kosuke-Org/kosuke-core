@@ -6,7 +6,7 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { getOctokit } from '@/lib/github/client';
+import { getProjectOctokit } from '@/lib/github/client';
 import { deleteGitHubWebhook } from '@/lib/github/webhooks';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiErrorHandler.projectNotFound();
     }
 
+    // All projects now use GitHub App - no need to check owner's OAuth status
     return ApiResponseHandler.success(project, {
       model: process.env.ANTHROPIC_MODEL,
     });
@@ -177,7 +178,8 @@ export async function DELETE(
     // Step 3: Optionally delete the associated GitHub repository
     if (deleteRepo && project.githubOwner && project.githubRepoName) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Get GitHub client using project's App installation
+        const github = getProjectOctokit(project);
 
         await github.rest.repos.delete({
           owner: project.githubOwner,

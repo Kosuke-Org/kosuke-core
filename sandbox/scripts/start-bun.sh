@@ -6,6 +6,12 @@ set -e
 # Uses KOSUKE_BUN_DIR from entrypoint, installs deps, starts server
 # ============================================================
 
+# Skip if agent-only mode
+if [ "$KOSUKE_SERVICES_MODE" = "agent-only" ]; then
+    echo "ℹ️ Agent-only mode: Bun service disabled"
+    exec tail -f /dev/null
+fi
+
 # Check if bun service is configured
 if [ -z "$KOSUKE_BUN_DIR" ]; then
     echo "ℹ️ No Bun service defined in config, exiting"

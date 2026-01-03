@@ -2,9 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Copy, ExternalLink, Rocket } from 'lucide-react';
+import { ChevronDown, Copy, ExternalLink, Loader2, Rocket, Save } from 'lucide-react';
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -17,10 +17,19 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMarkProjectReady } from '@/hooks/use-admin-projects';
+import { useMarkProjectReady, useUpdatePaymentStatus } from '@/hooks/use-admin-projects';
 import { useToast } from '@/hooks/use-toast';
+import type { ProjectStatus } from '@/lib/db/schema';
 
 interface AdminProject {
   id: string;
@@ -32,12 +41,32 @@ interface AdminProject {
   requirementsCompletedAt: string | null;
   requirementsCompletedBy: string | null;
   githubRepoUrl: string | null;
+  status: ProjectStatus;
+  stripeInvoiceUrl: string | null;
 }
+
+// Status badge configuration
+const STATUS_CONFIG: Record<
+  ProjectStatus,
+  { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
+> = {
+  requirements: { label: 'Requirements', variant: 'secondary' },
+  requirements_ready: { label: 'Requirements Ready', variant: 'secondary' },
+  waiting_for_payment: { label: 'Waiting for Payment', variant: 'outline' },
+  paid: { label: 'Paid', variant: 'default' },
+  in_development: { label: 'In Development', variant: 'default' },
+  active: { label: 'Active', variant: 'default' },
+};
 
 export default function AdminProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
   const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
+  const [stripeInvoiceUrlInput, setStripeInvoiceUrlInput] = useState('');
+  const [statusTransitionDialogOpen, setStatusTransitionDialogOpen] = useState(false);
+  const [pendingStatusTransition, setPendingStatusTransition] = useState<ProjectStatus | null>(
+    null
+  );
 
   // Fetch single project
   const { data: projects, isLoading } = useQuery<AdminProject[]>({
@@ -52,8 +81,18 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
 
   const project = projects?.find(p => p.id === id);
 
+  // Initialize stripe invoice URL input when project loads
+  useEffect(() => {
+    if (project?.stripeInvoiceUrl) {
+      setStripeInvoiceUrlInput(project.stripeInvoiceUrl);
+    }
+  }, [project?.stripeInvoiceUrl]);
+
   // Mark project as ready mutation
   const markReadyMutation = useMarkProjectReady();
+
+  // Update payment status mutation
+  const updatePaymentStatusMutation = useUpdatePaymentStatus();
 
   const handleDeploy = () => {
     toast({
@@ -99,6 +138,35 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     });
   };
 
+  const handleSaveStripeInvoiceUrl = () => {
+    if (!project) return;
+    updatePaymentStatusMutation.mutate({
+      projectId: project.id,
+      stripeInvoiceUrl: stripeInvoiceUrlInput,
+    });
+  };
+
+  const handleStatusTransition = (newStatus: ProjectStatus) => {
+    setPendingStatusTransition(newStatus);
+    setStatusTransitionDialogOpen(true);
+  };
+
+  const confirmStatusTransition = () => {
+    if (!project || !pendingStatusTransition) return;
+    updatePaymentStatusMutation.mutate(
+      {
+        projectId: project.id,
+        status: pendingStatusTransition,
+      },
+      {
+        onSuccess: () => {
+          setStatusTransitionDialogOpen(false);
+          setPendingStatusTransition(null);
+        },
+      }
+    );
+  };
+
   if (isLoading) {
     return <PageSkeleton />;
   }
@@ -130,6 +198,26 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
               View Project Space
             </Link>
           </Button>
+          {/* Status Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={updatePaymentStatusMutation.isPending}>
+                {STATUS_CONFIG[project.status]?.label || project.status}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(Object.keys(STATUS_CONFIG) as ProjectStatus[]).map(status => (
+                <DropdownMenuItem
+                  key={status}
+                  disabled={status === project.status}
+                  onClick={() => handleStatusTransition(status)}
+                >
+                  {STATUS_CONFIG[status].label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={handleClone} variant="outline" disabled={!project.githubRepoUrl}>
             <Copy className="h-4 w-4 mr-2" />
             Clone
@@ -208,6 +296,84 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
           </div>
         </CardContent>
       </Card>
+
+      {/* Payment Status Card - Only show for B2C flow statuses */}
+      {['requirements_ready', 'waiting_for_payment', 'paid'].includes(project.status) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Payment Status</CardTitle>
+            <CardDescription>
+              Set the Stripe invoice URL for this project. Use the status dropdown in the header to
+              transition between payment states.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="stripeInvoiceUrl">Stripe Invoice URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="stripeInvoiceUrl"
+                  placeholder="https://invoice.stripe.com/..."
+                  value={stripeInvoiceUrlInput}
+                  onChange={e => setStripeInvoiceUrlInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleSaveStripeInvoiceUrl}
+                  disabled={
+                    updatePaymentStatusMutation.isPending ||
+                    stripeInvoiceUrlInput === (project.stripeInvoiceUrl || '')
+                  }
+                >
+                  {updatePaymentStatusMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">Save</span>
+                </Button>
+              </div>
+              {project.stripeInvoiceUrl && (
+                <p className="text-sm text-muted-foreground">
+                  Current:{' '}
+                  <Link
+                    href={project.stripeInvoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {project.stripeInvoiceUrl}
+                  </Link>
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Status Transition Confirmation Dialog */}
+      <AlertDialog open={statusTransitionDialogOpen} onOpenChange={setStatusTransitionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change status from &quot;{STATUS_CONFIG[project.status]?.label}&quot; to &quot;
+              {pendingStatusTransition && STATUS_CONFIG[pendingStatusTransition]?.label}&quot;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updatePaymentStatusMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmStatusTransition}
+              disabled={updatePaymentStatusMutation.isPending}
+            >
+              {updatePaymentStatusMutation.isPending ? 'Processing...' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Mark as Ready Confirmation Dialog */}
       <AlertDialog open={markReadyDialogOpen} onOpenChange={setMarkReadyDialogOpen}>

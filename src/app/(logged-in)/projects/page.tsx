@@ -4,7 +4,10 @@ import EmptyState from '@/app/(logged-in)/projects/components/empty-state';
 import ProjectCreationModal from '@/app/(logged-in)/projects/components/project-creation-modal';
 import ProjectGrid from '@/app/(logged-in)/projects/components/project-grid';
 import ProjectsHeader from '@/app/(logged-in)/projects/components/projects-header';
-import { ProjectCardSkeleton, ProjectModalSkeleton } from '@/app/(logged-in)/projects/components/skeletons';
+import {
+  ProjectCardSkeleton,
+  ProjectModalSkeleton,
+} from '@/app/(logged-in)/projects/components/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProjects } from '@/hooks/use-projects';
 import { useUser } from '@/hooks/use-user';
@@ -32,11 +35,9 @@ function ProjectsLoadingSkeleton() {
 function ProjectsSearchParamsHandler({
   setInitialTab,
   setIsModalOpen,
-  setShowGitHubConnected,
 }: {
   setInitialTab: (tab: 'create' | 'import') => void;
   setIsModalOpen: (open: boolean) => void;
-  setShowGitHubConnected: (show: boolean) => void;
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -48,15 +49,13 @@ function ProjectsSearchParamsHandler({
 
       setInitialTab('import');
       setIsModalOpen(true);
-      setShowGitHubConnected(searchParams.get('githubConnected') === 'true');
 
       // Clean up URL without reloading the page
       const url = new URL(window.location.href);
       url.searchParams.delete('openImport');
-      url.searchParams.delete('githubConnected');
       router.replace(url.pathname, { scroll: false });
     }
-  }, [searchParams, router, setInitialTab, setIsModalOpen, setShowGitHubConnected]);
+  }, [searchParams, router, setInitialTab, setIsModalOpen]);
 
   return null;
 }
@@ -68,7 +67,6 @@ function ProjectsContent() {
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialTab, setInitialTab] = useState<'create' | 'import'>('create');
-  const [showGitHubConnected, setShowGitHubConnected] = useState(false);
   const queryClient = useQueryClient();
 
   // Only refetch projects if data is stale (don't force refetch on every mount)
@@ -81,7 +79,7 @@ function ProjectsContent() {
       if (isStale) {
         queryClient.invalidateQueries({
           queryKey: ['projects', user.id],
-          refetchType: 'active'
+          refetchType: 'active',
         });
       }
     }
@@ -95,7 +93,6 @@ function ProjectsContent() {
 
   const handleOpenModal = () => {
     setInitialTab('create'); // Reset to create tab when manually opening
-    setShowGitHubConnected(false); // Reset success message flag
     setIsModalOpen(true);
   };
 
@@ -104,7 +101,6 @@ function ProjectsContent() {
     if (!open) {
       // Reset to create tab when closing
       setInitialTab('create');
-      setShowGitHubConnected(false);
     }
   };
 
@@ -114,15 +110,11 @@ function ProjectsContent() {
         <ProjectsSearchParamsHandler
           setInitialTab={setInitialTab}
           setIsModalOpen={setIsModalOpen}
-          setShowGitHubConnected={setShowGitHubConnected}
         />
       </Suspense>
 
       <div className="container mx-auto py-8">
-        <ProjectsHeader
-          hasProjects={(projects?.length ?? 0) > 0}
-          onCreateClick={handleOpenModal}
-        />
+        <ProjectsHeader hasProjects={(projects?.length ?? 0) > 0} onCreateClick={handleOpenModal} />
 
         <Suspense fallback={<ProjectsLoadingSkeleton />}>
           {!projects?.length ? (
@@ -138,7 +130,6 @@ function ProjectsContent() {
           open={isModalOpen}
           onOpenChange={handleCloseModal}
           initialTab={initialTab}
-          showGitHubConnected={showGitHubConnected}
         />
       </Suspense>
     </>

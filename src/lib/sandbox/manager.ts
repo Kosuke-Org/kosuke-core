@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { decrypt } from '@/lib/crypto';
 import { db } from '@/lib/db/drizzle';
 import { organizationApiKeys } from '@/lib/db/schema';
+import { KOSUKE_BOT_EMAIL, KOSUKE_BOT_NAME } from '@/lib/github/installations';
 
 import { SandboxClient } from './client';
 import { getSandboxConfig } from './config';
@@ -152,7 +153,7 @@ export class SandboxManager {
           console.log(`📥 Pulling latest code for branch ${options.branchName}...`);
           const agentReady = await this.waitForAgent(options.sessionId);
 
-          if (agentReady) {
+          if (agentReady && options.branchName && options.githubToken) {
             const sandboxClient = new SandboxClient(options.sessionId);
             const pullResult = await sandboxClient.pull(options.branchName, options.githubToken);
 
@@ -188,18 +189,25 @@ export class SandboxManager {
     const postgresUrl = await createSandboxDatabase(options.sessionId);
 
     // Prepare routing configuration (Traefik vs local port)
-    const {
-      externalUrl,
-      hostPort,
-      labels: routingLabels,
-    } = this.prepareRouting(options.sessionId, containerName);
+    // Only expose bun port when servicesMode is 'full'
+    let externalUrl: string | null = null;
+    let hostPort: number | null = null;
+    let routingLabels: Record<string, string> = {};
+
+    if (options.servicesMode === 'full') {
+      const routing = this.prepareRouting(options.sessionId, containerName);
+      externalUrl = routing.externalUrl;
+      hostPort = routing.hostPort;
+      routingLabels = routing.labels;
+    }
 
     const labels: Record<string, string> = {
       'kosuke.type': 'sandbox',
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
-      'kosuke.branch': options.branchName,
+      'kosuke.services_mode': options.servicesMode,
+      ...(options.branchName && { 'kosuke.branch': options.branchName }),
       ...(options.orgId && { 'kosuke.org_id': options.orgId }),
       ...routingLabels,
     };
@@ -213,6 +221,7 @@ export class SandboxManager {
       `KOSUKE_BRANCH=${options.branchName}`,
       `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
       `KOSUKE_MODE=${options.mode}`,
+      `KOSUKE_SERVICES_MODE=${options.servicesMode}`,
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
@@ -223,8 +232,9 @@ export class SandboxManager {
       `ANTHROPIC_MODEL=${process.env.ANTHROPIC_MODEL}`,
       `GOOGLE_MODEL=${process.env.GOOGLE_MODEL}`,
       `AGENT_MAX_TURNS=${process.env.AGENT_MAX_TURNS || '25'}`,
-      // Git identity for sandbox commits
-      `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
+      // Git identity for sandbox commits - uses Kosuke Bot identity
+      `KOSUKE_GIT_NAME=${KOSUKE_BOT_NAME}`,
+      `KOSUKE_GIT_EMAIL=${KOSUKE_BOT_EMAIL}`,
       // Pass __KSK__* resolved values (same name as placeholder)
       `__KSK__PREVIEW_RESEND_API_KEY=${process.env.PREVIEW_RESEND_API_KEY || ''}`,
     ];
@@ -270,7 +280,10 @@ export class SandboxManager {
     await client.containerStart(createResult.Id);
 
     console.log(`✅ Sandbox ${containerName} started`);
-    console.log(`   Preview URL: ${externalUrl}`);
+    console.log(`   Services mode: ${options.servicesMode}`);
+    if (externalUrl) {
+      console.log(`   Preview URL: ${externalUrl}`);
+    }
 
     return this.getSandboxInfo(containerName);
   }
@@ -287,11 +300,16 @@ export class SandboxManager {
       | 'development'
       | 'production';
     const branch = container.Config?.Labels?.['kosuke.branch'] || 'main';
+    const servicesMode = container.Config?.Labels?.['kosuke.services_mode'] || 'full';
     const hostPort = container.Config?.Labels?.['kosuke.host_port'];
 
-    const url = this.config.traefikEnabled
-      ? `https://${generatePreviewHost(sessionId, this.config.previewDomain)}`
-      : `http://localhost:${hostPort}`;
+    // URL is null when servicesMode is 'agent-only' (no bun service)
+    let url: string | null = null;
+    if (servicesMode === 'full') {
+      url = this.config.traefikEnabled
+        ? `https://${generatePreviewHost(sessionId, this.config.previewDomain)}`
+        : `http://localhost:${hostPort}`;
+    }
 
     return {
       containerId: container.Id!,
@@ -366,7 +384,7 @@ export class SandboxManager {
   /**
    * Wait for the sandbox agent to be ready
    */
-  private async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
+  async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
     const agentUrl = this.getSandboxAgentUrl(sessionId);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

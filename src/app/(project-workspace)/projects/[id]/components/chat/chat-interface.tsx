@@ -2,16 +2,24 @@
 
 import { Loader2, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 // Import types and hooks
+import { useAgentHealth } from '@/hooks/use-agent-health';
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
 import { useChatState } from '@/hooks/use-chat-state';
+import { useRequirementsMessages } from '@/hooks/use-requirements-messages';
 import { useSendMessage } from '@/hooks/use-send-message';
-import type { ChatInterfaceProps } from '@/lib/types';
+import { useSendRequirementsMessage } from '@/hooks/use-send-requirements-message';
+import type {
+  AssistantBlock,
+  Attachment,
+  ChatInterfaceProps,
+  ChatMessage as ChatMessageType,
+  ErrorType,
+} from '@/lib/types';
 
 // Import components
 import AssistantResponse from './assistant-response';
@@ -28,6 +36,9 @@ export default function ChatInterface({
   model,
   isBuildInProgress = false,
   isBuildFailed = false,
+  // Requirements mode props
+  mode = 'development',
+  projectStatus = 'active',
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,19 +51,65 @@ export default function ChatInterface({
     imageUrl?: string;
   } | null>(null);
 
-  // Always call hooks at the top level, even if sessionId is not available yet
-  const sendMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
-  const messagesQuery = useChatSessionMessages(projectId, sessionId || '');
+  // Mode-specific hooks - always call hooks at the top level
+  // Development mode hooks
+  const sendDevMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
+  const devMessagesQuery = useChatSessionMessages(projectId, sessionId || '');
   const chatState = useChatState(projectId, sessionId);
 
-  // Extract data from hooks
-  const { data: messagesData, isLoading: isLoadingMessages } = messagesQuery;
+  // Requirements mode hooks
+  const reqMessagesQuery = useRequirementsMessages(projectId);
+  const sendReqMessageMutation = useSendRequirementsMessage(projectId);
 
+  // Agent health - used to disable input until agent is ready
+  const { data: agentHealth } = useAgentHealth({
+    projectId,
+    enabled: Boolean(projectId),
+    pollingInterval: 10000,
+  });
+
+  // Agent is ready when running, alive, and explicitly ready
+  const isAgentReady = Boolean(agentHealth?.running && agentHealth?.alive && agentHealth?.ready);
+
+  // Extract streaming state from requirements hook
+  const {
+    isStreaming: isReqStreaming,
+    streamingContentBlocks: reqStreamingContentBlocks,
+    streamingAssistantMessageId: reqStreamingAssistantMessageId,
+    cancelStream: reqCancelStream,
+  } = sendReqMessageMutation;
+
+  // Select hooks based on mode
+  const isRequirementsMode = mode === 'requirements';
+
+  // Extract data from queries
+  const { data: devMessagesData, isLoading: isLoadingDevMessages } = devMessagesQuery;
+  const { data: reqMessagesData, isLoading: isLoadingReqMessages } = reqMessagesQuery;
+
+  // Select the appropriate loading state
+  const isLoadingMessages = isRequirementsMode ? isLoadingReqMessages : isLoadingDevMessages;
+
+  // Handle messages differently based on mode
+  // Requirements mode returns array directly, development mode returns { messages: [...] }
   const messages = useMemo(() => {
-    const msgs = messagesData?.messages || [];
-    return msgs;
-  }, [messagesData?.messages]);
+    if (isRequirementsMode) {
+      // Requirements mode: data is array of RequirementsMessage - cast to ChatMessage-compatible shape
+      return (reqMessagesData || []).map(msg => ({
+        ...msg,
+        role: msg.role as 'user' | 'assistant' | 'system',
+        blocks: msg.blocks as AssistantBlock[] | undefined,
+        hasError: false,
+        errorType: undefined as ErrorType | undefined,
+        commitSha: undefined as string | undefined,
+        metadata: undefined as ChatMessageType['metadata'],
+        attachments: undefined as Attachment[] | undefined,
+      }));
+    }
+    // Development mode: data is { messages: [...] }
+    return devMessagesData?.messages || [];
+  }, [devMessagesData, reqMessagesData, isRequirementsMode]);
 
+  // Extract development mode mutation data
   const {
     sendMessage,
     isLoading: isSending,
@@ -62,7 +119,7 @@ export default function ChatInterface({
     streamingContentBlocks,
     streamingAssistantMessageId,
     cancelStream,
-  } = sendMessageMutation;
+  } = sendDevMessageMutation;
 
   const {
     isError,
@@ -108,22 +165,36 @@ export default function ChatInterface({
     }, 100);
 
     return () => clearTimeout(scrollTimeout);
-  }, [messages, isLoadingMessages, streamingContentBlocks]);
+  }, [messages, isLoadingMessages, streamingContentBlocks, reqStreamingContentBlocks]);
 
   // Derive a flag instead of early return to keep hook order stable
-  const hasSession = Boolean(sessionId);
+  // Requirements mode doesn't need a session, development mode does
+  const hasSession = isRequirementsMode || Boolean(sessionId);
+
+  // Check if chat input should be disabled for requirements mode
+  const isRequirementsReadonly = isRequirementsMode && projectStatus !== 'requirements';
+
+  // Select the appropriate streaming state based on mode
+  const activeIsStreaming = isRequirementsMode ? isReqStreaming : isStreaming;
+  const activeStreamingContentBlocks = isRequirementsMode
+    ? reqStreamingContentBlocks
+    : streamingContentBlocks;
+  const activeStreamingAssistantMessageId = isRequirementsMode
+    ? reqStreamingAssistantMessageId
+    : streamingAssistantMessageId;
+  const activeCancelStream = isRequirementsMode ? reqCancelStream : cancelStream;
 
   // Avoid duplicate assistant responses: hide streaming block once saved message arrives
   const hasSavedStreamedMessage = useMemo(() => {
-    return streamingAssistantMessageId
-      ? messages.some(m => m.id === streamingAssistantMessageId)
+    return activeStreamingAssistantMessageId
+      ? messages.some(m => m.id === activeStreamingAssistantMessageId)
       : false;
-  }, [messages, streamingAssistantMessageId]);
+  }, [messages, activeStreamingAssistantMessageId]);
 
   // Keep streaming UI visible while waiting for webhook-saved message
   const showStreamingAssistant = Boolean(
-    (isStreaming || expectingWebhookUpdate) &&
-    (!streamingAssistantMessageId || !hasSavedStreamedMessage)
+    (activeIsStreaming || (!isRequirementsMode && expectingWebhookUpdate)) &&
+    (!activeStreamingAssistantMessageId || !hasSavedStreamedMessage)
   );
 
   // Handle sending messages
@@ -133,14 +204,20 @@ export default function ChatInterface({
   ) => {
     if (!content.trim() && !options?.imageFile) return;
 
-    // Clear error state
-    clearError();
+    if (isRequirementsMode) {
+      // Requirements mode: just send content
+      sendReqMessageMutation.mutate(content);
+    } else {
+      // Development mode: use full sendMessage with options
+      // Clear error state
+      clearError();
 
-    // Save message for regeneration
-    saveLastMessage(content, options);
+      // Save message for regeneration
+      saveLastMessage(content, options);
 
-    // Send the message
-    sendMessage({ content, options });
+      // Send the message
+      sendMessage({ content, options });
+    }
   };
 
   // Handle regeneration
@@ -190,7 +267,12 @@ export default function ChatInterface({
 
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
-      <ModelBanner model={model} />
+      <ModelBanner
+        model={model}
+        projectId={projectId}
+        showAgentStatus={isRequirementsMode}
+        agentHealth={agentHealth}
+      />
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
@@ -268,11 +350,11 @@ export default function ChatInterface({
                       </div>
 
                       {/* Full-width assistant response */}
-                      {streamingContentBlocks && streamingContentBlocks.length > 0 ? (
+                      {activeStreamingContentBlocks && activeStreamingContentBlocks.length > 0 ? (
                         <AssistantResponse
                           response={{
-                            id: streamingAssistantMessageId!,
-                            contentBlocks: streamingContentBlocks,
+                            id: activeStreamingAssistantMessageId!,
+                            contentBlocks: activeStreamingContentBlocks,
                             timestamp: new Date(),
                             status: 'streaming',
                           }}
@@ -337,17 +419,23 @@ export default function ChatInterface({
       <div className="px-4 pb-0 relative">
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isSending || isRegenerating}
-          isStreaming={isStreaming}
-          onStop={cancelStream}
+          isLoading={isSending || isRegenerating || sendReqMessageMutation.isPending}
+          isStreaming={activeIsStreaming}
+          onStop={activeCancelStream}
           placeholder={
-            isBuildFailed
-              ? 'Build stopped. Use the restart button above to try again.'
-              : isBuildInProgress
-                ? 'Build in progress...'
-                : 'Type your message...'
+            !isAgentReady
+              ? 'Waiting for agent...'
+              : isRequirementsReadonly
+                ? 'Requirements have been submitted'
+                : isRequirementsMode
+                  ? 'Describe your project requirements...'
+                  : isBuildFailed
+                    ? 'Build stopped. Use the restart button above to try again.'
+                    : isBuildInProgress
+                      ? 'Build in progress...'
+                      : 'Type your message...'
           }
-          disabled={isBuildInProgress || isBuildFailed}
+          disabled={!isAgentReady || isBuildInProgress || isBuildFailed || isRequirementsReadonly}
           data-testid="chat-input"
           className="chat-input"
         />

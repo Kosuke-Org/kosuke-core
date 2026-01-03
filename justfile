@@ -6,6 +6,15 @@ run *args:
     @docker compose -f docker-compose.local.yml up --build -d {{args}}
     @just migrate
 
+restart *args:
+    @echo "Restarting all services with build..."
+    @docker compose -f docker-compose.local.yml restart {{args}}
+    @just migrate
+
+logs *args:
+    @echo "Fetching logs for all services..."
+    @docker compose -f docker-compose.local.yml logs -f {{args}}
+
 build:
     @echo "Building all containers..."
     @docker compose -f docker-compose.local.yml build
@@ -54,3 +63,7 @@ watch-agent:
     @echo "👀 Starting kosuke-cli watch mode..."
     @echo "   Edit .ts files → Auto-rebuild → Auto-restart in container"
     @cd sandbox/kosuke-cli && npm run build:watch
+
+delete-sandbox-containers:
+    @echo "Deleting all sandbox containers..."
+    @docker rm -f $(docker ps -a -q --filter "name=kosuke-sandbox")

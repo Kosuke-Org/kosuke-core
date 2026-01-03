@@ -28,6 +28,8 @@ import { usePreviewPanel } from '@/hooks/use-preview-panel';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
 
+import type { RequirementsViewMode } from '@/lib/types';
+
 interface PreviewPanelProps {
   projectId: string;
   projectName: string;
@@ -50,7 +52,35 @@ interface PreviewPanelProps {
   isCreatingPR?: boolean;
   /** URL of the created PR (when available, shows View PR button) */
   prUrl?: string | null;
+  // Requirements mode props
+  /** Project status for status-based preview content */
+  projectStatus?:
+    | 'requirements'
+    | 'requirements_ready'
+    | 'waiting_for_payment'
+    | 'paid'
+    | 'in_development'
+    | 'active';
+  /** Stripe invoice URL for waiting_for_payment status */
+  stripeInvoiceUrl?: string | null;
+  /** Markdown content for requirements preview */
+  requirementsContent?: string;
+  /** Current view mode for in_development status (game or docs) */
+  viewMode?: RequirementsViewMode;
+  /** Callback when view mode changes */
+  onViewModeChange?: (mode: RequirementsViewMode) => void;
+  /** Callback to confirm requirements (for RequirementsPreview) */
+  onConfirmRequirements?: () => void;
+  /** When true, the confirm requirements button is enabled */
+  canConfirmRequirements?: boolean;
+  /** When true, the confirm requirements mutation is in progress */
+  isConfirmingRequirements?: boolean;
 }
+
+// Import requirements preview components
+import InDevelopmentPreview from './in-development-preview';
+import RequirementsPreview from './requirements-preview';
+import WaitingForPaymentPreview from './waiting-for-payment-preview';
 
 export default function PreviewPanel({
   projectId,
@@ -66,6 +96,16 @@ export default function PreviewPanel({
   canCreatePR = false,
   isCreatingPR = false,
   prUrl = null,
+  // Requirements mode props
+  projectStatus = 'active',
+  stripeInvoiceUrl,
+  requirementsContent,
+  viewMode = 'game',
+  onViewModeChange,
+  // Confirm requirements props
+  onConfirmRequirements,
+  canConfirmRequirements = false,
+  isConfirmingRequirements = false,
 }: PreviewPanelProps) {
   const {
     // State
@@ -87,6 +127,48 @@ export default function PreviewPanel({
   } = usePreviewPanel({ projectId, sessionId, projectName, isNewProject });
   const isPreviewEnabled = Boolean(sessionId);
 
+  // Check if we're in requirements mode (B2C flow statuses)
+  const isRequirementsMode =
+    projectStatus === 'requirements' ||
+    projectStatus === 'requirements_ready' ||
+    projectStatus === 'waiting_for_payment' ||
+    projectStatus === 'paid' ||
+    projectStatus === 'in_development';
+
+  // Render requirements-specific preview content based on status
+  const renderRequirementsContent = () => {
+    switch (projectStatus) {
+      case 'requirements':
+        return (
+          <RequirementsPreview
+            projectId={projectId}
+            content={requirementsContent}
+            onToggleSidebar={onToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onConfirmRequirements={onConfirmRequirements}
+            canConfirm={canConfirmRequirements}
+            isConfirming={isConfirmingRequirements}
+          />
+        );
+      case 'waiting_for_payment':
+        return <WaitingForPaymentPreview stripeInvoiceUrl={stripeInvoiceUrl} />;
+      case 'requirements_ready':
+      case 'paid':
+      case 'in_development':
+        // These statuses show the game/docs toggle view with dynamic badges
+        return (
+          <InDevelopmentPreview
+            content={requirementsContent}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange || (() => {})}
+            projectStatus={projectStatus}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   // Render status icon based on status type
   const renderStatusIcon = () => {
     const iconType = getStatusIconType();
@@ -105,139 +187,146 @@ export default function PreviewPanel({
       className={cn('flex flex-col h-full w-full overflow-hidden', className)}
       data-testid="preview-panel"
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b">
-        <div className="flex items-center gap-2">
-          {/* Toggle sidebar button */}
-          {onToggleSidebar && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleSidebar}
-              className="h-8 w-8"
-              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {isSidebarCollapsed ? (
-                <PanelLeftOpen className="h-5 w-5" />
-              ) : (
-                <PanelLeftClose className="h-5 w-5" />
-              )}
-            </Button>
-          )}
-          {isShowingTemplate ? (
-            <Badge variant="outline" className="text-xs">
-              Template
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-xs">
-              {branch}
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center space-x-1">
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
+      {/* Header - only show development actions when not in requirements mode */}
+      {!isRequirementsMode && (
+        <div className="flex items-center justify-between px-4 py-2 border-b">
+          <div className="flex items-center gap-2">
+            {/* Toggle sidebar button */}
+            {onToggleSidebar && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleSidebar}
+                className="h-8 w-8"
+                aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {isSidebarCollapsed ? (
+                  <PanelLeftOpen className="h-5 w-5" />
+                ) : (
+                  <PanelLeftClose className="h-5 w-5" />
+                )}
+              </Button>
+            )}
+            {isShowingTemplate ? (
+              <Badge variant="outline" className="text-xs">
+                Template
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs">
+                {branch}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center space-x-1">
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Download project"
+                      disabled={isDownloading}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Download</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem className="flex items-center" disabled>
+                  <Github className="mr-2 h-4 w-4" />
+                  <span>Create GitHub Repo</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="flex items-center"
+                  onClick={handleDownloadZip}
+                  disabled={isDownloading}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  <span>Download ZIP</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {previewUrl && status === 'ready' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    aria-label="Download project"
-                    disabled={isDownloading}
+                    onClick={openInNewTab}
+                    aria-label="Open in new tab"
                   >
-                    <Download className="h-4 w-4" />
+                    <ExternalLink className="h-4 w-4" />
                   </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Download</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem className="flex items-center" disabled>
-                <Github className="mr-2 h-4 w-4" />
-                <span>Create GitHub Repo</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center"
-                onClick={handleDownloadZip}
-                disabled={isDownloading}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                <span>Download ZIP</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {previewUrl && status === 'ready' && (
+                </TooltipTrigger>
+                <TooltipContent>View</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={openInNewTab}
-                  aria-label="Open in new tab"
+                  onClick={() => handleRefresh()}
+                  disabled={!isPreviewEnabled || status === 'loading'}
+                  aria-label="Refresh preview"
                 >
-                  <ExternalLink className="h-4 w-4" />
+                  <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>View</TooltipContent>
+              <TooltipContent>Refresh</TooltipContent>
             </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRefresh()}
-                disabled={!isPreviewEnabled || status === 'loading'}
-                aria-label="Refresh preview"
-              >
-                <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh</TooltipContent>
-          </Tooltip>
-          {showCreatePR && prUrl ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={prUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    View Changes
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>View your submitted changes on GitHub</TooltipContent>
-            </Tooltip>
-          ) : showCreatePR && onCreatePullRequest ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onCreatePullRequest}
-                    disabled={!canCreatePR || isCreatingPR}
-                  >
-                    {isCreatingPR ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4 mr-1" />
-                    )}
-                    {isCreatingPR ? 'Creating...' : 'Submit'}
+            {showCreatePR && prUrl ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={prUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      View Changes
+                    </Link>
                   </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {!canCreatePR
-                  ? 'A successful build is required before submitting'
-                  : 'Submit your changes'}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
+                </TooltipTrigger>
+                <TooltipContent>View your submitted changes on GitHub</TooltipContent>
+              </Tooltip>
+            ) : showCreatePR && onCreatePullRequest ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onCreatePullRequest}
+                      disabled={!canCreatePR || isCreatingPR}
+                    >
+                      {isCreatingPR ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-1" />
+                      )}
+                      {isCreatingPR ? 'Creating...' : 'Submit'}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {!canCreatePR
+                    ? 'A successful build is required before submitting'
+                    : 'Submit your changes'}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
       <div className="flex-1 overflow-hidden">
         <div className="h-full w-full">
-          {!isPreviewEnabled || status !== 'ready' ? (
+          {/* Requirements mode content */}
+          {isRequirementsMode ? (
+            renderRequirementsContent()
+          ) : /* Development mode content */
+          !isPreviewEnabled || status !== 'ready' ? (
             <div className="flex h-full items-center justify-center flex-col p-6">
               {isPreviewEnabled ? (
                 renderStatusIcon()

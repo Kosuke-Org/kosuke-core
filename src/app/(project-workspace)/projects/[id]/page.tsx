@@ -20,10 +20,13 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
+import { useConfirmRequirements } from '@/hooks/use-confirm-requirements';
 import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
+import { useRequirementsDocs } from '@/hooks/use-requirements-docs';
 import { useUser as useUserHook } from '@/hooks/use-user';
+import type { RequirementsViewMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useClerk, useUser } from '@clerk/nextjs';
 
@@ -207,6 +210,21 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Reference to the ChatInterface component to maintain its state
   const chatInterfaceRef = useRef<HTMLDivElement>(null);
 
+  // Requirements-specific hooks - must be called before early returns
+  // Poll every 5s while in 'requirements' status to sync preview with sandbox updates
+  const { data: requirementsContent } = useRequirementsDocs(projectId, {
+    projectStatus: project?.status as
+      | 'requirements'
+      | 'requirements_ready'
+      | 'waiting_for_payment'
+      | 'paid'
+      | 'in_development'
+      | 'active'
+      | undefined,
+  });
+  const confirmRequirementsMutation = useConfirmRequirements(projectId);
+  const [viewMode, setViewMode] = useState<RequirementsViewMode>('game');
+
   // Loading state
   if (isProjectLoading || !user) {
     return <ProjectLoadingSkeleton />;
@@ -216,6 +234,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   if (projectError || !project) {
     notFound();
   }
+
+  // Requirements gathering mode - determine if in requirements flow (B2C statuses)
+  const isRequirementsMode =
+    project.status === 'requirements' ||
+    project.status === 'requirements_ready' ||
+    project.status === 'waiting_for_payment' ||
+    project.status === 'paid' ||
+    project.status === 'in_development';
 
   const toggleSidebar = () => {
     if (!showSidebar) {
@@ -232,11 +258,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return;
     }
 
+    // Build description with optional user email
+    let description = `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`;
+    if (dbUser?.email) {
+      description += `\n\nCreated by: ${dbUser.email}`;
+    }
+
     createPullRequestMutation.mutate({
       sessionId: currentSession.id,
       data: {
         title: currentSession.title,
-        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`,
+        description,
       },
     });
   };
@@ -339,8 +371,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   </Link>
                 </div>
 
-                {/* Back to Sessions button - only show when in chat interface */}
-                {!showSidebar && (
+                {/* Back to Sessions button - only show when in chat interface and not in requirements mode */}
+                {!showSidebar && !isRequirementsMode && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -357,7 +389,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {/* Chat Content */}
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
-                {showSidebar ? (
+                {isRequirementsMode ? (
+                  /* Requirements mode: just show chat, no sidebar */
+                  <div className="w-full h-full flex flex-col">
+                    <ChatInterface
+                      projectId={projectId}
+                      mode="requirements"
+                      model={project?.model}
+                      projectStatus={
+                        project.status as
+                          | 'requirements'
+                          | 'requirements_ready'
+                          | 'in_development'
+                          | 'active'
+                      }
+                    />
+                  </div>
+                ) : showSidebar ? (
                   <div className="w-full h-full">
                     <ChatSidebar
                       projectId={projectId}
@@ -369,6 +417,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   <div className="w-full h-full flex flex-col">
                     <ChatInterface
                       projectId={projectId}
+                      mode="development"
                       activeChatSessionId={activeChatSessionId}
                       sessionId={sessionId}
                       model={project?.model}
@@ -436,11 +485,31 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isNewProject={isNewProject}
                 isSidebarCollapsed={isChatCollapsed}
                 onToggleSidebar={toggleChatCollapsed}
-                showCreatePR={!showSidebar && Boolean(activeChatSessionId)}
+                showCreatePR={!showSidebar && Boolean(activeChatSessionId) && !isRequirementsMode}
                 onCreatePullRequest={handleCreatePullRequest}
                 canCreatePR={canCreatePR}
                 isCreatingPR={createPullRequestMutation.isPending}
                 prUrl={createPullRequestMutation.data?.pull_request_url}
+                // Requirements mode props
+                projectStatus={
+                  project.status as
+                    | 'requirements'
+                    | 'requirements_ready'
+                    | 'waiting_for_payment'
+                    | 'paid'
+                    | 'in_development'
+                    | 'active'
+                }
+                stripeInvoiceUrl={project.stripeInvoiceUrl}
+                requirementsContent={requirementsContent}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                // Confirm requirements props (for RequirementsPreview)
+                onConfirmRequirements={() => confirmRequirementsMutation.mutate()}
+                canConfirmRequirements={
+                  project.status === 'requirements' && !confirmRequirementsMutation.isPending
+                }
+                isConfirmingRequirements={confirmRequirementsMutation.isPending}
               />
             </div>
           </div>

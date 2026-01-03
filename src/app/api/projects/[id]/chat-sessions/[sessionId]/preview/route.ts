@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/client';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
 import { eq } from 'drizzle-orm';
@@ -64,16 +64,17 @@ export async function GET(
     // Sandbox not running - need to create/start it
     console.log('Sandbox is not running, starting...');
 
-    // Get GitHub token
-    const githubToken = await getGitHubToken(project.isImported, userId);
-
-    if (!githubToken) {
-      return ApiErrorHandler.badRequest('GitHub token not available');
-    }
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     // Determine mode: main session uses production, others use development
     const isMainSession = session.isDefault;
     const mode = isMainSession ? 'production' : 'development';
+
+    // Determine servicesMode based on project status:
+    // - 'active' → 'full' (bun + python + agent)
+    // - everything else → 'agent-only' (only agent)
+    const servicesMode = project.status === 'active' ? 'full' : 'agent-only';
 
     // Build repo URL
     const repoUrl =
@@ -88,6 +89,7 @@ export async function GET(
       repoUrl,
       githubToken,
       mode,
+      servicesMode,
       orgId: project.orgId ?? undefined,
     });
 
