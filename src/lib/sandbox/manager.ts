@@ -153,7 +153,7 @@ export class SandboxManager {
           console.log(`📥 Pulling latest code for branch ${options.branchName}...`);
           const agentReady = await this.waitForAgent(options.sessionId);
 
-          if (agentReady) {
+          if (agentReady && options.branchName && options.githubToken) {
             const sandboxClient = new SandboxClient(options.sessionId);
             const pullResult = await sandboxClient.pull(options.branchName, options.githubToken);
 
@@ -200,7 +200,7 @@ export class SandboxManager {
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
-      'kosuke.branch': options.branchName,
+      ...(options.branchName && { 'kosuke.branch': options.branchName }),
       ...(options.orgId && { 'kosuke.org_id': options.orgId }),
       ...routingLabels,
     };
@@ -210,9 +210,9 @@ export class SandboxManager {
 
     // Build environment variables
     const envVars: string[] = [
-      `KOSUKE_REPO_URL=${options.repoUrl}`,
-      `KOSUKE_BRANCH=${options.branchName}`,
-      `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
+      `KOSUKE_REPO_URL=${options.repoUrl || ''}`,
+      `KOSUKE_BRANCH=${options.branchName || ''}`,
+      `KOSUKE_GITHUB_TOKEN=${options.githubToken || ''}`,
       `KOSUKE_MODE=${options.mode}`,
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
@@ -368,7 +368,7 @@ export class SandboxManager {
   /**
    * Wait for the sandbox agent to be ready
    */
-  private async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
+  async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
     const agentUrl = this.getSandboxAgentUrl(sessionId);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

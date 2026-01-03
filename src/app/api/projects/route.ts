@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
           createdBy: userId,
           createdAt: new Date(),
           updatedAt: new Date(),
+          status: 'requirements', // B2C flow: start in requirements gathering mode
         })
         .returning();
 

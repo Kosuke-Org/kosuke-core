@@ -1,0 +1,36 @@
+// Requirements gathering types
+
+// Requirements message type for chat
+export interface RequirementsMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content?: string;
+  blocks?: Array<{ type: string; content: string }>;
+  timestamp: Date;
+}
+
+// API response for requirements messages
+export interface RequirementsMessagesResponse {
+  messages: RequirementsMessage[];
+}
+
+// API response for requirements document
+export interface RequirementsDocsResponse {
+  docs: string;
+}
+
+// View mode for in_development status
+export type RequirementsViewMode = 'game' | 'docs';
+
+// Props for requirements-specific preview components
+export interface RequirementsPreviewProps {
+  content?: string;
+  className?: string;
+}
+
+export interface InDevelopmentPreviewProps {
+  content?: string;
+  viewMode: RequirementsViewMode;
+  onViewModeChange: (mode: RequirementsViewMode) => void;
+  className?: string;
+}

@@ -118,6 +118,12 @@ export interface ChatInterfaceProps {
   model?: string; // AI model name from server config
   isBuildInProgress?: boolean; // Whether a build is currently in progress
   isBuildFailed?: boolean; // Whether the build has failed or been cancelled
+  // Requirements mode props
+  mode?: 'development' | 'requirements'; // Chat mode - development uses sessions, requirements uses project-level messages
+  projectStatus?: 'requirements' | 'requirements_ready' | 'in_development' | 'active'; // Project status for requirements mode
+  onConfirmRequirements?: () => void; // Callback when user confirms requirements
+  canConfirm?: boolean; // Whether confirm button should be enabled
+  isConfirming?: boolean; // Whether confirmation is in progress
 }
 
 // Content Block Types (for streaming UI state)

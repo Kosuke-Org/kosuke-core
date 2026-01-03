@@ -63,3 +63,7 @@ watch-agent:
     @echo "👀 Starting kosuke-cli watch mode..."
     @echo "   Edit .ts files → Auto-rebuild → Auto-restart in container"
     @cd sandbox/kosuke-cli && npm run build:watch
+
+delete-sandbox-containers:
+    @echo "Deleting all sandbox containers..."
+    @docker rm -f $(docker ps -a -q --filter "name=kosuke-sandbox")

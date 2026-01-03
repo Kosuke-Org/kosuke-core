@@ -38,6 +38,15 @@ export const taskStatusEnum = pgEnum('task_status', [
 ]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
+// Project status enum for B2C flow
+export const projectStatusEnum = pgEnum('project_status', [
+  'requirements',
+  'requirements_ready',
+  'in_development',
+  'active',
+]);
+export type ProjectStatus = (typeof projectStatusEnum.enumValues)[number];
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -57,6 +66,10 @@ export const projects = pgTable('projects', {
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
   githubWebhookId: integer('github_webhook_id'), // GitHub webhook ID for cleanup on project deletion
   githubInstallationId: integer('github_installation_id'), // GitHub App installation ID for this repo (null = use env var for Kosuke-Org)
+  // B2C flow: Requirements gathering workflow
+  status: projectStatusEnum('status').notNull().default('requirements'),
+  requirementsCompletedAt: timestamp('requirements_completed_at'),
+  requirementsCompletedBy: text('requirements_completed_by'),
 });
 
 export const chatSessions = pgTable(
@@ -139,6 +152,40 @@ export const messageAttachments = pgTable('message_attachments', {
     .notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+// B2C flow: Requirements gathering messages
+export const requirementsMessages = pgTable('requirements_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id')
+    .references(() => projects.id, { onDelete: 'cascade' })
+    .notNull(),
+  userId: text('user_id'), // Clerk user ID
+  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
+  content: text('content'), // For user messages (nullable for assistant messages)
+  blocks: jsonb('blocks'), // For assistant message blocks (text, thinking, tools)
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+});
+
+// B2C flow: Project audit logs for status changes
+export const projectAuditLogs = pgTable(
+  'project_audit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: text('user_id'), // Clerk user ID or 'system' for automated changes
+    action: varchar('action', { length: 50 }).notNull(), // 'status_changed', 'requirements_confirmed', etc.
+    previousValue: text('previous_value'),
+    newValue: text('new_value'),
+    metadata: jsonb('metadata'), // Additional context
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => ({
+    projectIdx: index('idx_project_audit_logs_project').on(table.projectId),
+    actionIdx: index('idx_project_audit_logs_action').on(table.action),
+  })
+);
 
 export const diffs = pgTable('diffs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -300,6 +347,8 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   diffs: many(diffs),
   commits: many(projectCommits),
   githubSyncSessions: many(githubSyncSessions),
+  requirementsMessages: many(requirementsMessages),
+  auditLogs: many(projectAuditLogs),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -340,6 +389,20 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   attachment: one(attachments, {
     fields: [messageAttachments.attachmentId],
     references: [attachments.id],
+  }),
+}));
+
+export const requirementsMessagesRelations = relations(requirementsMessages, ({ one }) => ({
+  project: one(projects, {
+    fields: [requirementsMessages.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const projectAuditLogsRelations = relations(projectAuditLogs, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectAuditLogs.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -457,3 +520,7 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type RequirementsMessage = typeof requirementsMessages.$inferSelect;
+export type NewRequirementsMessage = typeof requirementsMessages.$inferInsert;
+export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
+export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;

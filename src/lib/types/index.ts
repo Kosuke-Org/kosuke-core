@@ -16,5 +16,6 @@ export * from './organization';
 export * from './preview';
 export * from './preview-urls';
 export * from './project';
+export * from './requirements';
 
 export type { EnhancedUser, UpdateProfileResponse, UseUserReturn, UserProfile } from './user';

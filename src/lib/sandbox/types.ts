@@ -10,10 +10,10 @@
 export interface SandboxCreateOptions {
   projectId: string;
   sessionId: string;
-  branchName: string;
-  repoUrl: string;
-  githubToken: string;
-  mode: 'development' | 'production';
+  branchName?: string; // Optional for requirements mode
+  repoUrl?: string; // Optional for requirements mode
+  githubToken?: string; // Optional for requirements mode
+  mode: 'development' | 'production' | 'requirements';
   orgId?: string; // Optional - uses system default API key if not provided
 }
 
@@ -23,7 +23,7 @@ export interface SandboxInfo {
   sessionId: string;
   status: 'running' | 'stopped' | 'error';
   url: string;
-  mode: 'development' | 'production';
+  mode: 'development' | 'production' | 'requirements';
   branch: string;
 }
 
@@ -50,4 +50,21 @@ export interface GitRevertResponse {
   success: boolean;
   commitSha: string;
   error?: string;
+}
+
+// ============================================================
+// AGENT HEALTH TYPES
+// ============================================================
+
+export interface AgentHealthResponse {
+  status: 'ok' | 'error';
+  alive: boolean;
+  ready: boolean;
+  processing: boolean;
+  uptime: number;
+  timestamp: string;
+  memory: {
+    heapUsed: number;
+    heapTotal: number;
+  };
 }

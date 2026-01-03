@@ -7,7 +7,7 @@ import type { ImageInput } from '@/lib/types';
 
 import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
-import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
+import type { AgentHealthResponse, FileInfo, GitPullResponse, GitRevertResponse } from './types';
 
 export class SandboxClient {
   private sessionId: string;
@@ -25,6 +25,32 @@ export class SandboxClient {
    */
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  // ============================================================
+  // AGENT HEALTH
+  // ============================================================
+
+  /**
+   * Check agent health status
+   * Returns detailed info about whether the agent is alive and ready
+   */
+  async getAgentHealth(): Promise<AgentHealthResponse | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/agent/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch {
+      // Agent not responding
+      return null;
+    }
   }
 
   // ============================================================
@@ -239,6 +265,57 @@ export class SandboxClient {
 
     if (!response.body) {
       throw new Error('No response body from plan endpoint');
+    }
+
+    yield* this.parseSSEStream(response.body);
+  }
+
+  // --- Requirements Streaming ---
+
+  /**
+   * Stream requirements gathering from kosuke serve (SSE)
+   */
+  async *streamRequirements(
+    message: string,
+    cwd: string,
+    options?: {
+      previousMessages?: Array<{
+        role: 'user' | 'assistant';
+        content:
+          | string
+          | Array<{
+              type: string;
+              text?: string;
+              id?: string;
+              name?: string;
+              input?: Record<string, unknown>;
+              tool_use_id?: string;
+            }>;
+      }>;
+      isFirstRequest?: boolean;
+    }
+  ): AsyncGenerator<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/api/requirements/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({
+        message,
+        cwd,
+        previousMessages: options?.previousMessages || [],
+        isFirstRequest: options?.isFirstRequest ?? false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Requirements request failed: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body from requirements endpoint');
     }
 
     yield* this.parseSSEStream(response.body);

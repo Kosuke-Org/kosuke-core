@@ -1,8 +1,17 @@
 'use client';
 
-import { Loader2, RefreshCcw } from 'lucide-react';
+import { CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
@@ -10,8 +19,16 @@ import { useUser } from '@clerk/nextjs';
 // Import types and hooks
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
 import { useChatState } from '@/hooks/use-chat-state';
+import { useRequirementsMessages } from '@/hooks/use-requirements-messages';
 import { useSendMessage } from '@/hooks/use-send-message';
-import type { ChatInterfaceProps } from '@/lib/types';
+import { useSendRequirementsMessage } from '@/hooks/use-send-requirements-message';
+import type {
+  AssistantBlock,
+  Attachment,
+  ChatInterfaceProps,
+  ChatMessage as ChatMessageType,
+  ErrorType,
+} from '@/lib/types';
 
 // Import components
 import AssistantResponse from './assistant-response';
@@ -28,6 +45,12 @@ export default function ChatInterface({
   model,
   isBuildInProgress = false,
   isBuildFailed = false,
+  // Requirements mode props
+  mode = 'development',
+  projectStatus = 'active',
+  onConfirmRequirements,
+  canConfirm = false,
+  isConfirming = false,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,19 +63,50 @@ export default function ChatInterface({
     imageUrl?: string;
   } | null>(null);
 
-  // Always call hooks at the top level, even if sessionId is not available yet
-  const sendMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
-  const messagesQuery = useChatSessionMessages(projectId, sessionId || '');
+  // Confirmation modal state for requirements mode
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Mode-specific hooks - always call hooks at the top level
+  // Development mode hooks
+  const sendDevMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
+  const devMessagesQuery = useChatSessionMessages(projectId, sessionId || '');
   const chatState = useChatState(projectId, sessionId);
 
-  // Extract data from hooks
-  const { data: messagesData, isLoading: isLoadingMessages } = messagesQuery;
+  // Requirements mode hooks
+  const reqMessagesQuery = useRequirementsMessages(projectId);
+  const sendReqMessageMutation = useSendRequirementsMessage(projectId);
 
+  // Select hooks based on mode
+  const isRequirementsMode = mode === 'requirements';
+
+  // Extract data from queries
+  const { data: devMessagesData, isLoading: isLoadingDevMessages } = devMessagesQuery;
+  const { data: reqMessagesData, isLoading: isLoadingReqMessages } = reqMessagesQuery;
+
+  // Select the appropriate loading state
+  const isLoadingMessages = isRequirementsMode ? isLoadingReqMessages : isLoadingDevMessages;
+
+  // Handle messages differently based on mode
+  // Requirements mode returns array directly, development mode returns { messages: [...] }
   const messages = useMemo(() => {
-    const msgs = messagesData?.messages || [];
-    return msgs;
-  }, [messagesData?.messages]);
+    if (isRequirementsMode) {
+      // Requirements mode: data is array of RequirementsMessage - cast to ChatMessage-compatible shape
+      return (reqMessagesData || []).map(msg => ({
+        ...msg,
+        role: msg.role as 'user' | 'assistant' | 'system',
+        blocks: msg.blocks as AssistantBlock[] | undefined,
+        hasError: false,
+        errorType: undefined as ErrorType | undefined,
+        commitSha: undefined as string | undefined,
+        metadata: undefined as ChatMessageType['metadata'],
+        attachments: undefined as Attachment[] | undefined,
+      }));
+    }
+    // Development mode: data is { messages: [...] }
+    return devMessagesData?.messages || [];
+  }, [devMessagesData, reqMessagesData, isRequirementsMode]);
 
+  // Extract development mode mutation data
   const {
     sendMessage,
     isLoading: isSending,
@@ -62,7 +116,7 @@ export default function ChatInterface({
     streamingContentBlocks,
     streamingAssistantMessageId,
     cancelStream,
-  } = sendMessageMutation;
+  } = sendDevMessageMutation;
 
   const {
     isError,
@@ -111,7 +165,11 @@ export default function ChatInterface({
   }, [messages, isLoadingMessages, streamingContentBlocks]);
 
   // Derive a flag instead of early return to keep hook order stable
-  const hasSession = Boolean(sessionId);
+  // Requirements mode doesn't need a session, development mode does
+  const hasSession = isRequirementsMode || Boolean(sessionId);
+
+  // Check if chat input should be disabled for requirements mode
+  const isRequirementsReadonly = isRequirementsMode && projectStatus !== 'requirements';
 
   // Avoid duplicate assistant responses: hide streaming block once saved message arrives
   const hasSavedStreamedMessage = useMemo(() => {
@@ -133,14 +191,20 @@ export default function ChatInterface({
   ) => {
     if (!content.trim() && !options?.imageFile) return;
 
-    // Clear error state
-    clearError();
+    if (isRequirementsMode) {
+      // Requirements mode: just send content
+      sendReqMessageMutation.mutate(content);
+    } else {
+      // Development mode: use full sendMessage with options
+      // Clear error state
+      clearError();
 
-    // Save message for regeneration
-    saveLastMessage(content, options);
+      // Save message for regeneration
+      saveLastMessage(content, options);
 
-    // Send the message
-    sendMessage({ content, options });
+      // Send the message
+      sendMessage({ content, options });
+    }
   };
 
   // Handle regeneration
@@ -190,7 +254,11 @@ export default function ChatInterface({
 
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
-      <ModelBanner model={model} />
+      <ModelBanner
+        model={model}
+        projectId={isRequirementsMode ? projectId : undefined}
+        showAgentStatus={isRequirementsMode}
+      />
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
@@ -335,23 +403,78 @@ export default function ChatInterface({
       </ScrollArea>
 
       <div className="px-4 pb-0 relative">
+        {/* Confirm Requirements Button - only show in requirements mode when status is 'requirements' */}
+        {isRequirementsMode && projectStatus === 'requirements' && onConfirmRequirements && (
+          <div className="mb-3 flex justify-end">
+            <Button
+              onClick={() => setShowConfirmModal(true)}
+              disabled={!canConfirm || messages.length === 0}
+              size="sm"
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Confirm Requirements
+            </Button>
+          </div>
+        )}
+
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isSending || isRegenerating}
+          isLoading={isSending || isRegenerating || sendReqMessageMutation.isPending}
           isStreaming={isStreaming}
           onStop={cancelStream}
           placeholder={
-            isBuildFailed
-              ? 'Build stopped. Use the restart button above to try again.'
-              : isBuildInProgress
-                ? 'Build in progress...'
-                : 'Type your message...'
+            isRequirementsReadonly
+              ? 'Requirements have been submitted'
+              : isRequirementsMode
+                ? 'Describe your project requirements...'
+                : isBuildFailed
+                  ? 'Build stopped. Use the restart button above to try again.'
+                  : isBuildInProgress
+                    ? 'Build in progress...'
+                    : 'Type your message...'
           }
-          disabled={isBuildInProgress || isBuildFailed}
+          disabled={isBuildInProgress || isBuildFailed || isRequirementsReadonly}
           data-testid="chat-input"
           className="chat-input"
         />
       </div>
+
+      {/* Confirm Requirements Modal */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Requirements</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to confirm your project requirements? This will send them for
+              review and you will be notified when development begins.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                onConfirmRequirements?.();
+                setShowConfirmModal(false);
+              }}
+              disabled={isConfirming}
+            >
+              {isConfirming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Confirming...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Confirm Requirements
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
