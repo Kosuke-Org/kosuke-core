@@ -1,12 +1,12 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "dependencies": {
         "@aws-sdk/client-s3": "^3.957.0",
         "@clerk/nextjs": "^6.36.5",
         "@docker/node-sdk": "^0.0.17",
+        "@langfuse/client": "^4.5.1",
         "@octokit/auth-app": "^8.1.2",
         "@octokit/rest": "^22.0.0",
         "@radix-ui/react-accordion": "^1.2.12",
@@ -482,6 +482,12 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
+
+    "@langfuse/client": ["@langfuse/client@4.5.1", "", { "dependencies": { "@langfuse/core": "^4.5.1", "@langfuse/tracing": "^4.5.1", "mustache": "^4.2.0" }, "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-e5fnQXgAhkqG+EzBkXuZkexjwEhwFOS9PAbtJncC+c7QnEmwDEj9klS7PzZUXchBrx+OfTfG5dpRbYD0l9uqXQ=="],
+
+    "@langfuse/core": ["@langfuse/core@4.5.1", "", { "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-caJ2YWcaEU+kbzxFiyzRYaCmKxGzL9DSxbrCer8HbayYo2TaFaAu67Zeili8u8qG4q7TXga4aL2+rpU5ebWdRA=="],
+
+    "@langfuse/tracing": ["@langfuse/tracing@4.5.1", "", { "dependencies": { "@langfuse/core": "^4.5.1" }, "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-PvN8fJzEDG2IQMD7/iGhoeEzMM0fJ/ktZdy5gfMfj3/UUccigqV0flxpzvgRoAUss+0ZmqkIlJoaerHKOCMD+A=="],
 
     "@msgpackr-extract/msgpackr-extract-darwin-arm64": ["@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-QZHtlVgbAdy2zAqNA9Gu1UpIuI8Xvsd1v8ic6B2pZmeFnFcMWiPLfWXh7TVw4eGEZ/C9TH281KwhVoeQUKbyjw=="],
 
@@ -2046,6 +2052,8 @@
     "msgpackr": ["msgpackr@1.11.5", "", { "optionalDependencies": { "msgpackr-extract": "^3.0.2" } }, "sha512-UjkUHN0yqp9RWKy0Lplhh+wlpdt9oQBYgULZOiFhV3VclSF1JnSQWZ5r9gORQlNYaUKQoR8itv7g7z1xDDuACA=="],
 
     "msgpackr-extract": ["msgpackr-extract@3.0.3", "", { "dependencies": { "node-gyp-build-optional-packages": "5.2.2" }, "optionalDependencies": { "@msgpackr-extract/msgpackr-extract-darwin-arm64": "3.0.3", "@msgpackr-extract/msgpackr-extract-darwin-x64": "3.0.3", "@msgpackr-extract/msgpackr-extract-linux-arm": "3.0.3", "@msgpackr-extract/msgpackr-extract-linux-arm64": "3.0.3", "@msgpackr-extract/msgpackr-extract-linux-x64": "3.0.3", "@msgpackr-extract/msgpackr-extract-win32-x64": "3.0.3" }, "bin": { "download-msgpackr-prebuilds": "bin/download-prebuilds.js" } }, "sha512-P0efT1C9jIdVRefqjzOQ9Xml57zpOXnIuS+csaB4MdZbTdmGDLo8XhzBG1N7aO11gKDDkJvBLULeFTo46wwreA=="],
+
+    "mustache": ["mustache@4.2.0", "", { "bin": { "mustache": "bin/mustache" } }, "sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ=="],
 
     "nan": ["nan@2.24.0", "", {}, "sha512-Vpf9qnVW1RaDkoNKFUvfxqAbtI8ncb8OJlqZ9wwpXzWPEsvsB1nvdUi6oYrHIkQ1Y/tMDnr1h4nczS0VB9Xykg=="],
 

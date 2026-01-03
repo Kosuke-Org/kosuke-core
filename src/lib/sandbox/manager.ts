@@ -216,6 +216,7 @@ export class SandboxManager {
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
+      `KOSUKE_ORG_ID=${options.orgId}`,
       `KOSUKE_PROJECT_ID=${options.projectId}`,
       `KOSUKE_SESSION_ID=${options.sessionId}`,
       `SANDBOX_BUN_PORT=${this.config.bunPort}`,
