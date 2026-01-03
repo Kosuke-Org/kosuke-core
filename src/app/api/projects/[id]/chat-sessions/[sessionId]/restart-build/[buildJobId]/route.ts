@@ -205,6 +205,7 @@ export async function POST(
       enableReview: true,
       enableTest: sandboxConfig.test,
       testUrl,
+      userId,
     });
 
     console.log(`🚀 Enqueued new build job ${newBuildJob.id}`);
