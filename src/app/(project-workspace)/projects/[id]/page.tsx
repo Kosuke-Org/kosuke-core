@@ -383,6 +383,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <ChatInterface
                       projectId={projectId}
                       mode="requirements"
+                      model={project?.model}
                       projectStatus={
                         project.status as
                           | 'requirements'
@@ -390,11 +391,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                           | 'in_development'
                           | 'active'
                       }
-                      onConfirmRequirements={() => confirmRequirementsMutation.mutate()}
-                      canConfirm={
-                        project.status === 'requirements' && !confirmRequirementsMutation.isPending
-                      }
-                      isConfirming={confirmRequirementsMutation.isPending}
                     />
                   </div>
                 ) : showSidebar ? (
@@ -493,6 +489,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 requirementsContent={requirementsContent}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
+                // Confirm requirements props (for RequirementsPreview)
+                onConfirmRequirements={() => confirmRequirementsMutation.mutate()}
+                canConfirmRequirements={
+                  project.status === 'requirements' && !confirmRequirementsMutation.isPending
+                }
+                isConfirmingRequirements={confirmRequirementsMutation.isPending}
               />
             </div>
           </div>

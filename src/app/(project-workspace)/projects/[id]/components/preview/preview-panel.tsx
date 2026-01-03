@@ -61,6 +61,12 @@ interface PreviewPanelProps {
   viewMode?: RequirementsViewMode;
   /** Callback when view mode changes */
   onViewModeChange?: (mode: RequirementsViewMode) => void;
+  /** Callback to confirm requirements (for RequirementsPreview) */
+  onConfirmRequirements?: () => void;
+  /** When true, the confirm requirements button is enabled */
+  canConfirmRequirements?: boolean;
+  /** When true, the confirm requirements mutation is in progress */
+  isConfirmingRequirements?: boolean;
 }
 
 // Import requirements preview components
@@ -87,6 +93,10 @@ export default function PreviewPanel({
   requirementsContent,
   viewMode = 'game',
   onViewModeChange,
+  // Confirm requirements props
+  onConfirmRequirements,
+  canConfirmRequirements = false,
+  isConfirmingRequirements = false,
 }: PreviewPanelProps) {
   const {
     // State
@@ -118,7 +128,16 @@ export default function PreviewPanel({
   const renderRequirementsContent = () => {
     switch (projectStatus) {
       case 'requirements':
-        return <RequirementsPreview content={requirementsContent} />;
+        return (
+          <RequirementsPreview
+            content={requirementsContent}
+            onToggleSidebar={onToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onConfirmRequirements={onConfirmRequirements}
+            canConfirm={canConfirmRequirements}
+            isConfirming={isConfirmingRequirements}
+          />
+        );
       case 'requirements_ready':
         return <RequirementsReadyPreview content={requirementsContent} projectName={projectName} />;
       case 'in_development':

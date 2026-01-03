@@ -26,6 +26,13 @@ export type RequirementsViewMode = 'game' | 'docs';
 export interface RequirementsPreviewProps {
   content?: string;
   className?: string;
+  // Sidebar toggle props
+  onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
+  // Confirm requirements props
+  onConfirmRequirements?: () => void;
+  canConfirm?: boolean;
+  isConfirming?: boolean;
 }
 
 export interface InDevelopmentPreviewProps {

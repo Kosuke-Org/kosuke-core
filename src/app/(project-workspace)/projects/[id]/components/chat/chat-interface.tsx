@@ -1,17 +1,7 @@
 'use client';
 
-import { CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
+import { Loader2, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
@@ -48,9 +38,6 @@ export default function ChatInterface({
   // Requirements mode props
   mode = 'development',
   projectStatus = 'active',
-  onConfirmRequirements,
-  canConfirm = false,
-  isConfirming = false,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -62,9 +49,6 @@ export default function ChatInterface({
     email?: string;
     imageUrl?: string;
   } | null>(null);
-
-  // Confirmation modal state for requirements mode
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Mode-specific hooks - always call hooks at the top level
   // Development mode hooks
@@ -421,20 +405,6 @@ export default function ChatInterface({
       </ScrollArea>
 
       <div className="px-4 pb-0 relative">
-        {/* Confirm Requirements Button - only show in requirements mode when status is 'requirements' */}
-        {isRequirementsMode && projectStatus === 'requirements' && onConfirmRequirements && (
-          <div className="mb-3 flex justify-end">
-            <Button
-              onClick={() => setShowConfirmModal(true)}
-              disabled={!canConfirm || messages.length === 0}
-              size="sm"
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Confirm Requirements
-            </Button>
-          </div>
-        )}
-
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isSending || isRegenerating || sendReqMessageMutation.isPending}
@@ -456,43 +426,6 @@ export default function ChatInterface({
           className="chat-input"
         />
       </div>
-
-      {/* Confirm Requirements Modal */}
-      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Requirements</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to confirm your project requirements? This will send them for
-              review and you will be notified when development begins.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                onConfirmRequirements?.();
-                setShowConfirmModal(false);
-              }}
-              disabled={isConfirming}
-            >
-              {isConfirming ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Confirming...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Confirm Requirements
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
