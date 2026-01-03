@@ -211,7 +211,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const chatInterfaceRef = useRef<HTMLDivElement>(null);
 
   // Requirements-specific hooks - must be called before early returns
-  const { data: requirementsContent } = useRequirementsDocs(projectId);
+  // Poll every 5s while in 'requirements' status to sync preview with sandbox updates
+  const { data: requirementsContent } = useRequirementsDocs(projectId, {
+    projectStatus: project?.status as
+      | 'requirements'
+      | 'requirements_ready'
+      | 'in_development'
+      | 'active'
+      | undefined,
+  });
   const confirmRequirementsMutation = useConfirmRequirements(projectId);
   const [viewMode, setViewMode] = useState<RequirementsViewMode>('game');
 
