@@ -189,17 +189,24 @@ export class SandboxManager {
     const postgresUrl = await createSandboxDatabase(options.sessionId);
 
     // Prepare routing configuration (Traefik vs local port)
-    const {
-      externalUrl,
-      hostPort,
-      labels: routingLabels,
-    } = this.prepareRouting(options.sessionId, containerName);
+    // Only expose bun port when servicesMode is 'full'
+    let externalUrl: string | null = null;
+    let hostPort: number | null = null;
+    let routingLabels: Record<string, string> = {};
+
+    if (options.servicesMode === 'full') {
+      const routing = this.prepareRouting(options.sessionId, containerName);
+      externalUrl = routing.externalUrl;
+      hostPort = routing.hostPort;
+      routingLabels = routing.labels;
+    }
 
     const labels: Record<string, string> = {
       'kosuke.type': 'sandbox',
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
+      'kosuke.services_mode': options.servicesMode,
       ...(options.branchName && { 'kosuke.branch': options.branchName }),
       ...(options.orgId && { 'kosuke.org_id': options.orgId }),
       ...routingLabels,
@@ -210,10 +217,11 @@ export class SandboxManager {
 
     // Build environment variables
     const envVars: string[] = [
-      `KOSUKE_REPO_URL=${options.repoUrl || ''}`,
-      `KOSUKE_BRANCH=${options.branchName || ''}`,
-      `KOSUKE_GITHUB_TOKEN=${options.githubToken || ''}`,
+      `KOSUKE_REPO_URL=${options.repoUrl}`,
+      `KOSUKE_BRANCH=${options.branchName}`,
+      `KOSUKE_GITHUB_TOKEN=${options.githubToken}`,
       `KOSUKE_MODE=${options.mode}`,
+      `KOSUKE_SERVICES_MODE=${options.servicesMode}`,
       `KOSUKE_POSTGRES_URL=${postgresUrl}`,
       `KOSUKE_EXTERNAL_URL=${externalUrl}`,
       `KOSUKE_AGENT_PORT=${this.config.agentPort}`,
@@ -272,7 +280,10 @@ export class SandboxManager {
     await client.containerStart(createResult.Id);
 
     console.log(`✅ Sandbox ${containerName} started`);
-    console.log(`   Preview URL: ${externalUrl}`);
+    console.log(`   Services mode: ${options.servicesMode}`);
+    if (externalUrl) {
+      console.log(`   Preview URL: ${externalUrl}`);
+    }
 
     return this.getSandboxInfo(containerName);
   }
@@ -289,11 +300,16 @@ export class SandboxManager {
       | 'development'
       | 'production';
     const branch = container.Config?.Labels?.['kosuke.branch'] || 'main';
+    const servicesMode = container.Config?.Labels?.['kosuke.services_mode'] || 'full';
     const hostPort = container.Config?.Labels?.['kosuke.host_port'];
 
-    const url = this.config.traefikEnabled
-      ? `https://${generatePreviewHost(sessionId, this.config.previewDomain)}`
-      : `http://localhost:${hostPort}`;
+    // URL is null when servicesMode is 'agent-only' (no bun service)
+    let url: string | null = null;
+    if (servicesMode === 'full') {
+      url = this.config.traefikEnabled
+        ? `https://${generatePreviewHost(sessionId, this.config.previewDomain)}`
+        : `http://localhost:${hostPort}`;
+    }
 
     return {
       containerId: container.Id!,

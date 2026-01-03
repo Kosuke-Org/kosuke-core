@@ -76,6 +76,14 @@ export default function ChatInterface({
   const reqMessagesQuery = useRequirementsMessages(projectId);
   const sendReqMessageMutation = useSendRequirementsMessage(projectId);
 
+  // Extract streaming state from requirements hook
+  const {
+    isStreaming: isReqStreaming,
+    streamingContentBlocks: reqStreamingContentBlocks,
+    streamingAssistantMessageId: reqStreamingAssistantMessageId,
+    cancelStream: reqCancelStream,
+  } = sendReqMessageMutation;
+
   // Select hooks based on mode
   const isRequirementsMode = mode === 'requirements';
 
@@ -162,7 +170,7 @@ export default function ChatInterface({
     }, 100);
 
     return () => clearTimeout(scrollTimeout);
-  }, [messages, isLoadingMessages, streamingContentBlocks]);
+  }, [messages, isLoadingMessages, streamingContentBlocks, reqStreamingContentBlocks]);
 
   // Derive a flag instead of early return to keep hook order stable
   // Requirements mode doesn't need a session, development mode does
@@ -171,17 +179,27 @@ export default function ChatInterface({
   // Check if chat input should be disabled for requirements mode
   const isRequirementsReadonly = isRequirementsMode && projectStatus !== 'requirements';
 
+  // Select the appropriate streaming state based on mode
+  const activeIsStreaming = isRequirementsMode ? isReqStreaming : isStreaming;
+  const activeStreamingContentBlocks = isRequirementsMode
+    ? reqStreamingContentBlocks
+    : streamingContentBlocks;
+  const activeStreamingAssistantMessageId = isRequirementsMode
+    ? reqStreamingAssistantMessageId
+    : streamingAssistantMessageId;
+  const activeCancelStream = isRequirementsMode ? reqCancelStream : cancelStream;
+
   // Avoid duplicate assistant responses: hide streaming block once saved message arrives
   const hasSavedStreamedMessage = useMemo(() => {
-    return streamingAssistantMessageId
-      ? messages.some(m => m.id === streamingAssistantMessageId)
+    return activeStreamingAssistantMessageId
+      ? messages.some(m => m.id === activeStreamingAssistantMessageId)
       : false;
-  }, [messages, streamingAssistantMessageId]);
+  }, [messages, activeStreamingAssistantMessageId]);
 
   // Keep streaming UI visible while waiting for webhook-saved message
   const showStreamingAssistant = Boolean(
-    (isStreaming || expectingWebhookUpdate) &&
-    (!streamingAssistantMessageId || !hasSavedStreamedMessage)
+    (activeIsStreaming || (!isRequirementsMode && expectingWebhookUpdate)) &&
+    (!activeStreamingAssistantMessageId || !hasSavedStreamedMessage)
   );
 
   // Handle sending messages
@@ -336,11 +354,11 @@ export default function ChatInterface({
                       </div>
 
                       {/* Full-width assistant response */}
-                      {streamingContentBlocks && streamingContentBlocks.length > 0 ? (
+                      {activeStreamingContentBlocks && activeStreamingContentBlocks.length > 0 ? (
                         <AssistantResponse
                           response={{
-                            id: streamingAssistantMessageId!,
-                            contentBlocks: streamingContentBlocks,
+                            id: activeStreamingAssistantMessageId!,
+                            contentBlocks: activeStreamingContentBlocks,
                             timestamp: new Date(),
                             status: 'streaming',
                           }}
@@ -420,8 +438,8 @@ export default function ChatInterface({
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isSending || isRegenerating || sendReqMessageMutation.isPending}
-          isStreaming={isStreaming}
-          onStop={cancelStream}
+          isStreaming={activeIsStreaming}
+          onStop={activeCancelStream}
           placeholder={
             isRequirementsReadonly
               ? 'Requirements have been submitted'

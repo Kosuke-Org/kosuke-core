@@ -3,12 +3,13 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { projects, requirementsMessages } from '@/lib/db/schema';
+import { projects } from '@/lib/db/schema';
+import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 
 /**
  * GET /api/projects/[id]/requirements
  * Fetch the requirements document for a project
- * The document is aggregated from assistant messages in the requirements phase
+ * Reads .kosuke/docs.md from the sandbox container
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -32,29 +33,32 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get the latest assistant message that contains the requirements document
-    // The assistant consolidates requirements into a markdown document
-    const messages = await db
-      .select()
-      .from(requirementsMessages)
-      .where(eq(requirementsMessages.projectId, projectId))
-      .orderBy(requirementsMessages.timestamp);
+    // Find a running sandbox for this project
+    const manager = getSandboxManager();
+    const allSandboxes = await manager.listProjectSandboxes(projectId);
+    const runningSandbox = allSandboxes.find(s => s.status === 'running');
 
-    // Extract the last assistant message content as the requirements doc
-    // In a full implementation, this might be a dedicated field or AI-generated summary
-    const assistantMessages = messages.filter(m => m.role === 'assistant');
-    const latestAssistant = assistantMessages[assistantMessages.length - 1];
+    console.log(`[API /requirements] Project: ${projectId}`);
+    console.log(`[API /requirements] Sandboxes found: ${allSandboxes.length}`);
+    console.log(`[API /requirements] Running sandbox: ${runningSandbox?.sessionId || 'none'}`);
 
-    // Build a simple requirements doc from assistant responses
     let docs = '';
-    if (latestAssistant?.content) {
-      docs = latestAssistant.content;
-    } else if (assistantMessages.length > 0) {
-      // Combine all assistant messages into a document
-      docs = assistantMessages
-        .map(m => m.content)
-        .filter(Boolean)
-        .join('\n\n---\n\n');
+
+    if (runningSandbox) {
+      // Get requirements document from sandbox
+      const client = new SandboxClient(runningSandbox.sessionId);
+      console.log(`[API /requirements] Calling sandbox at: ${client.getBaseUrl()}`);
+      try {
+        const requirements = await client.getRequirements();
+        docs = requirements.docs;
+        console.log(`[API /requirements] Got docs: ${docs.length} chars`);
+      } catch (error) {
+        // Sandbox endpoint not available - return empty
+        console.error(`[API /requirements] Sandbox error:`, error);
+        docs = '';
+      }
+    } else {
+      console.log(`[API /requirements] No running sandbox, returning empty docs`);
     }
 
     return NextResponse.json({

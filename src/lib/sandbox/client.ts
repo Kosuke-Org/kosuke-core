@@ -153,6 +153,31 @@ export class SandboxClient {
     }
   }
 
+  // --- Requirements Operations ---
+
+  /**
+   * Get requirements document (.kosuke/docs.md) from sandbox
+   * Calls the sandbox's /api/requirements endpoint
+   */
+  async getRequirements(): Promise<{ docs: string; path: string; exists: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/requirements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd: '/app/project' }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get requirements: HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return {
+      docs: result.data?.docs || '',
+      path: result.data?.path || '',
+      exists: result.data?.exists !== false,
+    };
+  }
+
   // --- Git Operations ---
 
   /**

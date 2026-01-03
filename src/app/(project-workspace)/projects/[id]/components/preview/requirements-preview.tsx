@@ -15,7 +15,7 @@ export default function RequirementsPreview({ content, className }: Requirements
       <div className="border-b p-3">
         <h3 className="text-sm font-medium text-muted-foreground">Requirements Document</h3>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
           {content ? (
             <MarkdownPreview content={content} />

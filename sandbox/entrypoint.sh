@@ -8,6 +8,7 @@ set -e
 
 echo "🚀 Starting Kosuke Sandbox..."
 echo "   Mode: ${KOSUKE_MODE}"
+echo "   Services: ${KOSUKE_SERVICES_MODE}"
 echo "   Repo: ${KOSUKE_REPO_URL}"
 echo "   Branch: ${KOSUKE_BRANCH}"
 
@@ -72,52 +73,60 @@ git config user.email "${KOSUKE_GIT_EMAIL:-bot@kosuke.dev}"
 git remote set-url origin "$KOSUKE_REPO_URL"
 
 # ============================================================
-# STEP 2: READ AND PARSE KOSUKE CONFIG
+# STEP 2: READ AND PARSE KOSUKE CONFIG (skip for agent-only)
 # ============================================================
 
-CONFIG_FILE="/app/project/kosuke.config.json"
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "❌ Error: kosuke.config.json not found in repository"
-    exit 1
-fi
-
-echo "📋 Parsing config file: $CONFIG_FILE"
-
-# Parse config using Node.js script (writes to /tmp/kosuke.env)
-node /app/scripts/parse-config.js
-
-# Source the generated .env file
-set -a
-source /tmp/kosuke.env
-set +a
-
-echo "   Bun directory: ${KOSUKE_BUN_DIR:-none}"
-echo "   Python directory: ${KOSUKE_PYTHON_DIR:-none}"
-echo "   Has Redis: ${KOSUKE_HAS_REDIS}"
-
-# ============================================================
-# STEP 3: START REDIS (if configured)
-# ============================================================
-
-if [ "$KOSUKE_HAS_REDIS" = "true" ]; then
-    echo "🔴 Starting Redis..."
-    redis-server /etc/redis/redis.conf --daemonize yes
-
-    # Wait for Redis to be ready
-    REDIS_RETRIES=0
-    until redis-cli ping > /dev/null 2>&1; do
-        REDIS_RETRIES=$((REDIS_RETRIES + 1))
-        if [ $REDIS_RETRIES -gt 30 ]; then
-            echo "❌ Error: Redis failed to start"
-            exit 1
-        fi
-        echo "   Waiting for Redis... (attempt $REDIS_RETRIES)"
-        sleep 1
-    done
-    echo "✅ Redis is ready"
+if [ "$KOSUKE_SERVICES_MODE" = "agent-only" ]; then
+    echo "ℹ️ Agent-only mode: skipping config parsing and Redis"
+    # Set empty defaults for supervisor env vars (services will exit early anyway)
+    export KOSUKE_BUN_DIR=""
+    export KOSUKE_PYTHON_DIR=""
+    export KOSUKE_HAS_REDIS="false"
 else
-    echo "ℹ️ Redis not configured, skipping"
+    CONFIG_FILE="/app/project/kosuke.config.json"
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "❌ Error: kosuke.config.json not found in repository"
+        exit 1
+    fi
+
+    echo "📋 Parsing config file: $CONFIG_FILE"
+
+    # Parse config using Node.js script (writes to /tmp/kosuke.env)
+    node /app/scripts/parse-config.js
+
+    # Source the generated .env file
+    set -a
+    source /tmp/kosuke.env
+    set +a
+
+    echo "   Bun directory: ${KOSUKE_BUN_DIR:-none}"
+    echo "   Python directory: ${KOSUKE_PYTHON_DIR:-none}"
+    echo "   Has Redis: ${KOSUKE_HAS_REDIS}"
+
+    # ============================================================
+    # STEP 3: START REDIS (if configured)
+    # ============================================================
+
+    if [ "$KOSUKE_HAS_REDIS" = "true" ]; then
+        echo "🔴 Starting Redis..."
+        redis-server /etc/redis/redis.conf --daemonize yes
+
+        # Wait for Redis to be ready
+        REDIS_RETRIES=0
+        until redis-cli ping > /dev/null 2>&1; do
+            REDIS_RETRIES=$((REDIS_RETRIES + 1))
+            if [ $REDIS_RETRIES -gt 30 ]; then
+                echo "❌ Error: Redis failed to start"
+                exit 1
+            fi
+            echo "   Waiting for Redis... (attempt $REDIS_RETRIES)"
+            sleep 1
+        done
+        echo "✅ Redis is ready"
+    else
+        echo "ℹ️ Redis not configured, skipping"
+    fi
 fi
 
 # ============================================================

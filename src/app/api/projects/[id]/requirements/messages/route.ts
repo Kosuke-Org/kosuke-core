@@ -1,16 +1,61 @@
 import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { projects, requirementsMessages } from '@/lib/db/schema';
+import { chatSessions, projects, requirementsMessages } from '@/lib/db/schema';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
+import type { SandboxInfo } from '@/lib/sandbox/types';
 
 /**
- * Generate a session ID for requirements sandbox based on project ID
+ * Find a running and healthy sandbox for a project
+ * Prefers the sandbox from the default session, falls back to any healthy sandbox
  */
-function getRequirementsSessionId(projectId: string): string {
-  return `req-${projectId}`;
+async function findHealthySandbox(
+  projectId: string
+): Promise<{ sandbox: SandboxInfo; sessionId: string } | null> {
+  const manager = getSandboxManager();
+
+  // Get all sandboxes for this project
+  const sandboxes = await manager.listProjectSandboxes(projectId);
+  const runningSandboxes = sandboxes.filter(s => s.status === 'running');
+
+  if (runningSandboxes.length === 0) {
+    return null;
+  }
+
+  // Get default session to prefer its sandbox
+  const defaultSession = await db.query.chatSessions.findFirst({
+    where: and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, true)),
+  });
+
+  // Order sandboxes: default session first, then others
+  const orderedSandboxes = defaultSession
+    ? [
+        ...runningSandboxes.filter(s => s.sessionId === defaultSession.id),
+        ...runningSandboxes.filter(s => s.sessionId !== defaultSession.id),
+      ]
+    : runningSandboxes;
+
+  // Find first sandbox with healthy agent
+  for (const sandbox of orderedSandboxes) {
+    try {
+      const client = new SandboxClient(sandbox.sessionId);
+      const health = await client.getAgentHealth();
+
+      if (health?.status === 'ok' && health.alive) {
+        console.log(`[API /requirements/messages] Found healthy sandbox: ${sandbox.sessionId}`);
+        return { sandbox, sessionId: sandbox.sessionId };
+      }
+    } catch (error) {
+      console.log(
+        `[API /requirements/messages] Sandbox ${sandbox.sessionId} agent not healthy:`,
+        error
+      );
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -86,14 +131,20 @@ function convertToAnthropicMessages(
 /**
  * POST /api/projects/[id]/requirements/messages
  * Send a new message in requirements gathering
- * Triggers AI response via sandbox
+ * Streams AI response via SSE from sandbox
  */
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
   try {
     const { userId, orgId } = await auth();
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const { id: projectId } = await params;
@@ -101,29 +152,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { content } = body;
 
     if (!content || typeof content !== 'string') {
-      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+      return new Response(JSON.stringify({ error: 'Content is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Get project
     const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
 
     if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return new Response(JSON.stringify({ error: 'Project not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Verify user has access to this project's org
     if (project.orgId && project.orgId !== orgId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Check if project is in requirements status
     if (project.status !== 'requirements') {
-      return NextResponse.json(
-        {
+      return new Response(
+        JSON.stringify({
           error: 'Project must be in requirements status to send messages',
           currentStatus: project.status,
-        },
-        { status: 400 }
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
       );
     }
 
@@ -154,105 +217,160 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const isFirstRequest = previousMessages.length === 0;
 
-    // Ensure requirements sandbox exists
-    const sessionId = getRequirementsSessionId(projectId);
-    const manager = getSandboxManager();
+    // Find a running and healthy sandbox for this project
+    const healthySandbox = await findHealthySandbox(projectId);
 
-    let sandbox = await manager.getSandbox(sessionId);
-    if (!sandbox || sandbox.status !== 'running') {
-      console.log(
-        `[API /requirements/messages] Creating requirements sandbox for project ${projectId}`
+    if (!healthySandbox) {
+      return new Response(
+        JSON.stringify({
+          error: 'Sandbox not running. Start a preview first to initialize the environment.',
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
       );
-      sandbox = await manager.createSandbox({
-        projectId,
-        sessionId,
-        mode: 'requirements',
-        orgId: project.orgId || undefined,
-      });
-
-      // Wait for the agent to be ready
-      const agentReady = await manager.waitForAgent(sessionId);
-      if (!agentReady) {
-        throw new Error('Requirements sandbox agent failed to start');
-      }
     }
 
-    // Stream AI response from sandbox
+    const { sessionId } = healthySandbox;
+    console.log(`[API /requirements/messages] Using sandbox session ${sessionId}`);
+
+    // Create SandboxClient for streaming
     const client = new SandboxClient(sessionId);
-    let assistantResponse = '';
-    let docsCreated = false;
-    let docsContent: string | undefined;
 
-    console.log(`[API /requirements/messages] Streaming requirements response...`);
+    // Create SSE streaming response
+    const stream = new ReadableStream({
+      async start(controller) {
+        let assistantResponse = '';
+        let docsCreated = false;
+        let docsContent: string | undefined;
 
-    for await (const event of client.streamRequirements(content, '/app/project', {
-      previousMessages,
-      isFirstRequest,
-    })) {
-      const eventData = event as { type?: string; data?: Record<string, unknown> };
+        try {
+          console.log(`[API /requirements/messages] Starting SSE stream...`);
 
-      if (eventData.type === 'message' && eventData.data) {
-        const text = (eventData.data as { text?: string }).text;
-        if (text) {
-          assistantResponse += text;
+          for await (const event of client.streamRequirements(content, '/app/project', {
+            previousMessages,
+            isFirstRequest,
+          })) {
+            const eventData = event as { type?: string; data?: Record<string, unknown> };
+
+            // Forward events to client in real-time
+            if (eventData.type === 'started') {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+            } else if (eventData.type === 'message' && eventData.data) {
+              const text = (eventData.data as { text?: string }).text;
+              if (text) {
+                assistantResponse += text;
+              }
+              // Stream message event immediately to client
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+            } else if (eventData.type === 'tool_call') {
+              // Stream tool call events to client
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+            } else if (eventData.type === 'tool_result') {
+              // Stream tool result events to client
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+            } else if (eventData.type === 'done' && eventData.data) {
+              const doneData = eventData.data as {
+                response?: string;
+                docsCreated?: boolean;
+                docsContent?: string;
+                error?: string;
+              };
+
+              if (doneData.error) {
+                // Send error in done event
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    `data: ${JSON.stringify({ type: 'done', data: { error: doneData.error } })}\n\n`
+                  )
+                );
+                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+                controller.close();
+                return;
+              }
+
+              // Use the full response if provided
+              if (doneData.response) {
+                assistantResponse = doneData.response;
+              }
+              docsCreated = doneData.docsCreated || false;
+              docsContent = doneData.docsContent;
+            }
+          }
+
+          console.log(
+            `[API /requirements/messages] Stream complete, saving (${assistantResponse.length} chars)`
+          );
+
+          // Save assistant message to DB after stream completes
+          const [assistantMessage] = await db
+            .insert(requirementsMessages)
+            .values({
+              projectId,
+              userId,
+              role: 'assistant',
+              content: assistantResponse,
+            })
+            .returning();
+
+          console.log(
+            `[API /requirements/messages] Assistant message saved: ${assistantMessage.id}`
+          );
+
+          // Send done event with saved message info
+          const doneEvent = {
+            type: 'done',
+            data: {
+              message: {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: assistantMessage.content,
+                timestamp: assistantMessage.timestamp,
+              },
+              docsCreated,
+              docsContent,
+            },
+          };
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(doneEvent)}\n\n`));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (error) {
+          console.error('[API /requirements/messages] Stream error:', error);
+          const errorEvent = {
+            type: 'error',
+            data: {
+              error: error instanceof Error ? error.message : 'Unknown error occurred',
+            },
+          };
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+          controller.close();
         }
-      } else if (eventData.type === 'done' && eventData.data) {
-        const doneData = eventData.data as {
-          response?: string;
-          docsCreated?: boolean;
-          docsContent?: string;
-          error?: string;
-        };
-
-        if (doneData.error) {
-          throw new Error(doneData.error);
-        }
-
-        // Use the full response if provided
-        if (doneData.response) {
-          assistantResponse = doneData.response;
-        }
-        docsCreated = doneData.docsCreated || false;
-        docsContent = doneData.docsContent;
-      }
-    }
-
-    console.log(
-      `[API /requirements/messages] AI response received (${assistantResponse.length} chars)`
-    );
-
-    // Save assistant message to DB
-    const [assistantMessage] = await db
-      .insert(requirementsMessages)
-      .values({
-        projectId,
-        userId,
-        role: 'assistant',
-        content: assistantResponse,
-      })
-      .returning();
-
-    console.log(`[API /requirements/messages] Assistant message saved: ${assistantMessage.id}`);
-
-    return NextResponse.json({
-      message: {
-        id: assistantMessage.id,
-        role: assistantMessage.role,
-        content: assistantMessage.content,
-        timestamp: assistantMessage.timestamp,
       },
-      docsCreated,
-      docs: docsContent,
+    });
+
+    // Return SSE streaming response
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-User-Message-Id': userMessage.id,
+      },
     });
   } catch (error) {
     console.error('[API /requirements/messages] POST Error:', error);
 
-    return NextResponse.json(
-      {
+    return new Response(
+      JSON.stringify({
         error: 'Failed to send message',
         details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
     );
   }
 }
