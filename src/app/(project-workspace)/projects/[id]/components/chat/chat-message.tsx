@@ -364,7 +364,7 @@ export default function ChatMessage({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute bottom-2 right-2 h-7 w-7 opacity-0 group-hover/message:opacity-100 transition-opacity"
+            className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover/message:opacity-100 transition-opacity bg-background/80 hover:bg-accent"
             onClick={handleCopyMessage}
           >
             <Copy className="h-3.5 w-3.5" />

@@ -179,16 +179,26 @@ export default function ChatInterface({
   const messages = useMemo(() => {
     if (isRequirementsMode) {
       // Requirements mode: data is array of RequirementsMessage - cast to ChatMessage-compatible shape
-      return (reqMessagesData || []).map(msg => ({
-        ...msg,
-        role: msg.role as 'user' | 'assistant' | 'system',
-        blocks: msg.blocks as AssistantBlock[] | undefined,
-        hasError: false,
-        errorType: undefined as ErrorType | undefined,
-        commitSha: undefined as string | undefined,
-        metadata: undefined as ChatMessageType['metadata'],
-        attachments: undefined as Attachment[] | undefined,
-      }));
+      return (reqMessagesData || []).map(msg => {
+        // For assistant messages without blocks but with content,
+        // create a synthetic text block to enable markdown rendering
+        let blocks: AssistantBlock[] | undefined = msg.blocks as AssistantBlock[] | undefined;
+
+        if (msg.role === 'assistant' && (!blocks || blocks.length === 0) && msg.content) {
+          blocks = [{ type: 'text', content: msg.content }];
+        }
+
+        return {
+          ...msg,
+          role: msg.role as 'user' | 'assistant' | 'system',
+          blocks,
+          hasError: false,
+          errorType: undefined as ErrorType | undefined,
+          commitSha: undefined as string | undefined,
+          metadata: undefined as ChatMessageType['metadata'],
+          attachments: undefined as Attachment[] | undefined,
+        };
+      });
     }
     // Development mode: data is { messages: [...] }
     return devMessagesData?.messages || [];
