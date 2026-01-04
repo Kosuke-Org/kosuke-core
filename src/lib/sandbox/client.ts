@@ -7,7 +7,13 @@ import type { ImageInput } from '@/lib/types';
 
 import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
-import type { AgentHealthResponse, FileInfo, GitPullResponse, GitRevertResponse } from './types';
+import type {
+  AgentHealthResponse,
+  FileInfo,
+  GitPullResponse,
+  GitRevertResponse,
+  RequirementsCommitResponse,
+} from './types';
 
 export class SandboxClient {
   private sessionId: string;
@@ -176,6 +182,36 @@ export class SandboxClient {
       path: result.data?.path || '',
       exists: result.data?.exists !== false,
     };
+  }
+
+  /**
+   * Commit and push requirements document to git
+   * Commits only the .kosuke/docs.md file and pushes to remote
+   */
+  async commitRequirements(
+    githubToken: string,
+    commitMessage: string = 'docs: add project requirements'
+  ): Promise<RequirementsCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/requirements/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit requirements',
+      };
+    }
+
+    return response.json();
   }
 
   // --- Git Operations ---

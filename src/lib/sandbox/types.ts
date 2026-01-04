@@ -53,6 +53,17 @@ export interface GitRevertResponse {
   error?: string;
 }
 
+export interface RequirementsCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
+}
+
 // ============================================================
 // AGENT HEALTH TYPES
 // ============================================================

@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projectAuditLogs, projects } from '@/lib/db/schema';
+import { getProjectGitHubToken } from '@/lib/github/installations';
+import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { sendRequirementsReadySlack } from '@/lib/slack/send-requirements-ready';
 
 /**
@@ -45,6 +47,54 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       );
     }
 
+    // ============================================================
+    // COMMIT REQUIREMENTS TO GIT (before changing status)
+    // ============================================================
+
+    // Find running sandbox for this project
+    const manager = getSandboxManager();
+    const allSandboxes = await manager.listProjectSandboxes(projectId);
+    const runningSandbox = allSandboxes.find(s => s.status === 'running');
+
+    if (!runningSandbox) {
+      return NextResponse.json(
+        { error: 'No running sandbox found. Cannot commit requirements.' },
+        { status: 400 }
+      );
+    }
+
+    // Get GitHub token for the project
+    const githubToken = await getProjectGitHubToken(project);
+
+    // Commit requirements via sandbox
+    const client = new SandboxClient(runningSandbox.sessionId);
+    const commitResult = await client.commitRequirements(
+      githubToken,
+      'docs: add project requirements\n\nConfirmed and ready for implementation'
+    );
+
+    if (!commitResult.success) {
+      console.error(
+        `[API /requirements/confirm] Failed to commit requirements:`,
+        commitResult.error
+      );
+      return NextResponse.json(
+        {
+          error: 'Failed to commit requirements to git',
+          details: commitResult.message || commitResult.error,
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log(
+      `[API /requirements/confirm] Requirements committed: ${commitResult.data?.sha || 'no changes'}`
+    );
+
+    // ============================================================
+    // UPDATE PROJECT STATUS
+    // ============================================================
+
     // Update project status to requirements_ready
     await db
       .update(projects)
@@ -54,7 +104,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       })
       .where(eq(projects.id, projectId));
 
-    // Create audit log
+    // Create audit log with commit info
     await db.insert(projectAuditLogs).values({
       projectId,
       userId,
@@ -63,6 +113,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       newValue: 'requirements_ready',
       metadata: {
         confirmedAt: new Date().toISOString(),
+        commitSha: commitResult.data?.sha || null,
+        commitBranch: commitResult.data?.branch || null,
       },
     });
 
