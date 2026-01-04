@@ -270,6 +270,9 @@ export async function POST(
             } else if (eventData.type === 'tool_result') {
               // Stream tool result events to client
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+            } else if (eventData.type === 'search_results') {
+              // Stream search results events to client (web search results)
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
             } else if (eventData.type === 'done' && eventData.data) {
               const doneData = eventData.data as {
                 response?: string;
