@@ -151,7 +151,13 @@ export default function PreviewPanel({
           />
         );
       case 'waiting_for_payment':
-        return <WaitingForPaymentPreview stripeInvoiceUrl={stripeInvoiceUrl} />;
+        return (
+          <WaitingForPaymentPreview
+            stripeInvoiceUrl={stripeInvoiceUrl}
+            onToggleSidebar={onToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
+          />
+        );
       case 'requirements_ready':
       case 'paid':
       case 'in_development':
@@ -162,6 +168,8 @@ export default function PreviewPanel({
             viewMode={viewMode}
             onViewModeChange={onViewModeChange || (() => {})}
             projectStatus={projectStatus}
+            onToggleSidebar={onToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
           />
         );
       default:

@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { useClerk, useUser } from '@clerk/nextjs';
 
 // Import components
-import ChatInterface from './components/chat/chat-interface';
+import ChatInterface, { ChatInterfaceSkeleton } from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
 import PreviewPanel from './components/preview/preview-panel';
 
@@ -53,36 +53,12 @@ function ProjectLoadingSkeleton() {
               <Skeleton className="h-6 w-6 rounded" />
             </div>
             <Skeleton className="h-8 w-8 rounded-md" />
-            <div className="absolute right-2">
-              <Skeleton className="h-8 w-8 rounded-md" />
-            </div>
           </div>
         </header>
 
-        {/* Chat Content Skeleton */}
+        {/* Chat Content Skeleton - uses ChatInterfaceSkeleton */}
         <div className="flex-1 overflow-hidden">
-          <div className="flex flex-col h-full w-full">
-            <div className="p-4">
-              <Skeleton className="h-9 w-full rounded-md" />
-            </div>
-            <div className="flex-1 p-4 space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-12 rounded-full" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-3 w-3 rounded-full" />
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-3 w-1" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ChatInterfaceSkeleton />
         </div>
       </div>
 

@@ -209,6 +209,8 @@ export default function RequirementsEditor({
           // Override BlockNote menu styles to match app's dropdown styling
           '[&_.bn-container]:bg-transparent',
           '[&_.bn-editor]:bg-transparent',
+          // Add vertical padding to the editor content area
+          '[&_.bn-editor]:py-4',
           // Menu/dropdown styling to match shadcn dropdowns
           '[&_.mantine-Menu-dropdown]:!bg-popover [&_.mantine-Menu-dropdown]:!border-border [&_.mantine-Menu-dropdown]:!shadow-md',
           '[&_.bn-menu-dropdown]:!bg-popover [&_.bn-menu-dropdown]:!border-border [&_.bn-menu-dropdown]:!shadow-md',

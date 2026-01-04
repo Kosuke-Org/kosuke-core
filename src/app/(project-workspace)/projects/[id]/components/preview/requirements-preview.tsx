@@ -64,7 +64,7 @@ export default function RequirementsPreview({
   return (
     <div className={cn('flex h-full flex-col', className)}>
       {/* Header with collapse icon and confirm button */}
-      <div className="flex items-center justify-between border-b px-4 py-2">
+      <div className="flex h-12 items-center justify-between border-b px-4">
         <div className="flex items-center gap-2">
           {onToggleSidebar && (
             <Button
@@ -135,7 +135,7 @@ export default function RequirementsPreview({
       </div>
 
       {content ? (
-        <div className="flex-1 min-h-0 overflow-auto pt-4">
+        <div className="flex-1 min-h-0 overflow-auto">
           <RequirementsEditor
             initialContent={content}
             editable={true}

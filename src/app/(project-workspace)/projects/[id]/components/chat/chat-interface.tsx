@@ -3,6 +3,7 @@
 import { Loader2, RefreshCcw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
@@ -27,6 +28,90 @@ import ChatInput from './chat-input';
 import ChatMessage from './chat-message';
 
 import ModelBanner from './model-banner';
+
+// Messages skeleton for when messages are loading (banner and input already rendered)
+function MessagesSkeleton() {
+  return (
+    <div className="flex flex-col">
+      {/* Assistant message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+      </div>
+
+      {/* User message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      </div>
+
+      {/* Assistant message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Full skeleton for initial page loading - exported for use in project page
+export function ChatInterfaceSkeleton() {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Model Banner Skeleton */}
+      <div className="px-4">
+        <div className="flex items-center justify-between w-full px-4 py-2.5 rounded-md bg-gradient-to-r from-primary/5 to-background">
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-2 w-2 rounded-full" />
+            <Skeleton className="h-3 w-14" />
+          </div>
+        </div>
+      </div>
+
+      {/* Messages Area Skeleton */}
+      <div className="flex-1 overflow-hidden">
+        <MessagesSkeleton />
+      </div>
+
+      {/* Chat Input Skeleton */}
+      <div className="px-4 pb-0">
+        <div className="relative flex flex-col rounded-lg border border-border shadow-lg bg-background">
+          <Skeleton className="min-h-[100px] w-full rounded-lg border-0" />
+          <div className="flex items-center gap-2 px-3 absolute bottom-3 right-0">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ChatInterface({
   projectId,
@@ -281,9 +366,7 @@ export default function ChatInterface({
               <p className="text-muted-foreground">No session selected</p>
             </div>
           ) : messages.length === 0 && isLoadingMessages ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <MessagesSkeleton />
           ) : (
             <>
               {enhancedMessages.map(message => (

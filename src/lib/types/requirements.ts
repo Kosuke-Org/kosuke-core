@@ -43,9 +43,15 @@ export interface InDevelopmentPreviewProps {
   className?: string;
   /** Project status for dynamic badge display */
   projectStatus?: 'requirements_ready' | 'paid' | 'in_development';
+  // Sidebar toggle props
+  onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
 export interface WaitingForPaymentPreviewProps {
   stripeInvoiceUrl?: string | null;
   className?: string;
+  // Sidebar toggle props
+  onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
 }

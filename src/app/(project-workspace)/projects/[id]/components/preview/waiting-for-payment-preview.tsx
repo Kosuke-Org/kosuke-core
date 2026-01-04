@@ -3,10 +3,10 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { WaitingForPaymentPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Link from 'next/link';
 
 /**
@@ -16,24 +16,40 @@ import Link from 'next/link';
 export default function WaitingForPaymentPreview({
   stripeInvoiceUrl,
   className,
+  onToggleSidebar,
+  isSidebarCollapsed,
 }: WaitingForPaymentPreviewProps) {
   return (
     <div className={cn('flex h-full flex-col', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b p-3">
+      <div className="flex h-12 items-center justify-between border-b px-4">
         <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="border-amber-500 text-amber-600">
-                  Waiting for Payment
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                You need to pay the invoice and then we will start working on your project
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              className="h-8 w-8"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="border-amber-500 text-amber-600">
+                Waiting for Payment
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              You need to pay the invoice and then we will start working on your project
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

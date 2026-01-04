@@ -167,7 +167,7 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     );
   };
 
-  if (isLoading) {
+  if (isLoading || !projects) {
     return <PageSkeleton />;
   }
 
@@ -401,25 +401,57 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Title skeleton */}
+      {/* Page Header - Title, Description, and Action buttons */}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1">
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-4 w-96" />
+        <div className="space-y-1 flex-1">
+          <Skeleton className="h-9 w-48" /> {/* Project name */}
+          <Skeleton className="h-5 w-80" /> {/* Description */}
         </div>
         <div className="flex items-center gap-3">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-9 w-32" />
-          <Skeleton className="h-9 w-32" />
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-36" /> {/* View Project Space button */}
+          <Skeleton className="h-9 w-28" /> {/* Status dropdown */}
+          <Skeleton className="h-9 w-20" /> {/* Clone button */}
+          <Skeleton className="h-9 w-24" /> {/* Deploy button */}
         </div>
       </div>
 
-      {/* Card skeleton */}
+      {/* Project Overview Card */}
       <Card>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left column */}
+            <div className="space-y-4">
+              {/* Project ID */}
+              <div>
+                <Skeleton className="h-4 w-16 mb-1" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+              {/* Organization ID */}
+              <div>
+                <Skeleton className="h-4 w-24 mb-1" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              {/* Created By */}
+              <div>
+                <Skeleton className="h-4 w-20 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              {/* GitHub Repository */}
+              <div>
+                <Skeleton className="h-4 w-28 mb-1" />
+                <Skeleton className="h-4 w-56" />
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-4">
+              {/* Created At */}
+              <div>
+                <Skeleton className="h-4 w-20 mb-1" />
+                <Skeleton className="h-4 w-72" />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
