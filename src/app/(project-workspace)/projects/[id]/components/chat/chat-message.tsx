@@ -1,10 +1,13 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { CircleIcon, RefreshCcw } from 'lucide-react';
+import { CircleIcon, Copy, RefreshCcw } from 'lucide-react';
 import Image from 'next/image';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +15,7 @@ import { cn } from '@/lib/utils';
 import type { AssistantBlock, ChatMessageProps, ContentBlock, ErrorType } from '@/lib/types';
 import { getFileName, processMessageContent } from '@/lib/utils/message-content';
 import AssistantResponse from './assistant-response';
+import { copyToClipboard, extractMessageContent } from './copy-message-content';
 import { BuildMessage } from './build-message';
 import ChatMessageAttachments from './chat-message-attachments';
 import { MessageRevertButton } from './message-revert-button';
@@ -38,6 +42,24 @@ export default function ChatMessage({
   const isSystem = role === 'system';
   const isRevertMessage = isSystem && metadata?.revertInfo;
   const { imageUrl, displayName, initials } = useUser();
+  const { toast } = useToast();
+
+  // Handle copy message content
+  const handleCopyMessage = async () => {
+    const textContent = extractMessageContent(content, blocks, role);
+    const success = await copyToClipboard(textContent);
+
+    if (success) {
+      toast({
+        description: 'Message copied to clipboard',
+      });
+    } else {
+      toast({
+        description: 'Failed to copy message',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Get appropriate error message based on error type
   const getErrorMessage = (type: ErrorType): string => {
@@ -164,7 +186,7 @@ export default function ChatMessage({
   return (
     <div
       className={cn(
-        'flex w-full max-w-[95%] mx-auto gap-3 p-4',
+        'group/message relative flex w-full max-w-[95%] mx-auto gap-3 p-4',
         isUser ? 'bg-background' : 'bg-background',
         !showAvatar && 'pt-1', // Reduce top padding for consecutive messages
         isLoading && 'opacity-50',
@@ -335,6 +357,24 @@ export default function ChatMessage({
           </div>
         )}
       </div>
+
+      {/* Copy message button - appears on hover */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute bottom-2 right-2 h-7 w-7 opacity-0 group-hover/message:opacity-100 transition-opacity"
+            onClick={handleCopyMessage}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            <span className="sr-only">Copy message</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          <p>Copy message</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
