@@ -18,6 +18,8 @@ import AssistantResponse from './assistant-response';
 import ChatInput from './chat-input';
 import ChatMessage from './chat-message';
 
+import ModelBanner from './model-banner';
+
 export default function ChatInterface({
   projectId,
   className,
@@ -188,6 +190,8 @@ export default function ChatInterface({
 
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
+      <ModelBanner model={model} />
+
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
           {!hasSession ? (
@@ -344,7 +348,6 @@ export default function ChatInterface({
                 : 'Type your message...'
           }
           disabled={isBuildInProgress || isBuildFailed}
-          model={model}
           data-testid="chat-input"
           className="chat-input"
         />

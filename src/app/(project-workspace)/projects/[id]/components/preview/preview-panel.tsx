@@ -1,12 +1,32 @@
 'use client';
 
-import { CheckCircle, Loader2, XCircle } from 'lucide-react';
+import {
+  CheckCircle,
+  Download,
+  ExternalLink,
+  Github,
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RefreshCw,
+  Send,
+  XCircle,
+} from 'lucide-react';
+import Link from 'next/link';
 
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePreviewPanel } from '@/hooks/use-preview-panel';
 import { cn } from '@/lib/utils';
 import DownloadingModal from './downloading-modal';
-import { PreviewNavbar } from './preview-navbar';
 
 interface PreviewPanelProps {
   projectId: string;
@@ -85,24 +105,136 @@ export default function PreviewPanel({
       className={cn('flex flex-col h-full w-full overflow-hidden', className)}
       data-testid="preview-panel"
     >
-      <PreviewNavbar
-        branch={branch}
-        isShowingTemplate={isShowingTemplate}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onToggleSidebar={onToggleSidebar}
-        status={status}
-        previewUrl={previewUrl}
-        isPreviewEnabled={isPreviewEnabled}
-        isDownloading={isDownloading}
-        onRefresh={() => handleRefresh()}
-        onOpenInNewTab={openInNewTab}
-        onDownloadZip={handleDownloadZip}
-        showCreatePR={showCreatePR}
-        onCreatePullRequest={onCreatePullRequest}
-        canCreatePR={canCreatePR}
-        isCreatingPR={isCreatingPR}
-        prUrl={prUrl}
-      />
+      <div className="flex items-center justify-between px-4 py-2 border-b">
+        <div className="flex items-center gap-2">
+          {/* Toggle sidebar button */}
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              className="h-8 w-8"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
+          )}
+          {isShowingTemplate ? (
+            <Badge variant="outline" className="text-xs">
+              Template
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs">
+              {branch}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center space-x-1">
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Download project"
+                    disabled={isDownloading}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Download</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem className="flex items-center" disabled>
+                <Github className="mr-2 h-4 w-4" />
+                <span>Create GitHub Repo</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="flex items-center"
+                onClick={handleDownloadZip}
+                disabled={isDownloading}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                <span>Download ZIP</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {previewUrl && status === 'ready' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={openInNewTab}
+                  aria-label="Open in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View</TooltipContent>
+            </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleRefresh()}
+                disabled={!isPreviewEnabled || status === 'loading'}
+                aria-label="Refresh preview"
+              >
+                <RefreshCw className={cn('h-4 w-4', status === 'loading' && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh</TooltipContent>
+          </Tooltip>
+          {showCreatePR && prUrl ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={prUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    View Changes
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View your submitted changes on GitHub</TooltipContent>
+            </Tooltip>
+          ) : showCreatePR && onCreatePullRequest ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onCreatePullRequest}
+                    disabled={!canCreatePR || isCreatingPR}
+                  >
+                    {isCreatingPR ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-1" />
+                    )}
+                    {isCreatingPR ? 'Creating...' : 'Submit'}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {!canCreatePR
+                  ? 'A successful build is required before submitting'
+                  : 'Submit your changes'}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
+      </div>
       <div className="flex-1 overflow-hidden">
         <div className="h-full w-full">
           {!isPreviewEnabled || status !== 'ready' ? (

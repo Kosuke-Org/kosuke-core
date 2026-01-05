@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { ACCEPTED_FILE_TYPES_ACCEPT, useFileUpload } from '@/hooks/use-file-upload';
 import type { ChatInputProps } from '@/lib/types';
 import ChatInputAttachments from './chat-input-attachments';
-import PoweredByIndicator from './powered-by-indicator';
 
 export default function ChatInput({
   onSendMessage,
@@ -21,13 +20,11 @@ export default function ChatInput({
   placeholder = 'Type a message...',
   className,
   disabled = false,
-  model,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [includeContext, setIncludeContext] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [textareaHeight, setTextareaHeight] = useState<number | undefined>(undefined);
 
   // Use the file upload hook for all file-related logic
   const {
@@ -42,24 +39,19 @@ export default function ChatInput({
     hasAttachments,
   } = useFileUpload();
 
-  const MIN_HEIGHT = 60;
-  const MAX_HEIGHT = 300;
-
   // Auto-resize textarea based on content
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    // Temporarily reset height to auto to get accurate scrollHeight
+    // Only reset height if we're actually changing content
     textarea.style.height = 'auto';
 
-    // Calculate new height based on content, clamped between min and max
-    const scrollHeight = textarea.scrollHeight;
-    const newHeight = Math.max(MIN_HEIGHT, Math.min(scrollHeight, MAX_HEIGHT));
+    // Calculate new height based on content
+    const newHeight = `${Math.min(textarea.scrollHeight, 200)}px`;
 
     // Apply the new height
-    textarea.style.height = `${newHeight}px`;
-    setTextareaHeight(newHeight);
+    textarea.style.height = newHeight;
   }, [message]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,33 +116,25 @@ export default function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isLoading || disabled}
-          className={cn(
-            'resize-none border-0 bg-transparent! px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm',
-            textareaHeight !== undefined && textareaHeight >= MAX_HEIGHT
-              ? 'overflow-y-auto'
-              : 'overflow-y-hidden'
-          )}
-          style={{ height: textareaHeight ?? MIN_HEIGHT }}
+          className="min-h-[60px] max-h-[200px] resize-none border-0 !bg-transparent px-3 pt-3 pb-0 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"
         />
 
-        {/* Footer with Powered by and action buttons */}
-        <div className="flex items-center justify-between px-3 py-2">
-          <PoweredByIndicator model={model} />
+        {/* Footer with action buttons */}
+        <div className="flex items-center justify-end px-3 py-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept={ACCEPTED_FILE_TYPES_ACCEPT}
+            multiple
+            className="hidden"
+            id="file-upload"
+          />
 
           <div className="flex items-center gap-1">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept={ACCEPTED_FILE_TYPES_ACCEPT}
-              multiple
-              className="hidden"
-              id="file-upload"
-            />
-
             <Button
               type="button"
               variant="ghost"
