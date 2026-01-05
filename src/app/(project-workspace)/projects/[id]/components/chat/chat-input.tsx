@@ -118,28 +118,28 @@ export default function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isLoading || disabled}
-          className="min-h-[100px] max-h-[200px] resize-none border-0 !bg-transparent px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
-          rows={3}
-          style={{ height: '100px' }} // Set initial fixed height
+          className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent! px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+          rows={2}
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"
         />
 
-        <PoweredByIndicator model={model} />
+        {/* Footer with Powered by and action buttons */}
+        <div className="flex items-center justify-between px-3 py-2">
+          <PoweredByIndicator model={model} />
 
-        <div className="flex items-center gap-2 px-3 absolute bottom-3 right-0">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept={ACCEPTED_FILE_TYPES_ACCEPT}
-            multiple
-            className="hidden"
-            id="file-upload"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept={ACCEPTED_FILE_TYPES_ACCEPT}
+              multiple
+              className="hidden"
+              id="file-upload"
+            />
 
-          <div className="flex gap-1">
             <Button
               type="button"
               variant="ghost"
