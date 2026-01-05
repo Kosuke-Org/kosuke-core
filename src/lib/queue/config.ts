@@ -12,6 +12,8 @@ export const QUEUE_NAMES = {
   PREVIEW_CLEANUP: 'preview-cleanup',
   BUILD: 'build',
   ENVIRONMENT: 'environment',
+  VAMOS: 'vamos',
+  DEPLOY: 'deploy',
 } as const;
 
 /**
@@ -24,4 +26,8 @@ export const JOB_NAMES = {
   PROCESS_BUILD: 'process-build',
   // Environment jobs
   ANALYZE_ENVIRONMENT: 'analyze-environment',
+  // Vamos jobs
+  PROCESS_VAMOS: 'process-vamos',
+  // Deploy jobs
+  PROCESS_DEPLOY: 'process-deploy',
 } as const;

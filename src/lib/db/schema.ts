@@ -58,6 +58,26 @@ export type ChatSessionMode = (typeof chatSessionModeEnum.enumValues)[number];
 export const messageTypeEnum = pgEnum('message_type', ['chat', 'requirements']);
 export type MessageType = (typeof messageTypeEnum.enumValues)[number];
 
+// Vamos job status enum
+export const vamosJobStatusEnum = pgEnum('vamos_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+export type VamosJobStatus = (typeof vamosJobStatusEnum.enumValues)[number];
+
+// Deploy job status enum
+export const deployJobStatusEnum = pgEnum('deploy_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+export type DeployJobStatus = (typeof deployJobStatusEnum.enumValues)[number];
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -383,6 +403,75 @@ export const environmentJobs = pgTable(
   })
 );
 
+// Vamos jobs - tracks vamos workflow execution per project
+export const vamosJobs = pgTable(
+  'vamos_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: vamosJobStatusEnum('status').notNull().default('pending'),
+
+    // Current phase tracking
+    phase: varchar('phase', { length: 50 }), // current phase: map, tickets, build, tests
+    totalPhases: integer('total_phases').default(6),
+    completedPhases: integer('completed_phases').default(0),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Stored SSE events as JSON array for log replay
+    logs: text('logs'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_vamos_jobs_project').on(table.projectId),
+    statusIdx: index('idx_vamos_jobs_status').on(table.status),
+  })
+);
+
+// Deploy jobs - tracks deploy execution per project
+export const deployJobs = pgTable(
+  'deploy_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: deployJobStatusEnum('status').notNull().default('pending'),
+
+    // Current step tracking
+    currentStep: varchar('current_step', { length: 100 }), // e.g., "deploying postgres"
+
+    // Deployed services info (JSON array of service URLs and IDs)
+    deployedServices: text('deployed_services'),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Stored SSE events as JSON array for log replay
+    logs: text('logs'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_deploy_jobs_project').on(table.projectId),
+    statusIdx: index('idx_deploy_jobs_status').on(table.status),
+  })
+);
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
@@ -391,6 +480,8 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   githubSyncSessions: many(githubSyncSessions),
   auditLogs: many(projectAuditLogs),
   environmentJobs: many(environmentJobs),
+  vamosJobs: many(vamosJobs),
+  deployJobs: many(deployJobs),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -640,6 +731,20 @@ export const environmentJobsRelations = relations(environmentJobs, ({ one }) => 
   }),
 }));
 
+export const vamosJobsRelations = relations(vamosJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [vamosJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const deployJobsRelations = relations(deployJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [deployJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -668,3 +773,7 @@ export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
 export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;
 export type EnvironmentJob = typeof environmentJobs.$inferSelect;
 export type NewEnvironmentJob = typeof environmentJobs.$inferInsert;
+export type VamosJob = typeof vamosJobs.$inferSelect;
+export type NewVamosJob = typeof vamosJobs.$inferInsert;
+export type DeployJob = typeof deployJobs.$inferSelect;
+export type NewDeployJob = typeof deployJobs.$inferInsert;

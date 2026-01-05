@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { ChevronDown, Copy, ExternalLink, Loader2, Rocket, Save } from 'lucide-react';
+import { ChevronDown, Copy, ExternalLink, Loader2, Play, Rocket, Save } from 'lucide-react';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 
@@ -27,9 +27,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  useDeployConfig,
+  useDeployJob,
+  useDeployLogs,
+  useTriggerDeploy,
+  useUpdateDeployConfig,
+} from '@/hooks/use-admin-deploy';
 import { useMarkProjectReady, useUpdatePaymentStatus } from '@/hooks/use-admin-projects';
+import { useTriggerVamos, useVamosJob, useVamosLogs } from '@/hooks/use-admin-vamos';
 import { useToast } from '@/hooks/use-toast';
 import type { ProjectStatus } from '@/lib/db/schema';
+
+import { DeployConfigModal } from './components/deploy-config-modal';
+import { StreamingLogsSheet } from './components/streaming-logs-sheet';
 
 interface AdminProject {
   id: string;
@@ -69,6 +80,11 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     null
   );
 
+  // Vamos & Deploy UI state
+  const [vamosLogsSheetOpen, setVamosLogsSheetOpen] = useState(false);
+  const [deployLogsSheetOpen, setDeployLogsSheetOpen] = useState(false);
+  const [deployConfigModalOpen, setDeployConfigModalOpen] = useState(false);
+
   // Fetch single project
   const { data: projects, isLoading } = useQuery<AdminProject[]>({
     queryKey: ['admin-project', id],
@@ -95,11 +111,83 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   // Update payment status mutation
   const updatePaymentStatusMutation = useUpdatePaymentStatus();
 
+  // Vamos hooks
+  const { data: vamosJobData } = useVamosJob(id, !!project);
+  const triggerVamosMutation = useTriggerVamos();
+  const { data: vamosLogsData } = useVamosLogs(id, vamosJobData?.job?.id || null);
+
+  // Deploy hooks
+  const { data: deployConfig, isLoading: isLoadingDeployConfig } = useDeployConfig(id, !!project);
+  const { data: deployJobData } = useDeployJob(id, !!project);
+  const triggerDeployMutation = useTriggerDeploy();
+  const updateDeployConfigMutation = useUpdateDeployConfig();
+  const { data: deployLogsData } = useDeployLogs(id, deployJobData?.job?.id || null);
+
+  const handleVamos = () => {
+    // If there's already a running job, just open the logs sheet
+    if (vamosJobData?.job?.status === 'running' || vamosJobData?.job?.status === 'pending') {
+      setVamosLogsSheetOpen(true);
+      return;
+    }
+
+    // Trigger a new vamos job
+    triggerVamosMutation.mutate(
+      { projectId: id, withTests: true, isolated: false },
+      {
+        onSuccess: () => {
+          setVamosLogsSheetOpen(true);
+        },
+      }
+    );
+  };
+
   const handleDeploy = () => {
-    toast({
-      title: 'Deploy Feature Coming Soon',
-      description: 'Project deployment functionality will be available soon.',
+    // If there's already a running deploy job, just open the logs sheet
+    if (deployJobData?.job?.status === 'running' || deployJobData?.job?.status === 'pending') {
+      setDeployLogsSheetOpen(true);
+      return;
+    }
+
+    // If still loading deploy config, wait
+    if (isLoadingDeployConfig) {
+      toast({
+        title: 'Loading Configuration',
+        description: 'Please wait while we load the deploy configuration.',
+      });
+      return;
+    }
+
+    // If no production config exists, open config modal first
+    if (!deployConfig?.hasProductionConfig) {
+      setDeployConfigModalOpen(true);
+      return;
+    }
+
+    // Trigger deploy
+    triggerDeployMutation.mutate(id, {
+      onSuccess: () => {
+        setDeployLogsSheetOpen(true);
+      },
     });
+  };
+
+  const handleSaveDeployConfig = (
+    production: Parameters<typeof updateDeployConfigMutation.mutate>[0]['production']
+  ) => {
+    updateDeployConfigMutation.mutate(
+      { projectId: id, production },
+      {
+        onSuccess: () => {
+          setDeployConfigModalOpen(false);
+          // After saving config, trigger deploy
+          triggerDeployMutation.mutate(id, {
+            onSuccess: () => {
+              setDeployLogsSheetOpen(true);
+            },
+          });
+        },
+      }
+    );
   };
 
   const handleClone = () => {
@@ -223,10 +311,30 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
             <Copy className="h-4 w-4 mr-2" />
             Clone
           </Button>
-          <Button onClick={handleDeploy}>
-            <Rocket className="h-4 w-4 mr-2" />
-            Deploy
-          </Button>
+          {project.status === 'paid' && (
+            <>
+              <Button
+                onClick={handleVamos}
+                variant="outline"
+                disabled={triggerVamosMutation.isPending}
+              >
+                {triggerVamosMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                {vamosJobData?.job?.status === 'running' ? 'View Vamos' : 'Vamos'}
+              </Button>
+              <Button onClick={handleDeploy} disabled={triggerDeployMutation.isPending}>
+                {triggerDeployMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Rocket className="h-4 w-4 mr-2" />
+                )}
+                {deployJobData?.job?.status === 'running' ? 'View Deploy' : 'Deploy'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -395,6 +503,63 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Vamos Streaming Logs Sheet */}
+      <StreamingLogsSheet
+        open={vamosLogsSheetOpen}
+        onOpenChange={setVamosLogsSheetOpen}
+        title="Vamos Workflow"
+        description={`Running vamos for ${project.name}`}
+        job={
+          vamosLogsData?.job || vamosJobData?.job
+            ? {
+                id: (vamosLogsData?.job || vamosJobData?.job)!.id,
+                status: (vamosLogsData?.job || vamosJobData?.job)!.status,
+                phase: (vamosLogsData?.job || vamosJobData?.job)!.phase,
+                totalPhases: (vamosLogsData?.job || vamosJobData?.job)!.totalPhases,
+                completedPhases: (vamosLogsData?.job || vamosJobData?.job)!.completedPhases,
+                error: (vamosLogsData?.job || vamosJobData?.job)!.error,
+                createdAt: (vamosLogsData?.job || vamosJobData?.job)!.createdAt,
+                startedAt: (vamosLogsData?.job || vamosJobData?.job)!.startedAt,
+                completedAt: (vamosLogsData?.job || vamosJobData?.job)!.completedAt,
+              }
+            : null
+        }
+        logs={vamosLogsData?.logs || []}
+        type="vamos"
+      />
+
+      {/* Deploy Streaming Logs Sheet */}
+      <StreamingLogsSheet
+        open={deployLogsSheetOpen}
+        onOpenChange={setDeployLogsSheetOpen}
+        title="Deploy Workflow"
+        description={`Deploying ${project.name} to production`}
+        job={
+          deployLogsData?.job || deployJobData?.job
+            ? {
+                id: (deployLogsData?.job || deployJobData?.job)!.id,
+                status: (deployLogsData?.job || deployJobData?.job)!.status,
+                currentStep: (deployLogsData?.job || deployJobData?.job)!.currentStep,
+                error: (deployLogsData?.job || deployJobData?.job)!.error,
+                createdAt: (deployLogsData?.job || deployJobData?.job)!.createdAt,
+                startedAt: (deployLogsData?.job || deployJobData?.job)!.startedAt,
+                completedAt: (deployLogsData?.job || deployJobData?.job)!.completedAt,
+              }
+            : null
+        }
+        logs={deployLogsData?.logs || []}
+        type="deploy"
+      />
+
+      {/* Deploy Config Modal */}
+      <DeployConfigModal
+        open={deployConfigModalOpen}
+        onOpenChange={setDeployConfigModalOpen}
+        existingConfig={deployConfig?.config || null}
+        onSave={handleSaveDeployConfig}
+        isSaving={updateDeployConfigMutation.isPending || triggerDeployMutation.isPending}
+      />
     </div>
   );
 }

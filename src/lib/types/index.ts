@@ -20,3 +20,4 @@ export * from './project';
 export * from './requirements';
 
 export type { EnhancedUser, UpdateProfileResponse, UseUserReturn, UserProfile } from './user';
+export * from './jobs';

@@ -11,11 +11,15 @@
 
 import { gracefulShutdown } from '@/lib/queue/client';
 import { buildQueue } from '@/lib/queue/queues/build';
+import { deployQueue } from '@/lib/queue/queues/deploy';
 import { environmentQueue } from '@/lib/queue/queues/environment';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { vamosQueue } from '@/lib/queue/queues/vamos';
 import { createBuildWorker } from '@/lib/queue/workers/build';
+import { createDeployWorker } from '@/lib/queue/workers/deploy';
 import { createEnvironmentWorker } from '@/lib/queue/workers/environment';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
+import { createVamosWorker } from '@/lib/queue/workers/vamos';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
@@ -28,16 +32,20 @@ async function main() {
     const previewWorker = createPreviewWorker();
     const buildWorker = createBuildWorker();
     const environmentWorker = createEnvironmentWorker();
+    const vamosWorker = createVamosWorker();
+    const deployWorker = createDeployWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
     console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
     console.log('[WORKER]   - Build (concurrency: 1)');
-    console.log('[WORKER]   - Environment (concurrency: 2)\n');
+    console.log('[WORKER]   - Environment (concurrency: 2)');
+    console.log('[WORKER]   - Vamos (concurrency: 1)');
+    console.log('[WORKER]   - Deploy (concurrency: 1)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker, environmentWorker];
-    const queues = [previewQueue, buildQueue, environmentQueue];
+    const workers = [previewWorker, buildWorker, environmentWorker, vamosWorker, deployWorker];
+    const queues = [previewQueue, buildQueue, environmentQueue, vamosQueue, deployQueue];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {
