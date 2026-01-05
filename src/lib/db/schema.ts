@@ -50,6 +50,10 @@ export const projectStatusEnum = pgEnum('project_status', [
 ]);
 export type ProjectStatus = (typeof projectStatusEnum.enumValues)[number];
 
+// Chat session mode enum - for human-in-the-loop support
+export const chatSessionModeEnum = pgEnum('chat_session_mode', ['autonomous', 'human_assisted']);
+export type ChatSessionMode = (typeof chatSessionModeEnum.enumValues)[number];
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -101,6 +105,8 @@ export const chatSessions = pgTable(
     branchMergedBy: varchar('branch_merged_by', { length: 100 }),
     mergeCommitSha: varchar('merge_commit_sha', { length: 40 }),
     pullRequestNumber: integer('pull_request_number'),
+    // Human-in-the-loop mode - autonomous (AI responds) or human_assisted (admin responds)
+    mode: chatSessionModeEnum('mode').notNull().default('autonomous'),
   },
   table => ({
     lastActivityAtIdx: index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
@@ -121,7 +127,7 @@ export const chatMessages = pgTable('chat_messages', {
     .references(() => chatSessions.id, { onDelete: 'cascade' })
     .notNull(), // Make this NOT NULL - all messages must be tied to a session
   userId: text('user_id'), // No FK
-  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
+  role: varchar('role', { length: 20 }).notNull(), // 'user', 'assistant', 'system', or 'admin'
   content: text('content'), // For user messages (nullable for assistant messages)
   blocks: jsonb('blocks'), // For assistant message blocks (text, thinking, tools)
   modelType: varchar('model_type', { length: 20 }), // 'default' or 'premium'
@@ -131,6 +137,7 @@ export const chatMessages = pgTable('chat_messages', {
   contextTokens: integer('context_tokens'), // Current context window size in tokens
   commitSha: text('commit_sha'), // NEW: Git commit SHA for revert functionality
   metadata: jsonb('metadata'), // NEW: System message metadata (e.g., revert info)
+  adminUserId: text('admin_user_id'), // Clerk user ID of admin who sent the message (for admin role)
 });
 
 export const attachments = pgTable('attachments', {

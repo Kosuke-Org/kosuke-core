@@ -34,6 +34,7 @@ export interface AdminChatSession {
   branchName: string;
   remoteId: string | null;
   status: string | null;
+  mode: 'autonomous' | 'human_assisted';
   createdAt: Date;
   updatedAt: Date;
   lastActivityAt: Date;

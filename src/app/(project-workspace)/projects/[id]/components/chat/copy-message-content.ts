@@ -8,7 +8,7 @@ import type { AssistantBlock } from '@/lib/types';
 export function extractMessageContent(
   content?: string,
   blocks?: AssistantBlock[],
-  role?: 'user' | 'assistant' | 'system'
+  role?: 'user' | 'assistant' | 'system' | 'admin'
 ): string {
   // User messages: return content directly
   if (role === 'user' || !blocks || blocks.length === 0) {

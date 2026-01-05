@@ -394,6 +394,63 @@ export async function POST(
       return ApiErrorHandler.chatSessionNotFound();
     }
 
+    // Check if session is in human_assisted mode
+    // In this mode, save user message but don't call AI - admin will respond
+    if (chatSession.mode === 'human_assisted') {
+      // Parse request body to get message content
+      const contentType = req.headers.get('content-type') || '';
+      let messageContent: string;
+
+      if (contentType.includes('multipart/form-data')) {
+        const formData = await req.formData();
+        messageContent = (formData.get('content') as string) || '';
+      } else {
+        const body = await req.json();
+        const parseResult = sendMessageSchema.safeParse(body);
+        if (!parseResult.success) {
+          return ApiErrorHandler.validationError(parseResult.error);
+        }
+        messageContent =
+          'message' in parseResult.data
+            ? parseResult.data.message.content
+            : parseResult.data.content;
+      }
+
+      // Save user message
+      const [userMessage] = await db
+        .insert(chatMessages)
+        .values({
+          projectId,
+          chatSessionId: chatSession.id,
+          userId: userId,
+          content: messageContent,
+          role: 'user',
+          modelType: null, // Not sent to AI
+          tokensInput: 0,
+          tokensOutput: 0,
+          contextTokens: 0,
+        })
+        .returning();
+
+      // Update session's lastActivityAt
+      await db
+        .update(chatSessions)
+        .set({ lastActivityAt: new Date() })
+        .where(eq(chatSessions.id, chatSession.id));
+
+      console.log(
+        `📝 User message saved in human_assisted mode (ID: ${userMessage.id}) - AI skipped`
+      );
+
+      // Return success without AI response
+      return NextResponse.json({
+        success: true,
+        message: 'Message saved. A support agent will respond.',
+        messageId: userMessage.id,
+        mode: 'human_assisted',
+      });
+    }
+
     // Parse request body - support both JSON and FormData
     const contentType = req.headers.get('content-type') || '';
     let messageContent: string;

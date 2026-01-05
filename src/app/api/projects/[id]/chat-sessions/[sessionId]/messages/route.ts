@@ -84,6 +84,7 @@ export async function GET(
         title: session.title,
         status: session.status,
         messageCount: messages.length,
+        mode: session.mode,
       },
     });
   } catch (error) {

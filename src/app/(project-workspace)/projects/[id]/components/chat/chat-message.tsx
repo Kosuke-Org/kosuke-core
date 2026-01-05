@@ -1,10 +1,11 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { CircleIcon, Copy, RefreshCcw } from 'lucide-react';
+import { CircleIcon, Copy, RefreshCcw, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
@@ -37,9 +38,11 @@ export default function ChatMessage({
   sessionId,
   metadata,
   attachments,
+  adminUserId: _adminUserId,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
+  const isAdmin = role === 'admin';
   const isRevertMessage = isSystem && metadata?.revertInfo;
   const { imageUrl, displayName, initials } = useUser();
   const { toast } = useToast();
@@ -188,6 +191,8 @@ export default function ChatMessage({
       className={cn(
         'group/message relative flex w-full max-w-[95%] mx-auto gap-3 p-4',
         isUser ? 'bg-background' : 'bg-background',
+        isAdmin &&
+          'bg-green-50/50 dark:bg-green-950/30 border border-green-100 dark:border-green-900',
         !showAvatar && 'pt-1', // Reduce top padding for consecutive messages
         isLoading && 'opacity-50',
         hasError && !isUser && 'border-l-2 border-l-destructive/40', // Red left border for error messages
@@ -205,6 +210,12 @@ export default function ChatMessage({
                 {initials}
               </AvatarFallback>
             </>
+          ) : isAdmin ? (
+            <div className="relative flex items-center justify-center h-full w-full">
+              <AvatarFallback className="bg-green-100 dark:bg-green-900 border-green-500">
+                <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </AvatarFallback>
+            </div>
           ) : (
             <div className="relative flex items-center justify-center h-full w-full">
               <AvatarFallback className="bg-muted border-primary">
@@ -220,10 +231,21 @@ export default function ChatMessage({
       <div className="flex-1 space-y-2">
         {showAvatar && ( // Only show header for first message in a sequence
           <div className="flex items-center justify-between group">
-            <h4>{isUser ? 'You' : 'AI Assistant'}</h4>
+            <div className="flex items-center gap-2">
+              <h4>{isUser ? 'You' : isAdmin ? 'Support Agent' : 'AI Assistant'}</h4>
+              {isAdmin && (
+                <Badge
+                  variant="outline"
+                  className="text-xs bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
+                >
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  Human Support
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {/* Add revert button for assistant messages with commit SHA */}
-              {!isUser && id && projectId && sessionId && commitSha && (
+              {!isUser && !isAdmin && id && projectId && sessionId && commitSha && (
                 <MessageRevertButton
                   message={{ id, role, timestamp, commitSha, content }}
                   projectId={projectId}

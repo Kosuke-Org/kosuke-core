@@ -1,7 +1,9 @@
 'use client';
 
-import { Loader2, RefreshCcw } from 'lucide-react';
+import { Loader2, RefreshCcw, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -190,13 +192,14 @@ export default function ChatInterface({
 
         return {
           ...msg,
-          role: msg.role as 'user' | 'assistant' | 'system',
+          role: msg.role as 'user' | 'assistant' | 'system' | 'admin',
           blocks,
           hasError: false,
           errorType: undefined as ErrorType | undefined,
           commitSha: undefined as string | undefined,
           metadata: undefined as ChatMessageType['metadata'],
           attachments: undefined as Attachment[] | undefined,
+          adminUserId: undefined as string | undefined,
         };
       });
     }
@@ -360,6 +363,10 @@ export default function ChatInterface({
     };
   });
 
+  // Get session mode from messages data
+  const sessionMode = devMessagesData?.sessionInfo?.mode || 'autonomous';
+  const isHumanAssisted = sessionMode === 'human_assisted';
+
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
       <ModelBanner
@@ -368,6 +375,18 @@ export default function ChatInterface({
         showAgentStatus={isRequirementsMode}
         agentHealth={agentHealth}
       />
+
+      {/* Human-assisted mode banner */}
+      {isHumanAssisted && (
+        <div className="px-4 mt-2">
+          <Alert className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
+            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              You&apos;re chatting with a human support agent. AI responses are paused.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
@@ -406,6 +425,7 @@ export default function ChatInterface({
                   sessionId={sessionId}
                   metadata={message.metadata}
                   attachments={message.attachments}
+                  adminUserId={message.adminUserId ?? undefined}
                 />
               ))}
 
