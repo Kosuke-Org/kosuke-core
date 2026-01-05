@@ -161,7 +161,7 @@ export default function PreviewPanel({
           />
         );
       case 'requirements_ready':
-        // Show environment variables preview for configuration
+        // Show environment variables preview with toggle to view requirements
         return (
           <EnvironmentsPreview
             projectId={projectId}
@@ -169,6 +169,7 @@ export default function PreviewPanel({
             isSidebarCollapsed={isSidebarCollapsed}
             onConfirmEnvironment={onConfirmEnvironment}
             isConfirming={isConfirmingEnvironment}
+            requirementsContent={requirementsContent}
           />
         );
       case 'waiting_for_payment':

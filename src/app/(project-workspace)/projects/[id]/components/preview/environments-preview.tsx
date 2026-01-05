@@ -22,17 +22,21 @@ import { useRetriggerEnvironment } from '@/hooks/use-retrigger-environment';
 import { useUpdateEnvironment } from '@/hooks/use-update-environment';
 import type { EnvironmentsPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import type { EnvironmentViewMode } from '@/lib/types';
 import {
   AlertCircle,
   CheckCircle2,
   Eye,
   EyeOff,
+  FileText,
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Settings,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+import RequirementsEditor from '../requirements/requirements-editor';
 
 // Skeleton for loading state
 function EnvironmentsSkeleton() {
@@ -94,7 +98,9 @@ export default function EnvironmentsPreview({
   isSidebarCollapsed,
   onConfirmEnvironment,
   isConfirming,
+  requirementsContent,
 }: EnvironmentsPreviewProps) {
+  const [viewMode, setViewMode] = useState<EnvironmentViewMode>('environment');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showReanalyzeModal, setShowReanalyzeModal] = useState(false);
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
@@ -254,123 +260,181 @@ export default function EnvironmentsPreview({
             </Button>
           )}
           <h3 className="text-sm font-medium text-muted-foreground">Environment Setup</h3>
-          {emptyCount > 0 && (
+          {viewMode === 'environment' && emptyCount > 0 && (
             <Badge variant="secondary" className="text-xs">
               {emptyCount} empty
             </Badge>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {/* View toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="ghost"
+                variant={viewMode === 'environment' ? 'default' : 'ghost'}
                 size="icon"
-                onClick={() => setShowReanalyzeModal(true)}
-                disabled={retriggerMutation.isPending}
                 className="h-8 w-8"
+                onClick={() => setViewMode('environment')}
               >
-                <RefreshCw
-                  className={cn('h-4 w-4', retriggerMutation.isPending && 'animate-spin')}
-                />
+                <Settings className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Re-analyze environment variables</TooltipContent>
+            <TooltipContent>Environment variables</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={viewMode === 'docs' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setViewMode('docs')}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View requirements</TooltipContent>
           </Tooltip>
 
-          {hasLocalChanges && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={updateMutation.isPending}
-            >
-              {updateMutation.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              Save
-            </Button>
-          )}
-
-          {onConfirmEnvironment && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
+          {/* Environment-specific actions */}
+          {viewMode === 'environment' && (
+            <>
+              <div className="mx-1 h-4 w-px bg-border" />
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
-                    onClick={() => setShowConfirmModal(true)}
-                    disabled={!canConfirmEnv}
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowReanalyzeModal(true)}
+                    disabled={retriggerMutation.isPending}
+                    className="h-8 w-8"
                   >
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Confirm
+                    <RefreshCw
+                      className={cn('h-4 w-4', retriggerMutation.isPending && 'animate-spin')}
+                    />
                   </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {canConfirmEnv
-                  ? 'Confirm environment configuration'
-                  : 'Fill all environment variables first'}
-              </TooltipContent>
-            </Tooltip>
+                </TooltipTrigger>
+                <TooltipContent>Re-analyze environment variables</TooltipContent>
+              </Tooltip>
+
+              {hasLocalChanges && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Save
+                </Button>
+              )}
+
+              {onConfirmEnvironment && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        onClick={() => setShowConfirmModal(true)}
+                        disabled={!canConfirmEnv}
+                        size="sm"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Confirm
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {canConfirmEnv
+                      ? 'Confirm environment configuration'
+                      : 'Fill all environment variables first'}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1 h-0">
-        {envEntries.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center p-4">
-            <Alert className="max-w-xl">
-              <AlertDescription>
-                No environment variables detected. The environment analysis may still be running.
-                Please wait a moment and refresh.
-              </AlertDescription>
-            </Alert>
-          </div>
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'docs' ? (
+          <ScrollArea className="h-full">
+            {requirementsContent ? (
+              <RequirementsEditor
+                initialContent={requirementsContent}
+                editable={false}
+                className="h-full"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+                No requirements document available
+              </div>
+            )}
+          </ScrollArea>
         ) : (
-          <div className="px-6 py-4 space-y-6">
-            <div className="space-y-1">
-              <h4 className="text-base font-medium">Environment Variables</h4>
-              <p className="text-sm text-muted-foreground">Fill in all required values.</p>
-            </div>
-            <div className="space-y-4">
-              {envEntries.map(([key, value]) => {
-                const isSecret = isSecretKey(key);
-                const showValue = showSecrets[key] ?? false;
+          <ScrollArea className="h-full">
+            {envEntries.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center p-4">
+                <Alert className="max-w-xl">
+                  <AlertDescription>
+                    No environment variables detected. The environment analysis may still be
+                    running. Please wait a moment and refresh.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            ) : (
+              <div className="px-6 py-4 space-y-6">
+                <div className="space-y-1">
+                  <h4 className="text-base font-medium">Environment Variables</h4>
+                  <p className="text-sm text-muted-foreground">Fill in all required values.</p>
+                </div>
+                <div className="space-y-4">
+                  {envEntries.map(([key, value]) => {
+                    const isSecret = isSecretKey(key);
+                    const showValue = showSecrets[key] ?? false;
 
-                return (
-                  <div key={key} className="space-y-1.5">
-                    <Label htmlFor={key} className="text-sm font-mono">
-                      {key}
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id={key}
-                        type={isSecret && !showValue ? 'password' : 'text'}
-                        value={value}
-                        onChange={e => handleValueChange(key, e.target.value)}
-                        placeholder={`Enter ${key}`}
-                        className="font-mono pr-10"
-                      />
-                      {isSecret && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                          onClick={() => toggleSecretVisibility(key)}
-                          title={showValue ? 'Hide value' : 'Show value'}
-                        >
-                          {showValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                    return (
+                      <div key={key} className="space-y-1.5">
+                        <Label htmlFor={key} className="text-sm font-mono">
+                          {key}
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id={key}
+                            type={isSecret && !showValue ? 'password' : 'text'}
+                            value={value}
+                            onChange={e => handleValueChange(key, e.target.value)}
+                            placeholder={`Enter ${key}`}
+                            className="font-mono pr-10"
+                          />
+                          {isSecret && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                              onClick={() => toggleSecretVisibility(key)}
+                              title={showValue ? 'Hide value' : 'Show value'}
+                            >
+                              {showValue ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </ScrollArea>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Confirm Modal */}
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>

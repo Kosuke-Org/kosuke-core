@@ -42,11 +42,16 @@ export interface InDevelopmentPreviewProps {
   onViewModeChange: (mode: RequirementsViewMode) => void;
   className?: string;
   /** Project status for dynamic badge display */
-  projectStatus?: 'environments_ready' | 'paid' | 'in_development';
+  projectStatus?: 'requirements_ready' | 'environments_ready' | 'paid' | 'in_development';
   // Sidebar toggle props
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
+  // Switch to environment view (only for requirements_ready status)
+  onSwitchToEnvironment?: () => void;
 }
+
+// View mode for requirements_ready status
+export type EnvironmentViewMode = 'environment' | 'docs';
 
 export interface EnvironmentsPreviewProps {
   projectId: string;
@@ -57,6 +62,8 @@ export interface EnvironmentsPreviewProps {
   // Confirm environment props
   onConfirmEnvironment?: () => void;
   isConfirming?: boolean;
+  // Requirements content for docs view
+  requirementsContent?: string;
 }
 
 export interface WaitingForPaymentPreviewProps {

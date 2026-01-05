@@ -6,12 +6,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { InDevelopmentPreviewProps } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { FileText, Gamepad2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { FileText, Gamepad2, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import RequirementsEditor from '../requirements/requirements-editor';
 import SlotMachine from '../requirements/slot-machine';
 
 // Status badge configuration
 const STATUS_CONFIG = {
+  requirements_ready: {
+    label: 'Requirements Ready',
+    tooltip: 'Your requirements have been confirmed. Configure environment variables to proceed.',
+    variant: 'secondary' as const,
+  },
   environments_ready: {
     label: 'Environments Ready',
     tooltip:
@@ -43,6 +48,7 @@ export default function InDevelopmentPreview({
   projectStatus = 'in_development',
   onToggleSidebar,
   isSidebarCollapsed,
+  onSwitchToEnvironment,
 }: InDevelopmentPreviewProps) {
   const statusConfig = STATUS_CONFIG[projectStatus];
 
@@ -75,6 +81,21 @@ export default function InDevelopmentPreview({
           </Tooltip>
         </div>
         <div className="flex gap-1">
+          {onSwitchToEnvironment && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onSwitchToEnvironment}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Configure environment variables</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
