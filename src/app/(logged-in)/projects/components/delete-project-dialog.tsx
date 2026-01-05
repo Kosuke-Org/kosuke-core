@@ -21,12 +21,14 @@ interface DeleteProjectDialogProps {
   project: Project;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onProjectDeleted?: () => void;
 }
 
 export default function DeleteProjectDialog({
   project,
   open,
   onOpenChange,
+  onProjectDeleted,
 }: DeleteProjectDialogProps) {
   const { mutate: deleteProject, isPending, isSuccess, isError } = useDeleteProject();
   const [deleteStage, setDeleteStage] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export default function DeleteProjectDialog({
       // Add a delay before closing to show the success state
       const timer = setTimeout(() => {
         onOpenChange(false);
+        onProjectDeleted?.();
 
         // Reset state after dialog closes
         setTimeout(() => {
@@ -107,7 +110,7 @@ export default function DeleteProjectDialog({
       setDeleteProgress(0);
       operationStartedRef.current = false;
     }
-  }, [isPending, isSuccess, isError, isCompleting, onOpenChange]);
+  }, [isPending, isSuccess, isError, isCompleting, onOpenChange, onProjectDeleted]);
 
   const handleDelete = async () => {
     try {
