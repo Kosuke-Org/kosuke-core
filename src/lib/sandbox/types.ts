@@ -105,3 +105,14 @@ export interface EnvironmentTriggerResponse {
   variableCount?: number;
   error?: string;
 }
+
+export interface EnvironmentCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
+}

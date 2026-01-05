@@ -9,6 +9,7 @@ import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
 import type {
   AgentHealthResponse,
+  EnvironmentCommitResponse,
   EnvironmentTriggerResponse,
   EnvironmentUpdateResponse,
   EnvironmentValuesResponse,
@@ -485,6 +486,36 @@ export class SandboxClient {
     }
 
     return { success: true };
+  }
+
+  /**
+   * Commit and push environment configuration (kosuke.config.json) to git
+   * Commits only the kosuke.config.json file and pushes to remote
+   */
+  async commitEnvironment(
+    githubToken: string,
+    commitMessage: string = 'chore: configure environment variables'
+  ): Promise<EnvironmentCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit environment configuration',
+      };
+    }
+
+    return response.json();
   }
 
   // ============================================================

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projectAuditLogs, projects } from '@/lib/db/schema';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 
 /**
@@ -91,6 +92,41 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       );
     }
 
+    // ============================================================
+    // COMMIT ENVIRONMENT CONFIG TO GIT (before changing status)
+    // ============================================================
+
+    // Get GitHub token for the project
+    const githubToken = await getProjectGitHubToken(project);
+
+    // Commit environment configuration via sandbox
+    const commitResult = await client.commitEnvironment(
+      githubToken,
+      'chore: configure environment variables\n\nEnvironment variables confirmed and ready for deployment'
+    );
+
+    if (!commitResult.success) {
+      console.error(
+        `[API /environment/confirm] Failed to commit environment config:`,
+        commitResult.error
+      );
+      return NextResponse.json(
+        {
+          error: 'Failed to commit environment configuration to git',
+          details: commitResult.message || commitResult.error,
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log(
+      `[API /environment/confirm] Environment config committed: ${commitResult.data?.sha || 'no changes'}`
+    );
+
+    // ============================================================
+    // UPDATE PROJECT STATUS
+    // ============================================================
+
     // Update status to environments_ready
     await db
       .update(projects)
@@ -100,7 +136,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       })
       .where(eq(projects.id, projectId));
 
-    // Create audit log
+    // Create audit log with commit info
     await db.insert(projectAuditLogs).values({
       projectId,
       userId,
@@ -110,6 +146,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       metadata: {
         confirmedAt: new Date().toISOString(),
         variableCount: Object.keys(environment).length,
+        commitSha: commitResult.data?.sha || null,
+        commitBranch: commitResult.data?.branch || null,
       },
     });
 
@@ -120,8 +158,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       data: {
         projectId: project.id,
         status: 'environments_ready',
-        message: 'Environment variables confirmed',
+        message: 'Environment variables confirmed and committed',
         variableCount: Object.keys(environment).length,
+        commitSha: commitResult.data?.sha || null,
       },
     });
   } catch (error) {
