@@ -16,6 +16,15 @@ const orgUsageKeys = {
 interface OrgUsageResponse {
   success: boolean;
   data: OrgUsage;
+  langfuseUrl?: string;
+}
+
+/**
+ * Return type for the hook
+ */
+interface OrgUsageData {
+  usage: OrgUsage;
+  langfuseUrl?: string;
 }
 
 /**
@@ -24,7 +33,7 @@ interface OrgUsageResponse {
 export function useOrgUsage(orgId: string | undefined) {
   return useQuery({
     queryKey: orgUsageKeys.detail(orgId ?? ''),
-    queryFn: async (): Promise<OrgUsage> => {
+    queryFn: async (): Promise<OrgUsageData> => {
       if (!orgId) throw new Error('Organization ID is required');
 
       const response = await fetch(`/api/organizations/${orgId}/usage`);
@@ -34,7 +43,10 @@ export function useOrgUsage(orgId: string | undefined) {
       }
 
       const result: OrgUsageResponse = await response.json();
-      return result.data;
+      return {
+        usage: result.data,
+        langfuseUrl: result.langfuseUrl,
+      };
     },
     enabled: !!orgId,
     staleTime: 0,

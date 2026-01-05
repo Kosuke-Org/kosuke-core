@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UsageCard } from '@/components/usage-card';
 import { useOrganizationSettings } from '@/hooks/use-organization-settings';
 
 export default function OrganizationGeneralPage() {
@@ -207,6 +208,9 @@ export default function OrganizationGeneralPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Usage Card */}
+      <UsageCard orgId={organization.id} />
 
       {!isPersonal && (
         <Card className="border-destructive/50">

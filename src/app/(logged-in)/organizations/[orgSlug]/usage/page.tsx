@@ -192,7 +192,9 @@ function ProjectRow({ project }: { project: ProjectUsage }) {
  */
 function UsageTable() {
   const { organization } = useOrganization();
-  const { data: usage, isLoading, error } = useOrgUsage(organization?.id);
+  const { data, isLoading, error } = useOrgUsage(organization?.id);
+
+  const usage = data?.usage;
 
   if (isLoading) {
     return <UsageTableSkeleton />;
@@ -240,9 +242,7 @@ function UsageTable() {
 
       {/* Projects breakdown */}
       <div>
-        <p className="text-sm font-medium text-muted-foreground mb-3">
-          Breakdown by Project ({usage.projects.length})
-        </p>
+        <p className="text-sm font-medium text-muted-foreground mb-3">Breakdown by Project</p>
         <div className="border rounded-md divide-y">
           {usage.projects.map(project => (
             <ProjectRow key={project.projectId} project={project} />
