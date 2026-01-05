@@ -1,4 +1,5 @@
 import { createAppAuth } from '@octokit/auth-app';
+import { refreshToken as octokitRefreshToken } from '@octokit/oauth-methods';
 import { Octokit } from '@octokit/rest';
 import { eq } from 'drizzle-orm';
 
@@ -11,6 +12,13 @@ import type { GitHubRepository } from '@/lib/types/github';
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID!;
 const GITHUB_APP_PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n') || '';
 const GITHUB_APP_INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID!;
+
+// GitHub App OAuth credentials (for user token refresh)
+const GITHUB_APP_CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID;
+const GITHUB_APP_CLIENT_SECRET = process.env.GITHUB_APP_CLIENT_SECRET;
+
+// Token refresh buffer - refresh 5 minutes before expiry
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 // Kosuke Bot identity for commits
 export const KOSUKE_BOT_NAME = 'kosuke-github-app[bot]';
@@ -110,13 +118,79 @@ export async function getInstallationForRepo(owner: string, repo: string): Promi
 }
 
 /**
+ * Delete a user's GitHub connection from the database
+ * Used when token refresh fails (e.g., user revoked access)
+ */
+async function deleteGitHubConnection(userId: string): Promise<void> {
+  try {
+    await db.delete(userGithubConnections).where(eq(userGithubConnections.clerkUserId, userId));
+    console.log(`Deleted GitHub connection for user ${userId}`);
+  } catch (error) {
+    console.error('Error deleting GitHub connection:', error);
+  }
+}
+
+/**
+ * Refresh a user's GitHub OAuth token using the refresh token
+ * Returns the new access token, or null if refresh fails
+ */
+async function refreshGitHubToken(
+  userId: string,
+  refreshToken: string
+): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date | null } | null> {
+  if (!GITHUB_APP_CLIENT_ID || !GITHUB_APP_CLIENT_SECRET) {
+    console.error('GitHub App OAuth credentials not configured for token refresh');
+    return null;
+  }
+
+  try {
+    const { authentication } = await octokitRefreshToken({
+      clientType: 'github-app',
+      clientId: GITHUB_APP_CLIENT_ID,
+      clientSecret: GITHUB_APP_CLIENT_SECRET,
+      refreshToken,
+    });
+
+    // Calculate new expiration time
+    const expiresAt = authentication.expiresAt ? new Date(authentication.expiresAt) : null;
+
+    // Update the database with new tokens
+    await db
+      .update(userGithubConnections)
+      .set({
+        githubAccessToken: authentication.token,
+        githubRefreshToken: authentication.refreshToken,
+        githubTokenExpiresAt: expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(userGithubConnections.clerkUserId, userId));
+
+    console.log(`Refreshed GitHub token for user ${userId}`);
+
+    return {
+      accessToken: authentication.token,
+      refreshToken: authentication.refreshToken,
+      expiresAt,
+    };
+  } catch (error) {
+    console.error('Error refreshing GitHub token:', error);
+    return null;
+  }
+}
+
+/**
  * Get user's GitHub OAuth token from database
- * Returns null if user hasn't connected GitHub
+ * Checks token expiration and refreshes if needed (5 min buffer)
+ * Returns null if user hasn't connected GitHub or token refresh fails
  */
 async function getUserGitHubToken(userId: string): Promise<string | null> {
   try {
     const connection = await db
-      .select({ token: userGithubConnections.githubAccessToken })
+      .select({
+        token: userGithubConnections.githubAccessToken,
+        refreshToken: userGithubConnections.githubRefreshToken,
+        expiresAt: userGithubConnections.githubTokenExpiresAt,
+      })
       .from(userGithubConnections)
       .where(eq(userGithubConnections.clerkUserId, userId))
       .limit(1);
@@ -125,7 +199,40 @@ async function getUserGitHubToken(userId: string): Promise<string | null> {
       return null;
     }
 
-    return connection[0].token;
+    const { token, refreshToken, expiresAt } = connection[0];
+
+    // Check if token is expired or expiring soon (within buffer time)
+    if (expiresAt) {
+      const expiresAtTime = new Date(expiresAt).getTime();
+      const now = Date.now();
+      const isExpiringSoon = expiresAtTime - now < TOKEN_REFRESH_BUFFER_MS;
+
+      if (isExpiringSoon) {
+        console.log(`GitHub token for user ${userId} is expiring soon, attempting refresh...`);
+
+        if (!refreshToken) {
+          // No refresh token available - delete connection and return null
+          console.warn(`No refresh token available for user ${userId}, deleting connection`);
+          await deleteGitHubConnection(userId);
+          return null;
+        }
+
+        // Attempt to refresh the token
+        const refreshResult = await refreshGitHubToken(userId, refreshToken);
+
+        if (!refreshResult) {
+          // Refresh failed - delete connection and return null
+          console.warn(`Token refresh failed for user ${userId}, deleting connection`);
+          await deleteGitHubConnection(userId);
+          return null;
+        }
+
+        return refreshResult.accessToken;
+      }
+    }
+
+    // Token is still valid
+    return token;
   } catch (error) {
     console.error('Error getting user GitHub token:', error);
     return null;
