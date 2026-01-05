@@ -54,6 +54,10 @@ export type ProjectStatus = (typeof projectStatusEnum.enumValues)[number];
 export const chatSessionModeEnum = pgEnum('chat_session_mode', ['autonomous', 'human_assisted']);
 export type ChatSessionMode = (typeof chatSessionModeEnum.enumValues)[number];
 
+// Message type enum - distinguishes chat messages from requirements gathering messages
+export const messageTypeEnum = pgEnum('message_type', ['chat', 'requirements']);
+export type MessageType = (typeof messageTypeEnum.enumValues)[number];
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -125,11 +129,12 @@ export const chatMessages = pgTable('chat_messages', {
     .notNull(),
   chatSessionId: uuid('chat_session_id')
     .references(() => chatSessions.id, { onDelete: 'cascade' })
-    .notNull(), // Make this NOT NULL - all messages must be tied to a session
+    .notNull(), // All messages must be tied to a session (requirements use default/main session)
   userId: text('user_id'), // No FK
   role: varchar('role', { length: 20 }).notNull(), // 'user', 'assistant', 'system', or 'admin'
   content: text('content'), // For user messages (nullable for assistant messages)
   blocks: jsonb('blocks'), // For assistant message blocks (text, thinking, tools)
+  messageType: messageTypeEnum('message_type').notNull().default('chat'), // 'chat' or 'requirements'
   modelType: varchar('model_type', { length: 20 }), // 'default' or 'premium'
   timestamp: timestamp('timestamp').notNull().defaultNow(),
   tokensInput: integer('tokens_input'), // Number of tokens sent to the model
@@ -163,19 +168,6 @@ export const messageAttachments = pgTable('message_attachments', {
     .references(() => attachments.id, { onDelete: 'cascade' })
     .notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
-
-// B2C flow: Requirements gathering messages
-export const requirementsMessages = pgTable('requirements_messages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .references(() => projects.id, { onDelete: 'cascade' })
-    .notNull(),
-  userId: text('user_id'), // Clerk user ID
-  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
-  content: text('content'), // For user messages (nullable for assistant messages)
-  blocks: jsonb('blocks'), // For assistant message blocks (text, thinking, tools)
-  timestamp: timestamp('timestamp').notNull().defaultNow(),
 });
 
 // B2C flow: Project audit logs for status changes
@@ -397,7 +389,6 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   diffs: many(diffs),
   commits: many(projectCommits),
   githubSyncSessions: many(githubSyncSessions),
-  requirementsMessages: many(requirementsMessages),
   auditLogs: many(projectAuditLogs),
   environmentJobs: many(environmentJobs),
 }));
@@ -440,13 +431,6 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   attachment: one(attachments, {
     fields: [messageAttachments.attachmentId],
     references: [attachments.id],
-  }),
-}));
-
-export const requirementsMessagesRelations = relations(requirementsMessages, ({ one }) => ({
-  project: one(projects, {
-    fields: [requirementsMessages.projectId],
-    references: [projects.id],
   }),
 }));
 
@@ -578,8 +562,6 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
-export type RequirementsMessage = typeof requirementsMessages.$inferSelect;
-export type NewRequirementsMessage = typeof requirementsMessages.$inferInsert;
 export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
 export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;
 export type EnvironmentJob = typeof environmentJobs.$inferSelect;

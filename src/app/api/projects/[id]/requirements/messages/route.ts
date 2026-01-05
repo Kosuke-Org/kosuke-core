@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { chatSessions, projects, requirementsMessages } from '@/lib/db/schema';
+import { chatMessages, chatSessions, projects } from '@/lib/db/schema';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import type { SandboxInfo } from '@/lib/sandbox/types';
 
@@ -59,6 +59,15 @@ async function findHealthySandbox(
 }
 
 /**
+ * Get the default (main) session for a project
+ */
+async function getDefaultSession(projectId: string) {
+  return db.query.chatSessions.findFirst({
+    where: and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, true)),
+  });
+}
+
+/**
  * GET /api/projects/[id]/requirements/messages
  * Fetch all requirements messages for a project
  */
@@ -84,12 +93,24 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get all messages ordered by timestamp
+    // Get default session
+    const defaultSession = await getDefaultSession(projectId);
+
+    if (!defaultSession) {
+      return NextResponse.json({ error: 'Default session not found' }, { status: 404 });
+    }
+
+    // Get all requirements messages from the main session, ordered by timestamp
     const messages = await db
       .select()
-      .from(requirementsMessages)
-      .where(eq(requirementsMessages.projectId, projectId))
-      .orderBy(requirementsMessages.timestamp);
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.chatSessionId, defaultSession.id),
+          eq(chatMessages.messageType, 'requirements')
+        )
+      )
+      .orderBy(chatMessages.timestamp);
 
     return NextResponse.json({
       messages: messages.map(msg => ({
@@ -190,25 +211,42 @@ export async function POST(
       );
     }
 
-    // Insert user message
+    // Get default session for storing requirements messages
+    const defaultSession = await getDefaultSession(projectId);
+
+    if (!defaultSession) {
+      return new Response(JSON.stringify({ error: 'Default session not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Insert user message into chat_messages with messageType: 'requirements'
     const [userMessage] = await db
-      .insert(requirementsMessages)
+      .insert(chatMessages)
       .values({
         projectId,
+        chatSessionId: defaultSession.id,
         userId,
         role: 'user',
         content,
+        messageType: 'requirements',
       })
       .returning();
 
     console.log(`[API /requirements/messages] User message saved: ${userMessage.id}`);
 
-    // Get previous messages for session continuity
+    // Get previous requirements messages for session continuity
     const previousDbMessages = await db
-      .select({ role: requirementsMessages.role, content: requirementsMessages.content })
-      .from(requirementsMessages)
-      .where(eq(requirementsMessages.projectId, projectId))
-      .orderBy(requirementsMessages.timestamp);
+      .select({ role: chatMessages.role, content: chatMessages.content })
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.chatSessionId, defaultSession.id),
+          eq(chatMessages.messageType, 'requirements')
+        )
+      )
+      .orderBy(chatMessages.timestamp);
 
     // Convert to Anthropic format (excluding the message we just added - it will be sent as the new message)
     const previousMessages = convertToAnthropicMessages(
@@ -308,12 +346,14 @@ export async function POST(
 
           // Save assistant message to DB after stream completes
           const [assistantMessage] = await db
-            .insert(requirementsMessages)
+            .insert(chatMessages)
             .values({
               projectId,
+              chatSessionId: defaultSession.id,
               userId,
               role: 'assistant',
               content: assistantResponse,
+              messageType: 'requirements',
             })
             .returning();
 

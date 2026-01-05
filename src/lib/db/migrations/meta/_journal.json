@@ -120,6 +120,13 @@
       "when": 1767615290348,
       "tag": "0016_slippery_sally_floyd",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1767617339268,
+      "tag": "0017_ordinary_oracle",
+      "breakpoints": true
     }
   ]
 }
