@@ -30,7 +30,6 @@ async function main() {
     console.log('[WORKER] 📊 Active workers:');
     console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
     console.log('[WORKER]   - Build (concurrency: 1)');
-    console.log('[WORKER]   - Agent Logs (concurrency: 10)\n');
 
     // Store references for graceful shutdown
     const workers = [previewWorker, buildWorker];
