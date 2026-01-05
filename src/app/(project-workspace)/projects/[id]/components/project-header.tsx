@@ -1,39 +1,29 @@
 'use client';
 
-import { ArrowLeft, Check, Copy } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 
+import { ProjectActionsDropdown } from '@/components/project-actions-dropdown';
 import { Button } from '@/components/ui/button';
+import type { Project } from '@/lib/db/schema';
 
 interface ProjectHeaderProps {
-  projectId: string;
-  projectName?: string;
+  project: Project;
   showBackButton?: boolean;
   onBackClick?: () => void;
+  onSettingsClick: () => void;
   children?: ReactNode;
 }
 
 export function ProjectHeader({
-  projectId,
-  projectName,
+  project,
   showBackButton = false,
   onBackClick,
+  onSettingsClick,
   children,
 }: ProjectHeaderProps) {
-  const [isProjectIdCopied, setIsProjectIdCopied] = useState(false);
-
-  const copyProjectId = async () => {
-    try {
-      await navigator.clipboard.writeText(projectId);
-      setIsProjectIdCopied(true);
-      setTimeout(() => setIsProjectIdCopied(false), 2000);
-    } catch (_error) {
-      // Silent fail
-    }
-  };
-
   return (
     <header className="h-14 flex items-center bg-background px-4">
       {/* Left section - Logo and Back button */}
@@ -69,23 +59,12 @@ export function ProjectHeader({
         )}
       </div>
 
-      {/* Center section - Project name and ID */}
-      <div className="flex items-center justify-center gap-2 w-1/2">
+      {/* Center section - Project name and dropdown */}
+      <div className="flex items-center justify-center gap-1 w-1/2">
         <h2 className="text-sm font-medium truncate max-w-[200px]">
-          {projectName || 'Loading Project...'}
+          {project.name || 'Loading Project...'}
         </h2>
-        <button
-          onClick={copyProjectId}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          title="Copy project ID"
-        >
-          <span className="font-mono">{projectId.slice(0, 8)}</span>
-          {isProjectIdCopied ? (
-            <Check className="h-3 w-3 text-primary" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </button>
+        <ProjectActionsDropdown project={project} onSettingsClick={onSettingsClick} />
       </div>
 
       {/* Right section - User menu */}

@@ -6,6 +6,7 @@ import { use, useEffect, useRef, useState } from 'react';
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
+import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -114,6 +115,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const searchParams = useSearchParams();
 
   const sessionFromUrl = searchParams.get('session');
+  const showSettings = searchParams.get('show-settings') === 'true';
 
   const { user } = useUser();
   const {
@@ -224,6 +226,29 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     setShowSidebar(!showSidebar);
   };
 
+  // Handle project settings modal via URL query params
+  const handleSettingsClick = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('show-settings', 'true');
+    router.push(`/projects/${projectId}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSettingsModalChange = (open: boolean) => {
+    if (!open) {
+      // Remove show-settings from URL when closing
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('show-settings');
+      const newUrl = params.toString()
+        ? `/projects/${projectId}?${params.toString()}`
+        : `/projects/${projectId}`;
+      router.push(newUrl, { scroll: false });
+    }
+  };
+
+  const handleProjectDeleted = () => {
+    router.push('/projects');
+  };
+
   // Handle creating pull request from active chat session
   const handleCreatePullRequest = () => {
     if (!activeChatSessionId || !currentSession?.id) {
@@ -303,13 +328,20 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   return (
     <div className="flex flex-col h-screen w-full">
       <ProjectHeader
-        projectId={projectId}
-        projectName={project?.name}
+        project={project}
         showBackButton={!showSidebar}
         onBackClick={toggleSidebar}
+        onSettingsClick={handleSettingsClick}
       >
         {renderUserSection()}
       </ProjectHeader>
+
+      <ProjectSettingsModal
+        project={project}
+        open={showSettings}
+        onOpenChange={handleSettingsModalChange}
+        onProjectDeleted={handleProjectDeleted}
+      />
 
       <ResizablePanelGroup direction="horizontal" className="flex-1 w-full">
         {/* Chat Panel */}
