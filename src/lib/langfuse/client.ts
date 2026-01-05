@@ -127,8 +127,6 @@ async function fetchAllObservationsForOrg(orgId: string): Promise<Observation[]>
   console.log(
     `[Langfuse] observationsV2.getMany took ${(performance.now() - listStart).toFixed(0)}ms`
   );
-  console.log(response.data.filter(o => (o.totalCost as number) > 0).map(o => o.totalCost));
-  console.log(`[Langfuse] Found ${response.data.length} observations`);
   console.log(
     `[Langfuse] Found ${response.data.filter(o => (o.totalCost as number) > 0).length} observations with totalCost > 0`
   );
