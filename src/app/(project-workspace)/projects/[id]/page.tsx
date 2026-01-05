@@ -20,6 +20,7 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
+import { useConfirmEnvironment } from '@/hooks/use-confirm-environment';
 import { useConfirmRequirements } from '@/hooks/use-confirm-requirements';
 import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useLatestBuild } from '@/hooks/use-latest-build';
@@ -192,6 +193,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     projectStatus: project?.status as
       | 'requirements'
       | 'requirements_ready'
+      | 'environments_ready'
       | 'waiting_for_payment'
       | 'paid'
       | 'in_development'
@@ -199,6 +201,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       | undefined,
   });
   const confirmRequirementsMutation = useConfirmRequirements(projectId);
+  const confirmEnvironmentMutation = useConfirmEnvironment(projectId);
   const [viewMode, setViewMode] = useState<RequirementsViewMode>('game');
 
   // Loading state
@@ -215,6 +218,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const isRequirementsMode =
     project.status === 'requirements' ||
     project.status === 'requirements_ready' ||
+    project.status === 'environments_ready' ||
     project.status === 'waiting_for_payment' ||
     project.status === 'paid' ||
     project.status === 'in_development';
@@ -471,6 +475,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   project.status as
                     | 'requirements'
                     | 'requirements_ready'
+                    | 'environments_ready'
                     | 'waiting_for_payment'
                     | 'paid'
                     | 'in_development'
@@ -486,6 +491,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   project.status === 'requirements' && !confirmRequirementsMutation.isPending
                 }
                 isConfirmingRequirements={confirmRequirementsMutation.isPending}
+                // Confirm environment props (for EnvironmentsPreview)
+                onConfirmEnvironment={() => confirmEnvironmentMutation.mutate()}
+                isConfirmingEnvironment={confirmEnvironmentMutation.isPending}
               />
             </div>
           </div>

@@ -42,10 +42,21 @@ export interface InDevelopmentPreviewProps {
   onViewModeChange: (mode: RequirementsViewMode) => void;
   className?: string;
   /** Project status for dynamic badge display */
-  projectStatus?: 'requirements_ready' | 'paid' | 'in_development';
+  projectStatus?: 'environments_ready' | 'paid' | 'in_development';
   // Sidebar toggle props
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
+}
+
+export interface EnvironmentsPreviewProps {
+  projectId: string;
+  className?: string;
+  // Sidebar toggle props
+  onToggleSidebar?: () => void;
+  isSidebarCollapsed?: boolean;
+  // Confirm environment props
+  onConfirmEnvironment?: () => void;
+  isConfirming?: boolean;
 }
 
 export interface WaitingForPaymentPreviewProps {

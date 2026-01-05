@@ -12,8 +12,14 @@ export {
 } from './client';
 export { JOB_NAMES, QUEUE_NAMES } from './config';
 export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export {
+  environmentQueue,
+  type EnvironmentJobData,
+  type EnvironmentJobResult,
+} from './queues/environment';
 export { previewQueue, schedulePreviewCleanup } from './queues/previews';
 export { createBuildWorker } from './workers/build';
+export { createEnvironmentWorker } from './workers/environment';
 export { createPreviewWorker } from './workers/previews';
 
 export async function scheduleAllJobs() {

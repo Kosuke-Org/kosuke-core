@@ -1,0 +1,2 @@
+ALTER TYPE "public"."project_status" ADD VALUE 'environments' BEFORE 'waiting_for_payment';--> statement-breakpoint
+ALTER TYPE "public"."project_status" ADD VALUE 'environments_ready' BEFORE 'waiting_for_payment';

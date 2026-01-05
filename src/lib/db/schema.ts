@@ -42,6 +42,7 @@ export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 export const projectStatusEnum = pgEnum('project_status', [
   'requirements',
   'requirements_ready',
+  'environments_ready',
   'waiting_for_payment',
   'paid',
   'in_development',
@@ -345,6 +346,44 @@ export const tasks = pgTable(
   })
 );
 
+// Environment job status enum (reuses build_status pattern)
+export const environmentJobStatusEnum = pgEnum('environment_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type EnvironmentJobStatus = (typeof environmentJobStatusEnum.enumValues)[number];
+
+// Environment jobs - tracks environment analysis execution per project
+export const environmentJobs = pgTable(
+  'environment_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: environmentJobStatusEnum('status').notNull().default('pending'),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Number of environment variables found
+    variableCount: integer('variable_count'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_environment_jobs_project').on(table.projectId),
+    statusIdx: index('idx_environment_jobs_status').on(table.status),
+  })
+);
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
@@ -353,6 +392,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   githubSyncSessions: many(githubSyncSessions),
   requirementsMessages: many(requirementsMessages),
   auditLogs: many(projectAuditLogs),
+  environmentJobs: many(environmentJobs),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -500,6 +540,13 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
+export const environmentJobsRelations = relations(environmentJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [environmentJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -528,3 +575,5 @@ export type RequirementsMessage = typeof requirementsMessages.$inferSelect;
 export type NewRequirementsMessage = typeof requirementsMessages.$inferInsert;
 export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
 export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;
+export type EnvironmentJob = typeof environmentJobs.$inferSelect;
+export type NewEnvironmentJob = typeof environmentJobs.$inferInsert;

@@ -15,6 +15,7 @@ interface ProjectStatusNotificationOptions {
 const STATUS_DISPLAY_NAMES: Record<ProjectStatus, string> = {
   requirements: 'Requirements Gathering',
   requirements_ready: 'Requirements Ready',
+  environments_ready: 'Environments Ready',
   waiting_for_payment: 'Waiting for Payment',
   paid: 'Paid',
   in_development: 'In Development',

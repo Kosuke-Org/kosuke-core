@@ -12,10 +12,10 @@ import SlotMachine from '../requirements/slot-machine';
 
 // Status badge configuration
 const STATUS_CONFIG = {
-  requirements_ready: {
-    label: 'Requirements Ready',
+  environments_ready: {
+    label: 'Environments Ready',
     tooltip:
-      'The requirements document is being validated. Soon you will receive an invoice accordingly.',
+      'The environment configuration is being validated. Soon you will receive an invoice accordingly.',
     variant: 'secondary' as const,
   },
   paid: {
@@ -32,7 +32,7 @@ const STATUS_CONFIG = {
 } as const;
 
 /**
- * Preview component for requirements_ready, paid, and in_development statuses
+ * Preview component for environments_ready, paid, and in_development statuses
  * Shows toggle between slot machine game and requirements docs
  */
 export default function InDevelopmentPreview({

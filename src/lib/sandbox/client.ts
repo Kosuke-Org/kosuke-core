@@ -9,6 +9,9 @@ import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
 import type {
   AgentHealthResponse,
+  EnvironmentTriggerResponse,
+  EnvironmentUpdateResponse,
+  EnvironmentValuesResponse,
   FileInfo,
   GitPullResponse,
   GitRevertResponse,
@@ -380,6 +383,108 @@ export class SandboxClient {
     }
 
     yield* this.parseSSEStream(response.body);
+  }
+
+  // --- Environment Operations ---
+
+  /**
+   * Trigger environment analysis command (SSE stream)
+   * Analyzes docs.md and updates kosuke.config.json with required env vars
+   * Returns an async generator that yields SSE events
+   */
+  async *streamEnvironment(cwd: string = '/app/project'): AsyncGenerator<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/api/environment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({ cwd }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Environment analysis failed: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body from environment endpoint');
+    }
+
+    yield* this.parseSSEStream(response.body);
+  }
+
+  /**
+   * Trigger environment analysis and wait for completion
+   * Returns the result when the analysis completes
+   */
+  async triggerEnvironment(cwd: string = '/app/project'): Promise<EnvironmentTriggerResponse> {
+    try {
+      let variableCount = 0;
+
+      for await (const event of this.streamEnvironment(cwd)) {
+        // Look for the done event to get the variable count
+        if (event.type === 'done' && event.data) {
+          const data = event.data as { variableCount?: number };
+          variableCount = data.variableCount || 0;
+        }
+      }
+
+      return {
+        success: true,
+        variableCount,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Get environment values from kosuke.config.json
+   */
+  async getEnvironmentValues(cwd: string = '/app/project'): Promise<EnvironmentValuesResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/values`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Update environment values in kosuke.config.json
+   */
+  async updateEnvironmentValues(
+    values: Record<string, string>,
+    cwd: string = '/app/project'
+  ): Promise<EnvironmentUpdateResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/values`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd, values }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return { success: true };
   }
 
   // ============================================================

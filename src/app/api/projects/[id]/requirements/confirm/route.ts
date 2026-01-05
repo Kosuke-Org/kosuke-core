@@ -3,8 +3,9 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { projectAuditLogs, projects } from '@/lib/db/schema';
+import { environmentJobs, projectAuditLogs, projects } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
+import { environmentQueue, JOB_NAMES } from '@/lib/queue';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { sendRequirementsReadySlack } from '@/lib/slack/send-requirements-ready';
 
@@ -95,7 +96,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     // UPDATE PROJECT STATUS
     // ============================================================
 
-    // Update project status to requirements_ready
+    // Update project status to requirements_ready (triggers environment setup flow)
     await db
       .update(projects)
       .set({
@@ -103,6 +104,39 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         updatedAt: new Date(),
       })
       .where(eq(projects.id, projectId));
+
+    // ============================================================
+    // ENQUEUE ENVIRONMENT ANALYSIS JOB
+    // ============================================================
+
+    // Create environment job record in database
+    const [environmentJob] = await db
+      .insert(environmentJobs)
+      .values({
+        projectId,
+        status: 'pending',
+      })
+      .returning();
+
+    // Enqueue job to BullMQ for async processing
+    await environmentQueue.add(
+      JOB_NAMES.ANALYZE_ENVIRONMENT,
+      {
+        environmentJobId: environmentJob.id,
+        projectId,
+        sessionId: runningSandbox.sessionId,
+        cwd: '/app/project',
+      },
+      {
+        jobId: `env-${environmentJob.id}`,
+        removeOnComplete: 100,
+        removeOnFail: 50,
+      }
+    );
+
+    console.log(
+      `[API /requirements/confirm] Environment job ${environmentJob.id} enqueued for project ${projectId}`
+    );
 
     // Create audit log with commit info
     await db.insert(projectAuditLogs).values({
@@ -151,7 +185,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         projectId: project.id,
         projectName: project.name,
         status: 'requirements_ready',
-        message: 'Requirements confirmed and notification sent',
+        environmentJobId: environmentJob.id,
+        message: 'Requirements confirmed, environment analysis started',
       },
     });
   } catch (error) {

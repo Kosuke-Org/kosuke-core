@@ -80,3 +80,28 @@ export interface AgentHealthResponse {
     heapTotal: number;
   };
 }
+
+// ============================================================
+// ENVIRONMENT TYPES
+// ============================================================
+
+export interface EnvironmentValuesResponse {
+  success: boolean;
+  data?: {
+    environment: Record<string, string>;
+    path: string;
+    projectId: string;
+  };
+  error?: string;
+}
+
+export interface EnvironmentUpdateResponse {
+  success: boolean;
+  error?: string;
+}
+
+export interface EnvironmentTriggerResponse {
+  success: boolean;
+  variableCount?: number;
+  error?: string;
+}

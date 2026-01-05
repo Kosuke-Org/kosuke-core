@@ -57,6 +57,7 @@ interface PreviewPanelProps {
   projectStatus?:
     | 'requirements'
     | 'requirements_ready'
+    | 'environments_ready'
     | 'waiting_for_payment'
     | 'paid'
     | 'in_development'
@@ -75,9 +76,14 @@ interface PreviewPanelProps {
   canConfirmRequirements?: boolean;
   /** When true, the confirm requirements mutation is in progress */
   isConfirmingRequirements?: boolean;
+  /** Callback to confirm environment (for EnvironmentsPreview) */
+  onConfirmEnvironment?: () => void;
+  /** When true, the confirm environment mutation is in progress */
+  isConfirmingEnvironment?: boolean;
 }
 
 // Import requirements preview components
+import EnvironmentsPreview from './environments-preview';
 import InDevelopmentPreview from './in-development-preview';
 import RequirementsPreview from './requirements-preview';
 import WaitingForPaymentPreview from './waiting-for-payment-preview';
@@ -106,6 +112,9 @@ export default function PreviewPanel({
   onConfirmRequirements,
   canConfirmRequirements = false,
   isConfirmingRequirements = false,
+  // Confirm environment props
+  onConfirmEnvironment,
+  isConfirmingEnvironment = false,
 }: PreviewPanelProps) {
   const {
     // State
@@ -131,6 +140,7 @@ export default function PreviewPanel({
   const isRequirementsMode =
     projectStatus === 'requirements' ||
     projectStatus === 'requirements_ready' ||
+    projectStatus === 'environments_ready' ||
     projectStatus === 'waiting_for_payment' ||
     projectStatus === 'paid' ||
     projectStatus === 'in_development';
@@ -150,6 +160,17 @@ export default function PreviewPanel({
             isConfirming={isConfirmingRequirements}
           />
         );
+      case 'requirements_ready':
+        // Show environment variables preview for configuration
+        return (
+          <EnvironmentsPreview
+            projectId={projectId}
+            onToggleSidebar={onToggleSidebar}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onConfirmEnvironment={onConfirmEnvironment}
+            isConfirming={isConfirmingEnvironment}
+          />
+        );
       case 'waiting_for_payment':
         return (
           <WaitingForPaymentPreview
@@ -158,7 +179,7 @@ export default function PreviewPanel({
             isSidebarCollapsed={isSidebarCollapsed}
           />
         );
-      case 'requirements_ready':
+      case 'environments_ready':
       case 'paid':
       case 'in_development':
         // These statuses show the game/docs toggle view with dynamic badges

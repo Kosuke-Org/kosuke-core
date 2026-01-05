@@ -52,6 +52,7 @@ const STATUS_CONFIG: Record<
 > = {
   requirements: { label: 'Requirements', variant: 'secondary' },
   requirements_ready: { label: 'Requirements Ready', variant: 'secondary' },
+  environments_ready: { label: 'Environments Ready', variant: 'secondary' },
   waiting_for_payment: { label: 'Waiting for Payment', variant: 'outline' },
   paid: { label: 'Paid', variant: 'default' },
   in_development: { label: 'In Development', variant: 'default' },
