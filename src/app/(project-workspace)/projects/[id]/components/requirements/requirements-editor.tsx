@@ -5,11 +5,15 @@ import '@blocknote/mantine/style.css';
 
 import { BlockNoteView } from '@blocknote/mantine';
 import { useCreateBlockNote } from '@blocknote/react';
-import { Loader2 } from 'lucide-react';
+import { Check, Copy, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { copyToClipboard } from '../chat/copy-message-content';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -103,8 +107,10 @@ export default function RequirementsEditor({
 }: RequirementsEditorProps) {
   const { resolvedTheme } = useTheme();
   const [isInitialized, setIsInitialized] = useState(false);
+  const [copied, setCopied] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedContentRef = useRef<string>(initialContent || '');
+  const { toast } = useToast();
 
   const editor = useCreateBlockNote({}, []);
 
@@ -189,6 +195,26 @@ export default function RequirementsEditor({
     [resolvedTheme]
   );
 
+  // Copy handler for requirements content
+  const handleCopy = useCallback(async () => {
+    if (!editor) return;
+
+    const markdown = editor.blocksToMarkdownLossy(editor.document);
+    if (!markdown.trim()) return;
+
+    const success = await copyToClipboard(markdown);
+    if (success) {
+      setCopied(true);
+      toast({ description: 'Requirements copied to clipboard' });
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast({
+        description: 'Failed to copy requirements',
+        variant: 'destructive',
+      });
+    }
+  }, [editor, toast]);
+
   if (!isInitialized && initialContent) {
     return (
       <div className={cn('flex items-center justify-center py-8', className)}>
@@ -198,7 +224,23 @@ export default function RequirementsEditor({
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn('group/editor relative', className)}>
+      {/* Copy button - appears on hover */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCopy}
+            className="absolute right-2 top-2 z-10 h-8 w-8 opacity-0 group-hover/editor:opacity-100 transition-opacity bg-background/80 hover:bg-accent"
+            aria-label="Copy requirements"
+          >
+            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Copy requirements</TooltipContent>
+      </Tooltip>
+
       <BlockNoteView
         editor={editor}
         editable={editable}
