@@ -1,39 +1,25 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { AlertCircle, CloudDownload, MoreHorizontal, Trash } from 'lucide-react';
+import { AlertCircle, CloudDownload, MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { ProjectDropdownMenu } from '@/app/(project-workspace)/projects/[id]/components/project-dropdown-menu';
+import ProjectSettingsModal from '@/app/(project-workspace)/projects/[id]/components/project-settings-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/lib/db/schema';
 import { useUser } from '@clerk/nextjs';
-import DeleteProjectDialog from './delete-project-dialog';
 
 interface ProjectCardProps {
   project: Project;
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { user } = useUser();
-
-  const handleOpenDeleteDialog = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Close dropdown first, then show delete dialog
-    setDropdownOpen(false);
-    setShowDeleteDialog(true);
-  };
 
   // Check if project is imported and GitHub is disconnected
   const githubAccount = user?.externalAccounts?.find(
@@ -48,11 +34,11 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         href={needsReconnection ? '#' : `/projects/${project.id}`}
         className={`block group ${needsReconnection ? 'pointer-events-none' : ''}`}
       >
-        <Card className={`overflow-hidden h-full transition-all duration-300 border border-border relative bg-card pb-0 min-h-[140px] ${
-          needsReconnection
-            ? ''
-            : 'hover:border-muted group-hover:translate-y-[-2px]'
-        }`}>
+        <Card
+          className={`overflow-hidden h-full transition-all duration-300 border border-border relative bg-card pb-0 min-h-[140px] ${
+            needsReconnection ? '' : 'hover:border-muted group-hover:translate-y-[-2px]'
+          }`}
+        >
           <CardHeader className="pb-2">
             <div className="flex justify-between items-start">
               <div className="flex-1 gap-2 flex flex-col">
@@ -91,23 +77,23 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.preventDefault()}>
+                <ProjectDropdownMenu
+                  projectId={project.id}
+                  projectName={project.name}
+                  githubRepoUrl={project.githubRepoUrl}
+                  onSettingsClick={() => setShowSettingsModal(true)}
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={e => e.preventDefault()}
+                    >
                       <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                       <span className="sr-only">Open menu</span>
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-card border-border">
-                    <DropdownMenuItem
-                      onClick={handleOpenDeleteDialog}
-                      className="focus:bg-muted"
-                    >
-                      <Trash className="mr-2 h-4 w-4" />
-                      <span>Delete Project</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  }
+                />
               </div>
             </div>
           </CardHeader>
@@ -120,10 +106,16 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         </Card>
       </Link>
 
-      <DeleteProjectDialog
-        project={project}
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+      <ProjectSettingsModal
+        open={showSettingsModal}
+        onOpenChange={setShowSettingsModal}
+        project={{
+          id: project.id,
+          name: project.name,
+          isImported: project.isImported,
+          githubOwner: project.githubOwner,
+          githubRepoName: project.githubRepoName,
+        }}
       />
     </>
   );

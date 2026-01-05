@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
-import { use, useEffect, useRef, useState } from 'react';
+import { Suspense, use, useEffect, useRef, useState } from 'react';
 
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
@@ -30,11 +30,36 @@ import ChatInterface from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
 import PreviewPanel from './components/preview/preview-panel';
 import { ProjectHeader } from './components/project-header';
+import ProjectSettingsModal from './components/project-settings-modal';
 
 interface ProjectPageProps {
   params: Promise<{
     id: string;
   }>;
+}
+
+function ProjectSettingsSearchParamsHandler({
+  setShowSettingsModal,
+}: {
+  setShowSettingsModal: (show: boolean) => void;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const hasProcessedRef = useRef(false);
+
+  useEffect(() => {
+    if (searchParams.get('view') === 'project-settings' && !hasProcessedRef.current) {
+      hasProcessedRef.current = true;
+      setShowSettingsModal(true);
+
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('view');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }, [searchParams, router, setShowSettingsModal]);
+
+  return null;
 }
 
 function ProjectLoadingSkeleton() {
@@ -146,6 +171,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // UI state management
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
   const [showSidebar, setShowSidebar] = useState(!sessionFromUrl);
 
@@ -302,14 +328,34 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   return (
     <div className="flex flex-col h-screen w-full">
+      <Suspense fallback={null}>
+        <ProjectSettingsSearchParamsHandler setShowSettingsModal={setShowSettingsModal} />
+      </Suspense>
+
       <ProjectHeader
         projectId={projectId}
         projectName={project?.name}
+        githubRepoUrl={project?.githubRepoUrl}
         showBackButton={!showSidebar}
         onBackClick={toggleSidebar}
       >
         {renderUserSection()}
       </ProjectHeader>
+
+      {project && (
+        <ProjectSettingsModal
+          open={showSettingsModal}
+          onOpenChange={setShowSettingsModal}
+          project={{
+            id: project.id,
+            name: project.name,
+            isImported: project.isImported,
+            githubOwner: project.githubOwner,
+            githubRepoName: project.githubRepoName,
+          }}
+          onProjectDeleted={() => router.push('/projects')}
+        />
+      )}
 
       <ResizablePanelGroup direction="horizontal" className="flex-1 w-full">
         {/* Chat Panel */}
