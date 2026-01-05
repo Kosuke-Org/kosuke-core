@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects, vamosJobs } from '@/lib/db/schema';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { vamosQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
 import { getSandboxManager } from '@/lib/sandbox';
@@ -56,14 +57,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    // Check if sandbox exists and is running
+    // Check if sandbox exists and is running, auto-start if not
     const sandboxManager = getSandboxManager();
-    const sandbox = await sandboxManager.getSandbox(defaultSession.id);
+    let sandbox = await sandboxManager.getSandbox(defaultSession.id);
 
     if (!sandbox || sandbox.status !== 'running') {
-      return NextResponse.json(
-        { error: 'Sandbox is not running. Please ensure the project sandbox is active.' },
-        { status: 400 }
+      console.log(
+        `[API /admin/vamos/trigger] Sandbox not running for session ${defaultSession.id}, starting agent-only sandbox...`
+      );
+
+      const githubToken = await getProjectGitHubToken(project);
+      const repoUrl =
+        project.githubRepoUrl ||
+        `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
+
+      sandbox = await sandboxManager.createSandbox({
+        projectId,
+        sessionId: defaultSession.id,
+        branchName: defaultSession.branchName,
+        repoUrl,
+        githubToken,
+        mode: 'production',
+        servicesMode: 'agent-only',
+        orgId: project.orgId ?? undefined,
+      });
+
+      console.log(
+        `[API /admin/vamos/trigger] Agent-only sandbox started for session ${defaultSession.id}`
       );
     }
 

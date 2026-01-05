@@ -40,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { ProjectStatus } from '@/lib/db/schema';
 
 import { DeployConfigModal } from './components/deploy-config-modal';
-import { StreamingLogsSheet } from './components/streaming-logs-sheet';
+import { StreamingLogsDialog } from './components/streaming-logs-dialog';
 
 interface AdminProject {
   id: string;
@@ -504,12 +504,11 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Vamos Streaming Logs Sheet */}
-      <StreamingLogsSheet
+      {/* Vamos Streaming Logs Dialog */}
+      <StreamingLogsDialog
         open={vamosLogsSheetOpen}
         onOpenChange={setVamosLogsSheetOpen}
-        title="Vamos Workflow"
-        description={`Running vamos for ${project.name}`}
+        title={`Running vamos for ${project.name}`}
         job={
           vamosLogsData?.job || vamosJobData?.job
             ? {
@@ -526,15 +525,13 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
             : null
         }
         logs={vamosLogsData?.logs || []}
-        type="vamos"
       />
 
-      {/* Deploy Streaming Logs Sheet */}
-      <StreamingLogsSheet
+      {/* Deploy Streaming Logs Dialog */}
+      <StreamingLogsDialog
         open={deployLogsSheetOpen}
         onOpenChange={setDeployLogsSheetOpen}
-        title="Deploy Workflow"
-        description={`Deploying ${project.name} to production`}
+        title={`Deploying ${project.name}`}
         job={
           deployLogsData?.job || deployJobData?.job
             ? {
@@ -549,7 +546,6 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
             : null
         }
         logs={deployLogsData?.logs || []}
-        type="deploy"
       />
 
       {/* Deploy Config Modal */}
