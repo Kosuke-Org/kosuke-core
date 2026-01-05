@@ -7,12 +7,8 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
-import {
-  checkAppInstallation,
-  createRepositoryFromTemplate,
-  GITHUB_APP_INSTALL_URL,
-} from '@/lib/github';
-import { createInstallationOctokit } from '@/lib/github/client';
+import { checkAppInstallation, createRepositoryFromTemplate } from '@/lib/github';
+import { createInstallationOctokit } from '@/lib/github/installations';
 import { createGitHubWebhook } from '@/lib/github/webhooks';
 
 // Schema for project creation with GitHub integration
@@ -94,10 +90,10 @@ async function importGitHubRepository(repositoryUrl: string) {
   // Check if Kosuke App is installed on the repository
   const appStatus = await checkAppInstallation(owner, repo);
 
-  if (!appStatus.installed || !appStatus.installationId) {
+  if (!appStatus.installationId) {
     throw new Error(
       `Kosuke GitHub App is not installed on ${owner}/${repo}. ` +
-        `Please install the app first: ${GITHUB_APP_INSTALL_URL}`
+        `Please install the app first: ${appStatus.installUrl}`
     );
   }
 

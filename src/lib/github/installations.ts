@@ -256,10 +256,14 @@ export function getProjectOctokit(project: Pick<Project, 'githubInstallationId'>
 /**
  * Get GitHub token for a project
  * Uses project's installationId if set, otherwise falls back to Kosuke-Org
+ * Returns null if no installation ID is available
  */
 export async function getProjectGitHubToken(
   project: Pick<Project, 'githubInstallationId'>
-): Promise<string> {
+): Promise<string | null> {
   const installationId = project.githubInstallationId || parseInt(GITHUB_APP_INSTALLATION_ID, 10);
+  if (!installationId || isNaN(installationId)) {
+    return null;
+  }
   return getInstallationToken(installationId);
 }

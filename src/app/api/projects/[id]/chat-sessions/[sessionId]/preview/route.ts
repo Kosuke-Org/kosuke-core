@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions } from '@/lib/db/schema';
-import { getProjectGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
 import { eq } from 'drizzle-orm';
@@ -66,6 +66,9 @@ export async function GET(
 
     // Get GitHub token using project's App installation
     const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return ApiErrorHandler.badRequest('GitHub token not available for this project');
+    }
 
     // Determine mode: main session uses production, others use development
     const isMainSession = session.isDefault;

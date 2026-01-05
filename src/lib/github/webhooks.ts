@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 import type { Project } from '@/lib/db/schema';
 
-import { getProjectOctokit } from './client';
+import { getProjectOctokit } from './installations';
 
 /**
  * Get the webhook secret from environment

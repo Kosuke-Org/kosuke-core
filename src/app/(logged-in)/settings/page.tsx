@@ -29,8 +29,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 
-const GITHUB_APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app';
-const GITHUB_APP_INSTALL_URL = `https://github.com/apps/${GITHUB_APP_SLUG}`;
+const GITHUB_APP_INSTALL_URL =
+  process.env.NEXT_PUBLIC_GITHUB_APP_INSTALL_URL ||
+  `https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app'}`;
 
 export default function SettingsPage() {
   const {
@@ -106,6 +107,37 @@ export default function SettingsPage() {
       router.replace(url.pathname, { scroll: false });
     }
   }, [searchParams, isGitHubConnected, router, toast]);
+
+  // Handle error query param from GitHub OAuth callback
+  const hasShownErrorToastRef = useRef(false);
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error && !hasShownErrorToastRef.current) {
+      hasShownErrorToastRef.current = true;
+
+      const errorMessages: Record<string, string> = {
+        github_not_configured: 'GitHub App is not configured. Please contact support.',
+        invalid_callback: 'Invalid callback from GitHub. Please try again.',
+        invalid_state: 'Invalid state parameter. Please try connecting again.',
+        token_exchange_failed: 'Failed to exchange token with GitHub. Please try again.',
+        no_access_token: 'No access token received from GitHub. Please try again.',
+        user_fetch_failed: 'Failed to fetch GitHub user info. Please try again.',
+        callback_failed: 'GitHub connection failed. Please try again.',
+        access_denied: 'Access denied. You cancelled the GitHub authorization.',
+      };
+
+      toast({
+        title: 'GitHub Connection Failed',
+        description: errorMessages[error] || `An error occurred: ${error}`,
+        variant: 'destructive',
+      });
+
+      // Clean up URL without reloading the page
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      router.replace(url.pathname, { scroll: false });
+    }
+  }, [searchParams, router, toast]);
 
   // Track name changes
   const [hasNameChanged, setHasNameChanged] = useState(false);

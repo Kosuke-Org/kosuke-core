@@ -5,7 +5,7 @@ import { userGithubConnections } from '@/lib/db/schema';
 
 const GITHUB_APP_CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID;
 const GITHUB_APP_CLIENT_SECRET = process.env.GITHUB_APP_CLIENT_SECRET;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 interface GitHubTokenResponse {
   access_token: string;
@@ -31,6 +31,11 @@ interface GitHubUserResponse {
  */
 export async function GET(request: NextRequest) {
   try {
+    if (!APP_URL) {
+      console.error('NEXT_PUBLIC_APP_URL not configured');
+      return NextResponse.json({ error: 'App URL not configured' }, { status: 500 });
+    }
+
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.redirect(new URL('/sign-in', APP_URL));

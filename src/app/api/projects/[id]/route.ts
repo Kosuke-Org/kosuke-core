@@ -6,7 +6,7 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { projects } from '@/lib/db/schema';
-import { getProjectOctokit } from '@/lib/github/client';
+import { getProjectOctokit } from '@/lib/github/installations';
 import { deleteGitHubWebhook } from '@/lib/github/webhooks';
 import { verifyProjectAccess } from '@/lib/projects';
 import { getSandboxManager } from '@/lib/sandbox';
@@ -39,7 +39,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiErrorHandler.projectNotFound();
     }
 
-    // All projects now use GitHub App - no need to check owner's OAuth status
     return ApiResponseHandler.success(project, {
       model: process.env.ANTHROPIC_MODEL,
     });

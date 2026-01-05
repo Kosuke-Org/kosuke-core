@@ -13,9 +13,6 @@ import {
   userHasGitHubConnected,
 } from './installations';
 
-// Re-export for convenience
-export { GITHUB_APP_INSTALL_URL, userHasGitHubConnected } from './installations';
-
 // Re-export the GitHubRepository type for use in hooks/components
 export type { GitHubRepository } from '@/lib/types/github';
 
@@ -88,11 +85,10 @@ export async function listUserRepositories(
 export async function checkAppInstallation(
   owner: string,
   repo: string
-): Promise<{ installed: boolean; installationId: number | null; installUrl: string }> {
+): Promise<{ installationId: number | null; installUrl: string }> {
   const installationId = await getInstallationForRepo(owner, repo);
 
   return {
-    installed: installationId !== null,
     installationId,
     installUrl: GITHUB_APP_INSTALL_URL,
   };

@@ -3,10 +3,10 @@ import { z } from 'zod';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
-import { ClerkService } from '@/lib/clerk/service';
+import { clerkService } from '@/lib/clerk';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
-import { getProjectOctokit } from '@/lib/github/client';
+import { getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { desc, eq } from 'drizzle-orm';
 
@@ -82,7 +82,6 @@ export async function POST(
     // Build fallback description with optional user email
     let fallbackDescription = `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${sourceBranch}`;
     try {
-      const clerkService = new ClerkService();
       const user = await clerkService.getUser(userId);
       if (user.email) {
         fallbackDescription += `\n\nCreated by: ${user.email}`;
@@ -94,31 +93,8 @@ export async function POST(
     const prDescription = description || fallbackDescription;
 
     try {
-      // Log project data for debugging PR creation auth
-      console.log('[PR Creation] Project data:', {
-        projectId: project.id,
-        githubOwner: project.githubOwner,
-        githubRepoName: project.githubRepoName,
-        githubInstallationId: project.githubInstallationId,
-        isImported: project.isImported,
-      });
-
       // Get GitHub client using project's App installation
       const github = getProjectOctokit(project);
-
-      // Verify the authenticated identity (should be the GitHub App)
-      try {
-        const { data: authUser } = await github.rest.apps.getAuthenticated();
-        if (authUser) {
-          console.log('[PR Creation] Authenticated as GitHub App:', {
-            appId: authUser.id,
-            appName: authUser.name,
-            appSlug: authUser.slug,
-          });
-        }
-      } catch (authError) {
-        console.error('[PR Creation] Failed to verify GitHub App auth:', authError);
-      }
 
       // Check if source branch exists
       try {
