@@ -67,7 +67,7 @@ export function ProjectActionsDropdown({ project, onSettingsClick }: ProjectActi
           ) : (
             <Copy className="mr-2 h-4 w-4" />
           )}
-          <span className="font-mono text-xs">{project.id.slice(0, 8)}...</span>
+          <span>Copy project ID</span>
         </DropdownMenuItem>
 
         {githubUrl && (
