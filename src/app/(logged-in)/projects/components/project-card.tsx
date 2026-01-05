@@ -1,37 +1,26 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { AlertCircle, CloudDownload, MoreHorizontal, Trash } from 'lucide-react';
+import { AlertCircle, CloudDownload } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { ProjectActionsDropdown } from '@/components/project-actions-dropdown';
+import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/lib/db/schema';
 import type { ProjectWithOwnerStatus } from '@/lib/types/project';
-import DeleteProjectDialog from './delete-project-dialog';
 
 interface ProjectCardProps {
   project: Project & ProjectWithOwnerStatus;
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const handleOpenDeleteDialog = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Close dropdown first, then show delete dialog
-    setDropdownOpen(false);
-    setShowDeleteDialog(true);
+  const handleSettingsClick = () => {
+    setShowSettingsModal(true);
   };
 
   // Check if imported project's owner has disconnected GitHub
@@ -88,25 +77,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                     </Tooltip>
                   </TooltipProvider>
                 )}
-                <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-                  <DropdownMenuTrigger asChild onClick={e => e.preventDefault()}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={e => e.preventDefault()}
-                    >
-                      <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                      <span className="sr-only">Open menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-card border-border">
-                    <DropdownMenuItem onClick={handleOpenDeleteDialog} className="focus:bg-muted">
-                      <Trash className="mr-2 h-4 w-4" />
-                      <span>Delete Project</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ProjectActionsDropdown project={project} onSettingsClick={handleSettingsClick} />
               </div>
             </div>
           </CardHeader>
@@ -119,10 +90,10 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         </Card>
       </Link>
 
-      <DeleteProjectDialog
+      <ProjectSettingsModal
         project={project}
-        open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        open={showSettingsModal}
+        onOpenChange={setShowSettingsModal}
       />
     </>
   );
