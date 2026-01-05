@@ -98,6 +98,7 @@ export interface ChatInputProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  model?: string;
   'data-testid'?: string;
 }
 

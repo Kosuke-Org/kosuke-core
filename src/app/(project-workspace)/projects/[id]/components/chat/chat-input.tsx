@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { ACCEPTED_FILE_TYPES_ACCEPT, useFileUpload } from '@/hooks/use-file-upload';
 import type { ChatInputProps } from '@/lib/types';
 import ChatInputAttachments from './chat-input-attachments';
+import PoweredByIndicator from './powered-by-indicator';
 
 export default function ChatInput({
   onSendMessage,
@@ -20,6 +21,7 @@ export default function ChatInput({
   placeholder = 'Type a message...',
   className,
   disabled = false,
+  model,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -123,6 +125,8 @@ export default function ChatInput({
           data-gramm_editor="false"
           data-enable-grammarly="false"
         />
+
+        <PoweredByIndicator model={model} />
 
         <div className="flex items-center gap-2 px-3 absolute bottom-3 right-0">
           <input
