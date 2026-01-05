@@ -512,6 +512,108 @@ export const userGithubConnections = pgTable('user_github_connections', {
 export type UserGithubConnection = typeof userGithubConnections.$inferSelect;
 export type NewUserGithubConnection = typeof userGithubConnections.$inferInsert;
 
+// Notification type enum
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'admin_message',
+  'project_update',
+  'system',
+]);
+export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
+
+// User notifications - individual notifications for each user
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clerkUserId: text('clerk_user_id').notNull(),
+    type: notificationTypeEnum('type').notNull(),
+    title: text('title').notNull(),
+    message: text('message').notNull(),
+    linkUrl: text('link_url'), // Optional navigation link
+    linkLabel: text('link_label'), // e.g., "View Project"
+    isRead: boolean('is_read').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => ({
+    userIdx: index('idx_notifications_user').on(table.clerkUserId),
+    isReadIdx: index('idx_notifications_is_read').on(table.isRead),
+    createdAtIdx: index('idx_notifications_created_at').on(table.createdAt),
+  })
+);
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+
+// Product updates - global updates visible to all users (changelog, announcements)
+export const productUpdates = pgTable(
+  'product_updates',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    imageUrl: text('image_url'), // Optional thumbnail
+    linkUrl: text('link_url'), // Optional external link
+    publishedAt: timestamp('published_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  table => ({
+    publishedAtIdx: index('idx_product_updates_published_at').on(table.publishedAt),
+  })
+);
+
+export type ProductUpdate = typeof productUpdates.$inferSelect;
+export type NewProductUpdate = typeof productUpdates.$inferInsert;
+
+// Product update reads - tracks which users have seen which updates
+export const productUpdateReads = pgTable(
+  'product_update_reads',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clerkUserId: text('clerk_user_id').notNull(),
+    productUpdateId: uuid('product_update_id')
+      .notNull()
+      .references(() => productUpdates.id, { onDelete: 'cascade' }),
+    readAt: timestamp('read_at').notNull().defaultNow(),
+  },
+  table => ({
+    uniqueUserUpdate: unique('product_update_reads_unique').on(
+      table.clerkUserId,
+      table.productUpdateId
+    ),
+    userIdx: index('idx_product_update_reads_user').on(table.clerkUserId),
+  })
+);
+
+export type ProductUpdateRead = typeof productUpdateReads.$inferSelect;
+export type NewProductUpdateRead = typeof productUpdateReads.$inferInsert;
+
+// User notification settings - per-user notification preferences
+export const userNotificationSettings = pgTable('user_notification_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clerkUserId: text('clerk_user_id').notNull().unique(),
+  emailNotifications: boolean('email_notifications').notNull().default(true),
+  projectUpdates: boolean('project_updates').notNull().default(true),
+  productUpdates: boolean('product_updates').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type UserNotificationSettings = typeof userNotificationSettings.$inferSelect;
+export type NewUserNotificationSettings = typeof userNotificationSettings.$inferInsert;
+
+// Relations for notification tables
+export const productUpdatesRelations = relations(productUpdates, ({ many }) => ({
+  reads: many(productUpdateReads),
+}));
+
+export const productUpdateReadsRelations = relations(productUpdateReads, ({ one }) => ({
+  productUpdate: one(productUpdates, {
+    fields: [productUpdateReads.productUpdateId],
+    references: [productUpdates.id],
+  }),
+}));
+
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],

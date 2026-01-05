@@ -9,6 +9,7 @@ import { useState } from 'react';
 
 import { useUser } from '@/hooks/use-user';
 
+import { NavbarInbox } from '@/components/navbar-inbox';
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,7 @@ export default function Navbar({ hideSignIn = false, className }: NavbarProps) {
     if (isSignedIn && clerkUser) {
       return (
         <div className="flex items-center gap-3">
+          <NavbarInbox />
           <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button

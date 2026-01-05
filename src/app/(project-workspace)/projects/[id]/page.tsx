@@ -7,6 +7,7 @@ import { ArrowLeft, LayoutDashboard, LogOut, Settings } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { NavbarInbox } from '@/components/navbar-inbox';
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -452,7 +453,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </h2>
               </div>
 
-              <div className="flex items-center gap-2">{renderUserSection()}</div>
+              <div className="flex items-center gap-2">
+                <NavbarInbox />
+                {renderUserSection()}
+              </div>
             </header>
 
             {/* Preview Content - with rounded border */}

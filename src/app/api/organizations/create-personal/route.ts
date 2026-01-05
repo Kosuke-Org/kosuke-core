@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { addGhostMember } from '@/lib/ghost/admin-client';
 import { sendUserSignupSlack } from '@/lib/slack/client';
 
 const createPersonalWorkspaceSchema = z.object({
@@ -64,11 +65,14 @@ export async function POST(request: Request) {
       user.firstName || user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Unknown';
     const email = user.emailAddresses[0]?.emailAddress || 'Unknown';
 
+    // Fire-and-forget notifications (non-blocking)
     sendUserSignupSlack({
       userName,
       email,
       workspaceName: name.trim(),
     }).catch(() => {});
+
+    addGhostMember(email, userName).catch(() => {});
 
     console.log(`✅ Created personal workspace for user: ${personalOrg.id} (${personalOrg.name})`);
 

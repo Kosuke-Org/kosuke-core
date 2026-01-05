@@ -1,8 +1,11 @@
 /**
  * Ghost CMS Types
- * Types for interacting with Ghost Content API
- * Used for legal pages (terms, privacy, cookies)
+ * Types for Ghost Content API (pages) and Admin API (members)
  */
+
+// =============================================================================
+// Content API Types (for legal pages)
+// =============================================================================
 
 // Ghost Page type for legal pages
 export interface GhostPage {
@@ -26,4 +29,25 @@ export interface GhostPage {
   twitter_title?: string | null;
   twitter_description?: string | null;
   custom_excerpt?: string | null;
+}
+
+// =============================================================================
+// Admin API Types (for member management)
+// =============================================================================
+
+// Payload for creating a Ghost member
+export interface GhostMemberPayload {
+  email: string;
+  name?: string;
+  labels?: Array<{ name: string }>;
+  subscribed?: boolean;
+  newsletters?: Array<{ id?: string }>;
+}
+
+// Response from Ghost member operations
+export interface GhostMemberResponse {
+  success: boolean;
+  message: string;
+  alreadyExists?: boolean;
+  unavailable?: boolean;
 }

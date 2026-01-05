@@ -6,7 +6,7 @@ import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { ClerkService } from '@/lib/clerk/service';
 import { db } from '@/lib/db/drizzle';
 import { projectAuditLogs, projects, type ProjectStatus } from '@/lib/db/schema';
-import { sendProjectStatusNotification } from '@/lib/email';
+import { emailClient } from '@/lib/email';
 
 interface UpdatePaymentStatusBody {
   status?: ProjectStatus;
@@ -96,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           const clerkService = new ClerkService();
           const user = await clerkService.getUser(project.createdBy!);
 
-          await sendProjectStatusNotification({
+          await emailClient.sendProjectStatusNotification({
             recipientEmail: user.email,
             recipientName: user.name,
             projectId: project.id,
