@@ -17,6 +17,7 @@ import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
+import { sendHumanModeMessageSlack } from '@/lib/slack/client';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import type { ImageUrlContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
@@ -431,6 +432,14 @@ export async function POST(
           contextTokens: 0,
         })
         .returning();
+
+      // Send Slack notification for human mode message (fire and forget)
+      sendHumanModeMessageSlack({
+        projectId,
+        projectName: project.name,
+        sessionId: chatSession.id,
+        userName: userId, // Using userId as identifier
+      }).catch(() => {});
 
       // Update session's lastActivityAt
       await db

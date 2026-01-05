@@ -1,9 +1,10 @@
-import { auth } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { sendUserSignupSlack } from '@/lib/slack/client';
 
 const createPersonalWorkspaceSchema = z.object({
   name: z.string().min(1, 'Workspace name is required').max(100, 'Workspace name too long'),
@@ -55,6 +56,19 @@ export async function POST(request: Request) {
 
     // Mark onboarding as complete
     await clerkService.markOnboardingComplete(userId);
+
+    // Send Slack notification for new user signup (fire and forget)
+    const client = await clerkClient();
+    const user = await client.users.getUser(userId);
+    const userName =
+      user.firstName || user.emailAddresses[0]?.emailAddress?.split('@')[0] || 'Unknown';
+    const email = user.emailAddresses[0]?.emailAddress || 'Unknown';
+
+    sendUserSignupSlack({
+      userName,
+      email,
+      workspaceName: name.trim(),
+    }).catch(() => {});
 
     console.log(`✅ Created personal workspace for user: ${personalOrg.id} (${personalOrg.name})`);
 
