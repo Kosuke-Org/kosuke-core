@@ -12,13 +12,26 @@ export {
 } from './client';
 export { JOB_NAMES, QUEUE_NAMES } from './config';
 export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export {
+  calculateNextRun,
+  maintenanceQueue,
+  scheduleMaintenanceJob,
+  scheduleMaintenanceJobs,
+  triggerMaintenanceJobNow,
+  unscheduleMaintenanceJob,
+  type MaintenanceJobData,
+  type MaintenanceJobResult,
+} from './queues/maintenance';
 export { previewQueue, schedulePreviewCleanup } from './queues/previews';
 export { createBuildWorker } from './workers/build';
+export { createMaintenanceWorker } from './workers/maintenance';
 export { createPreviewWorker } from './workers/previews';
 
 export async function scheduleAllJobs() {
   const { schedulePreviewCleanup } = await import('./queues/previews');
+  const { scheduleMaintenanceJobs } = await import('./queues/maintenance');
   await schedulePreviewCleanup();
+  await scheduleMaintenanceJobs();
 }
 
 // ============================================================

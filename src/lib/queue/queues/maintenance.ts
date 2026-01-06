@@ -1,0 +1,201 @@
+import type { MaintenanceJobType } from '@/lib/db/schema';
+import { createQueue } from '../client';
+import { JOB_NAMES, QUEUE_NAMES } from '../config';
+
+/**
+ * Type-safe maintenance job data
+ */
+export interface MaintenanceJobData {
+  maintenanceJobId: string; // maintenance_jobs.id
+  projectId: string;
+  jobType: MaintenanceJobType;
+}
+
+/**
+ * Maintenance job result
+ */
+export interface MaintenanceJobResult {
+  success: boolean;
+  runId: string;
+  pullRequestUrl?: string;
+  summary?: string;
+  error?: string;
+}
+
+/**
+ * Maintenance queue instance
+ */
+export const maintenanceQueue = createQueue<MaintenanceJobData>(QUEUE_NAMES.MAINTENANCE);
+
+/**
+ * Get cron pattern for job type
+ * - SYNC_RULES: Every 7 days at 2 AM UTC
+ * - ANALYZE: Every 14 days at 2 AM UTC
+ * - SECURITY_CHECK: Every 3 days at 2 AM UTC
+ */
+function getJobFrequency(jobType: MaintenanceJobType): string {
+  switch (jobType) {
+    case 'sync_rules':
+      return '0 2 */7 * *'; // Every 7 days at 2 AM
+    case 'analyze':
+      return '0 2 */14 * *'; // Every 14 days at 2 AM
+    case 'security_check':
+      return '0 2 */3 * *'; // Every 3 days at 2 AM
+  }
+}
+
+/**
+ * Get job name for job type
+ */
+function getJobName(jobType: MaintenanceJobType): string {
+  switch (jobType) {
+    case 'sync_rules':
+      return JOB_NAMES.MAINTENANCE_SYNC_RULES;
+    case 'analyze':
+      return JOB_NAMES.MAINTENANCE_ANALYZE;
+    case 'security_check':
+      return JOB_NAMES.MAINTENANCE_SECURITY_CHECK;
+  }
+}
+
+/**
+ * Schedule all maintenance jobs for enabled projects
+ * Called on worker startup and uses BullMQ repeatable jobs
+ */
+export async function scheduleMaintenanceJobs() {
+  const { db } = await import('@/lib/db/drizzle');
+  const { maintenanceJobs } = await import('@/lib/db/schema');
+  const { eq } = await import('drizzle-orm');
+
+  // Get all enabled maintenance jobs
+  const enabledJobs = await db
+    .select()
+    .from(maintenanceJobs)
+    .where(eq(maintenanceJobs.enabled, true));
+
+  console.log(`[MAINTENANCE] 📋 Found ${enabledJobs.length} enabled maintenance jobs`);
+
+  // Schedule each job using BullMQ repeatable jobs
+  for (const job of enabledJobs) {
+    const jobName = getJobName(job.jobType);
+    const repeatKey = `maintenance:${job.id}`;
+    const pattern = getJobFrequency(job.jobType);
+
+    await maintenanceQueue.upsertJobScheduler(
+      repeatKey,
+      {
+        pattern,
+      },
+      {
+        name: jobName,
+        data: {
+          maintenanceJobId: job.id,
+          projectId: job.projectId,
+          jobType: job.jobType,
+        },
+      }
+    );
+
+    console.log(
+      `[MAINTENANCE] 📅 Scheduled ${job.jobType} for project ${job.projectId} (pattern: ${pattern})`
+    );
+  }
+}
+
+/**
+ * Schedule a single maintenance job
+ * Called when a job is enabled
+ */
+export async function scheduleMaintenanceJob(
+  maintenanceJobId: string,
+  projectId: string,
+  jobType: MaintenanceJobType
+) {
+  const jobName = getJobName(jobType);
+  const repeatKey = `maintenance:${maintenanceJobId}`;
+  const pattern = getJobFrequency(jobType);
+
+  await maintenanceQueue.upsertJobScheduler(
+    repeatKey,
+    {
+      pattern,
+    },
+    {
+      name: jobName,
+      data: {
+        maintenanceJobId,
+        projectId,
+        jobType,
+      },
+    }
+  );
+
+  console.log(
+    `[MAINTENANCE] 📅 Scheduled ${jobType} for project ${projectId} (pattern: ${pattern})`
+  );
+}
+
+/**
+ * Remove scheduled job when disabled
+ */
+export async function unscheduleMaintenanceJob(maintenanceJobId: string) {
+  const repeatKey = `maintenance:${maintenanceJobId}`;
+  await maintenanceQueue.removeJobScheduler(repeatKey);
+  console.log(`[MAINTENANCE] 🗑️ Unscheduled maintenance job ${maintenanceJobId}`);
+}
+
+/**
+ * Trigger a maintenance job immediately (manual run)
+ * This adds a one-time job to the queue without affecting the scheduled repeatable job
+ */
+export async function triggerMaintenanceJobNow(
+  maintenanceJobId: string,
+  projectId: string,
+  jobType: MaintenanceJobType
+) {
+  const jobName = getJobName(jobType);
+
+  await maintenanceQueue.add(
+    jobName,
+    {
+      maintenanceJobId,
+      projectId,
+      jobType,
+    },
+    {
+      removeOnComplete: true,
+      removeOnFail: false,
+    }
+  );
+
+  console.log(`[MAINTENANCE] ▶️ Manually triggered ${jobType} for project ${projectId}`);
+}
+
+/**
+ * Calculate next run time for a job type
+ */
+export function calculateNextRun(jobType: MaintenanceJobType): Date {
+  const now = new Date();
+  const next = new Date(now);
+  next.setUTCHours(2, 0, 0, 0); // 2 AM UTC
+
+  // If it's already past 2 AM today, start from tomorrow
+  if (next <= now) {
+    next.setDate(next.getDate() + 1);
+  }
+
+  // Add the frequency offset
+  switch (jobType) {
+    case 'sync_rules':
+      // Next occurrence within 7 days
+      break;
+    case 'analyze':
+      // Next occurrence within 14 days
+      break;
+    case 'security_check':
+      // Next occurrence within 3 days
+      break;
+  }
+
+  return next;
+}

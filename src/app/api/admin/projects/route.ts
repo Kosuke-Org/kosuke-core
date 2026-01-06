@@ -24,17 +24,24 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
-    // Build query conditions
-    const conditions = [];
+    // Build query conditions - always filter out archived projects
+    const conditions = [eq(projects.isArchived, false)];
 
     if (search) {
-      conditions.push(
-        or(
-          eq(projects.id, search), // Exact match for ID
-          ilike(projects.name, `%${search}%`),
-          ilike(projects.description, `%${search}%`)
-        )
-      );
+      // Check if search looks like a UUID to avoid database errors
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+
+      const searchConditions = [
+        ilike(projects.name, `%${search}%`),
+        ilike(projects.description, `%${search}%`),
+      ];
+
+      // Only add UUID match if search looks like a valid UUID
+      if (isUuid) {
+        searchConditions.unshift(eq(projects.id, search));
+      }
+
+      conditions.push(or(...searchConditions)!);
     }
 
     if (orgId) {
@@ -73,6 +80,8 @@ export async function GET(request: NextRequest) {
         createdBy: projects.createdBy,
         createdAt: projects.createdAt,
         githubRepoUrl: projects.githubRepoUrl,
+        githubOwner: projects.githubOwner,
+        githubRepoName: projects.githubRepoName,
       })
       .from(projects)
       .where(conditions.length > 0 ? and(...conditions) : undefined)

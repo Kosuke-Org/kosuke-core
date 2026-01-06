@@ -38,6 +38,23 @@ export const taskStatusEnum = pgEnum('task_status', [
 ]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
+// Maintenance job type enum
+export const maintenanceJobTypeEnum = pgEnum('maintenance_job_type', [
+  'sync_rules',
+  'analyze',
+  'security_check',
+]);
+export type MaintenanceJobType = (typeof maintenanceJobTypeEnum.enumValues)[number];
+
+// Maintenance job run status enum
+export const maintenanceJobRunStatusEnum = pgEnum('maintenance_job_run_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type MaintenanceJobRunStatus = (typeof maintenanceJobRunStatusEnum.enumValues)[number];
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -299,6 +316,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   diffs: many(diffs),
   commits: many(projectCommits),
   githubSyncSessions: many(githubSyncSessions),
+  maintenanceJobs: many(maintenanceJobs),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -396,6 +414,56 @@ export const organizationApiKeys = pgTable('organization_api_keys', {
 export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
 export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
 
+// Maintenance jobs - configuration per project/job type
+export const maintenanceJobs = pgTable(
+  'maintenance_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    jobType: maintenanceJobTypeEnum('job_type').notNull(),
+    enabled: boolean('enabled').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  table => ({
+    // Composite unique: one config per project/job type
+    projectJobTypeUnique: unique('maintenance_jobs_project_job_type_unique').on(
+      table.projectId,
+      table.jobType
+    ),
+    projectIdx: index('idx_maintenance_jobs_project').on(table.projectId),
+  })
+);
+
+// Maintenance job runs - execution history
+export const maintenanceJobRuns = pgTable(
+  'maintenance_job_runs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    maintenanceJobId: uuid('maintenance_job_id')
+      .references(() => maintenanceJobs.id, { onDelete: 'cascade' })
+      .notNull(),
+    status: maintenanceJobRunStatusEnum('status').notNull().default('pending'),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+    error: text('error'),
+    summary: text('summary'),
+    pullRequestUrl: text('pull_request_url'),
+    pullRequestNumber: integer('pull_request_number'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => ({
+    // Index for latest run queries
+    maintenanceJobStartedAtIdx: index('idx_maintenance_job_runs_job_started').on(
+      table.maintenanceJobId,
+      table.startedAt
+    ),
+    statusIdx: index('idx_maintenance_job_runs_status').on(table.status),
+  })
+);
+
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],
@@ -412,6 +480,21 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   buildJob: one(buildJobs, {
     fields: [tasks.buildJobId],
     references: [buildJobs.id],
+  }),
+}));
+
+export const maintenanceJobsRelations = relations(maintenanceJobs, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [maintenanceJobs.projectId],
+    references: [projects.id],
+  }),
+  runs: many(maintenanceJobRuns),
+}));
+
+export const maintenanceJobRunsRelations = relations(maintenanceJobRuns, ({ one }) => ({
+  maintenanceJob: one(maintenanceJobs, {
+    fields: [maintenanceJobRuns.maintenanceJobId],
+    references: [maintenanceJobs.id],
   }),
 }));
 
@@ -439,3 +522,7 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type MaintenanceJob = typeof maintenanceJobs.$inferSelect;
+export type NewMaintenanceJob = typeof maintenanceJobs.$inferInsert;
+export type MaintenanceJobRun = typeof maintenanceJobRuns.$inferSelect;
+export type NewMaintenanceJobRun = typeof maintenanceJobRuns.$inferInsert;

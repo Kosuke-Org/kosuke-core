@@ -11,6 +11,7 @@
 export const QUEUE_NAMES = {
   PREVIEW_CLEANUP: 'preview-cleanup',
   BUILD: 'build',
+  MAINTENANCE: 'maintenance',
 } as const;
 
 /**
@@ -21,4 +22,8 @@ export const JOB_NAMES = {
   CLEANUP_INACTIVE_PREVIEWS: 'cleanup-inactive-previews',
   // Build jobs
   PROCESS_BUILD: 'process-build',
+  // Maintenance jobs
+  MAINTENANCE_SYNC_RULES: 'maintenance-sync-rules',
+  MAINTENANCE_ANALYZE: 'maintenance-analyze',
+  MAINTENANCE_SECURITY_CHECK: 'maintenance-security-check',
 } as const;

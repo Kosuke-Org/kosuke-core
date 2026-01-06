@@ -11,8 +11,10 @@
 
 import { gracefulShutdown } from '@/lib/queue/client';
 import { buildQueue } from '@/lib/queue/queues/build';
+import { maintenanceQueue, scheduleMaintenanceJobs } from '@/lib/queue/queues/maintenance';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
 import { createBuildWorker } from '@/lib/queue/workers/build';
+import { createMaintenanceWorker } from '@/lib/queue/workers/maintenance';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
 
 async function main() {
@@ -21,19 +23,22 @@ async function main() {
   try {
     // Schedule all recurring jobs (idempotent - safe to call multiple times)
     await schedulePreviewCleanup();
+    await scheduleMaintenanceJobs();
 
     // Initialize workers (explicit - no side effects on import)
     const previewWorker = createPreviewWorker();
     const buildWorker = createBuildWorker();
+    const maintenanceWorker = createMaintenanceWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
     console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
-    console.log('[WORKER]   - Build (concurrency: 1)\n');
+    console.log('[WORKER]   - Build (concurrency: 1)');
+    console.log('[WORKER]   - Maintenance (concurrency: 2)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker];
-    const queues = [previewQueue, buildQueue];
+    const workers = [previewWorker, buildWorker, maintenanceWorker];
+    const queues = [previewQueue, buildQueue, maintenanceQueue];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {
