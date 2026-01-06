@@ -19,11 +19,13 @@ export {
   type EnvironmentJobResult,
 } from './queues/environment';
 export { previewQueue, schedulePreviewCleanup } from './queues/previews';
+export { submitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
 export { vamosQueue, type VamosJobData, type VamosJobResult } from './queues/vamos';
 export { createBuildWorker } from './workers/build';
 export { createDeployWorker } from './workers/deploy';
 export { createEnvironmentWorker } from './workers/environment';
 export { createPreviewWorker } from './workers/previews';
+export { createSubmitWorker } from './workers/submit';
 export { createVamosWorker } from './workers/vamos';
 
 export async function scheduleAllJobs() {
@@ -135,8 +137,8 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
       .where(
         and(
           inArray(buildJobs.id, buildJobIds),
-          // Only get pending/running builds
-          inArray(buildJobs.status, ['pending', 'running'])
+          // Only get active builds
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
         )
       );
 
@@ -148,7 +150,10 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
         completedAt: new Date(),
       })
       .where(
-        and(inArray(buildJobs.id, buildJobIds), inArray(buildJobs.status, ['pending', 'running']))
+        and(
+          inArray(buildJobs.id, buildJobIds),
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
+        )
       );
 
     // Mark all incomplete tasks for these builds as cancelled

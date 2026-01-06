@@ -14,11 +14,13 @@ import { buildQueue } from '@/lib/queue/queues/build';
 import { deployQueue } from '@/lib/queue/queues/deploy';
 import { environmentQueue } from '@/lib/queue/queues/environment';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { submitQueue } from '@/lib/queue/queues/submit';
 import { vamosQueue } from '@/lib/queue/queues/vamos';
 import { createBuildWorker } from '@/lib/queue/workers/build';
 import { createDeployWorker } from '@/lib/queue/workers/deploy';
 import { createEnvironmentWorker } from '@/lib/queue/workers/environment';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
+import { createSubmitWorker } from '@/lib/queue/workers/submit';
 import { createVamosWorker } from '@/lib/queue/workers/vamos';
 
 async function main() {
@@ -34,6 +36,7 @@ async function main() {
     const environmentWorker = createEnvironmentWorker();
     const vamosWorker = createVamosWorker();
     const deployWorker = createDeployWorker();
+    const submitWorker = createSubmitWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
@@ -41,11 +44,26 @@ async function main() {
     console.log('[WORKER]   - Build (concurrency: 1)');
     console.log('[WORKER]   - Environment (concurrency: 2)');
     console.log('[WORKER]   - Vamos (concurrency: 1)');
-    console.log('[WORKER]   - Deploy (concurrency: 1)\n');
+    console.log('[WORKER]   - Deploy (concurrency: 1)');
+    console.log('[WORKER]   - Submit (concurrency: 1)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker, environmentWorker, vamosWorker, deployWorker];
-    const queues = [previewQueue, buildQueue, environmentQueue, vamosQueue, deployQueue];
+    const workers = [
+      previewWorker,
+      buildWorker,
+      environmentWorker,
+      vamosWorker,
+      deployWorker,
+      submitWorker,
+    ];
+    const queues = [
+      previewQueue,
+      buildQueue,
+      environmentQueue,
+      vamosQueue,
+      deployQueue,
+      submitQueue,
+    ];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

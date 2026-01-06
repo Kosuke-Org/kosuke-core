@@ -123,6 +123,7 @@ export default function ChatInterface({
   model,
   isBuildInProgress = false,
   isBuildFailed = false,
+  hasPullRequest = false,
   // Requirements mode props
   mode = 'development',
   projectStatus = 'active',
@@ -542,13 +543,21 @@ export default function ChatInterface({
                 ? 'Requirements have been submitted'
                 : isRequirementsMode
                   ? 'Describe your project requirements...'
-                  : isBuildFailed
-                    ? 'Build stopped. Use the restart button above to try again.'
-                    : isBuildInProgress
-                      ? 'Build in progress...'
-                      : 'Type your message...'
+                  : hasPullRequest
+                    ? 'Pull request created. Start a new chat to make more changes.'
+                    : isBuildFailed
+                      ? 'Build stopped. Use the restart button above to try again.'
+                      : isBuildInProgress
+                        ? 'Build in progress...'
+                        : 'Type your message...'
           }
-          disabled={!isAgentReady || isBuildInProgress || isBuildFailed || isRequirementsReadonly}
+          disabled={
+            !isAgentReady ||
+            isBuildInProgress ||
+            isBuildFailed ||
+            isRequirementsReadonly ||
+            hasPullRequest
+          }
           data-testid="chat-input"
           className="chat-input"
         />

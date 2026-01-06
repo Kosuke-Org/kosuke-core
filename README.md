@@ -30,7 +30,7 @@ Ensure you have the following tools installed and configured:
   - The project includes a `.nvmrc` file to automatically use Node.js 22.20.0
 - **GitHub App** - For connecting Kosuke to your GitHub account
   1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-  2. Click **Auth Apps** → **New Auth App**
+  2. Click **GitHub Apps** → **New GitHub App**
   3. Fill in the application details:
      - **Application name**: `Kosuke App Local` (or your preferred name)
      - **Homepage URL**: `http://localhost:3000`

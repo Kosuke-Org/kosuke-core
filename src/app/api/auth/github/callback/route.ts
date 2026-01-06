@@ -1,27 +1,14 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/drizzle';
-import { userGithubConnections } from '@/lib/db/schema';
 
-const GITHUB_APP_CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID;
-const GITHUB_APP_CLIENT_SECRET = process.env.GITHUB_APP_CLIENT_SECRET;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+import { exchangeCodeForToken, storeGitHubConnection } from '@/lib/github/oauth';
 
-interface GitHubTokenResponse {
-  access_token: string;
-  token_type: string;
-  scope: string;
-  refresh_token?: string;
-  expires_in?: number;
-  refresh_token_expires_in?: number;
-}
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 interface GitHubUserResponse {
   id: number;
   login: string;
   avatar_url: string;
-  name?: string;
-  email?: string;
 }
 
 /**
@@ -31,14 +18,14 @@ interface GitHubUserResponse {
  */
 export async function GET(request: NextRequest) {
   try {
+    if (!APP_URL) {
+      console.error('NEXT_PUBLIC_APP_URL not configured');
+      return NextResponse.json({ error: 'App URL not configured' }, { status: 500 });
+    }
+
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.redirect(new URL('/sign-in', APP_URL));
-    }
-
-    if (!GITHUB_APP_CLIENT_ID || !GITHUB_APP_CLIENT_SECRET) {
-      console.error('GitHub App OAuth credentials not configured');
-      return NextResponse.redirect(new URL('/settings?error=github_not_configured', APP_URL));
     }
 
     const { searchParams } = new URL(request.url);
@@ -58,7 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Decode and validate state
-    let stateData: { userId: string; redirectTo: string; nonce: string };
+    let stateData: { userId: string; redirectTo: string };
     try {
       stateData = JSON.parse(Buffer.from(state, 'base64url').toString());
     } catch {
@@ -72,37 +59,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/settings?error=invalid_state', APP_URL));
     }
 
-    // Exchange code for access token
-    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: GITHUB_APP_CLIENT_ID,
-        client_secret: GITHUB_APP_CLIENT_SECRET,
-        code,
-        redirect_uri: `${APP_URL}/api/auth/github/callback`,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      console.error('Failed to exchange code for token:', await tokenResponse.text());
-      return NextResponse.redirect(new URL('/settings?error=token_exchange_failed', APP_URL));
-    }
-
-    const tokenData: GitHubTokenResponse = await tokenResponse.json();
-
-    if (!tokenData.access_token) {
-      console.error('No access token in response:', tokenData);
-      return NextResponse.redirect(new URL('/settings?error=no_access_token', APP_URL));
-    }
+    // Exchange code for access token using @octokit/oauth-app
+    const tokenData = await exchangeCodeForToken(code);
 
     // Get user info from GitHub
     const userResponse = await fetch('https://api.github.com/user', {
       headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
+        Authorization: `Bearer ${tokenData.token}`,
         Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
       },
@@ -115,35 +78,19 @@ export async function GET(request: NextRequest) {
 
     const userData: GitHubUserResponse = await userResponse.json();
 
-    // Calculate token expiration (if provided)
-    const tokenExpiresAt = tokenData.expires_in
-      ? new Date(Date.now() + tokenData.expires_in * 1000)
-      : null;
+    // Calculate token expiration
+    const tokenExpiresAt = tokenData.expiresAt ? new Date(tokenData.expiresAt) : null;
 
-    // Store or update the connection in the database
-    await db
-      .insert(userGithubConnections)
-      .values({
-        clerkUserId: userId,
-        githubAccessToken: tokenData.access_token,
-        githubRefreshToken: tokenData.refresh_token || null,
-        githubTokenExpiresAt: tokenExpiresAt,
-        githubUserId: userData.id,
-        githubUsername: userData.login,
-        githubAvatarUrl: userData.avatar_url,
-      })
-      .onConflictDoUpdate({
-        target: userGithubConnections.clerkUserId,
-        set: {
-          githubAccessToken: tokenData.access_token,
-          githubRefreshToken: tokenData.refresh_token || null,
-          githubTokenExpiresAt: tokenExpiresAt,
-          githubUserId: userData.id,
-          githubUsername: userData.login,
-          githubAvatarUrl: userData.avatar_url,
-          updatedAt: new Date(),
-        },
-      });
+    // Store the connection in the database
+    await storeGitHubConnection({
+      userId,
+      accessToken: tokenData.token,
+      refreshToken: tokenData.refreshToken,
+      expiresAt: tokenExpiresAt,
+      githubUserId: userData.id,
+      githubUsername: userData.login,
+      githubAvatarUrl: userData.avatar_url,
+    });
 
     console.log(`GitHub connected for user ${userId}: @${userData.login}`);
 

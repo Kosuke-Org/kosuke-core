@@ -6,7 +6,7 @@ import { auth } from '@/lib/auth';
 import { ClerkService } from '@/lib/clerk/service';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
-import { getProjectOctokit } from '@/lib/github/client';
+import { getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { desc, eq } from 'drizzle-orm';
 

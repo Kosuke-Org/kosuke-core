@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useGitHubOAuth } from '@/hooks/use-github-oauth';
 import { useGitHubRepositories } from '@/hooks/use-github-repositories';
 import type { GitHubRepository } from '@/lib/types/github';
@@ -34,6 +35,9 @@ export function RepositorySelector({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
+  // Debounce search to avoid excessive API requests
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   // Always enable fetch to check GitHub connection status
   const {
     repositories,
@@ -43,7 +47,7 @@ export function RepositorySelector({
     isFetchingNextPage,
     needsGitHubConnection,
     installUrl,
-  } = useGitHubRepositories(true, search);
+  } = useGitHubRepositories(true, debouncedSearch);
 
   const { connectGitHub, isConnecting } = useGitHubOAuth();
 

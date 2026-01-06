@@ -1,5 +1,5 @@
 {
-  "id": "627f4528-81e3-4053-ab65-9281467aaa3f",
+  "id": "db2db044-4d81-47ea-96e3-f92b5b372f89",
   "prevId": "604a8785-0350-48c1-8237-3f44847d66a0",
   "version": "7",
   "dialect": "postgresql",
@@ -119,6 +119,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "tickets_path": {
+          "name": "tickets_path",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "build_status",
@@ -126,6 +132,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "submit_status": {
+          "name": "submit_status",
+          "type": "submit_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
         },
         "total_cost": {
           "name": "total_cost",
@@ -1095,12 +1108,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "github_installation_id": {
-          "name": "github_installation_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -1276,12 +1283,17 @@
     "public.build_status": {
       "name": "build_status",
       "schema": "public",
-      "values": ["pending", "running", "completed", "failed", "cancelled"]
+      "values": ["pending", "running", "validating", "completed", "failed", "cancelled"]
     },
     "public.file_type": {
       "name": "file_type",
       "schema": "public",
       "values": ["image", "document"]
+    },
+    "public.submit_status": {
+      "name": "submit_status",
+      "schema": "public",
+      "values": ["pending", "reviewing", "committing", "creating_pr", "done", "failed"]
     },
     "public.task_status": {
       "name": "task_status",

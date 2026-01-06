@@ -98,6 +98,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     // Get GitHub token for the project
     const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
+    }
 
     // Commit environment configuration via sandbox
     const commitResult = await client.commitEnvironment(

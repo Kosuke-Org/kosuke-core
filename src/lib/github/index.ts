@@ -35,8 +35,8 @@ export async function listUserRepositories(
   installUrl: string;
 }> {
   // Check if user has GitHub connected
-  const hasGitHub = await userHasGitHubConnected(userId);
-  if (!hasGitHub) {
+  const hasGitHubBefore = await userHasGitHubConnected(userId);
+  if (!hasGitHubBefore) {
     return {
       repositories: [],
       hasMore: false,
@@ -46,7 +46,23 @@ export async function listUserRepositories(
   }
 
   // Get all repos user has access to with their app installation status
+  // Note: This may delete the connection if token refresh fails
   const allRepos = await listUserRepositoriesWithAppStatus(userId);
+
+  // Check if connection was deleted during token refresh failure
+  // If so, the user needs to reconnect
+  if (allRepos.length === 0) {
+    const hasGitHubAfter = await userHasGitHubConnected(userId);
+    if (!hasGitHubAfter) {
+      // Connection was deleted due to token expiration/refresh failure
+      return {
+        repositories: [],
+        hasMore: false,
+        needsGitHubConnection: true,
+        installUrl: GITHUB_APP_INSTALL_URL,
+      };
+    }
+  }
 
   // Filter by search term if provided
   let filteredRepos = allRepos;
@@ -88,11 +104,10 @@ export async function listUserRepositories(
 export async function checkAppInstallation(
   owner: string,
   repo: string
-): Promise<{ installed: boolean; installationId: number | null; installUrl: string }> {
+): Promise<{ installationId: number | null; installUrl: string }> {
   const installationId = await getInstallationForRepo(owner, repo);
 
   return {
-    installed: installationId !== null,
     installationId,
     installUrl: GITHUB_APP_INSTALL_URL,
   };

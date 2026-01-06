@@ -123,6 +123,7 @@ export interface ChatInterfaceProps {
   model?: string; // AI model name from server config
   isBuildInProgress?: boolean; // Whether a build is currently in progress
   isBuildFailed?: boolean; // Whether the build has failed or been cancelled
+  hasPullRequest?: boolean; // Whether a PR has been created (disables chat)
   // Requirements mode props
   mode?: 'development' | 'requirements'; // Chat mode - development uses sessions, requirements uses project-level messages
   projectStatus?:
@@ -248,7 +249,7 @@ export interface BuildTask {
 export interface BuildJobResponse {
   buildJob: {
     id: string;
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+    status: 'pending' | 'running' | 'validating' | 'completed' | 'failed' | 'cancelled';
     totalCost: number;
     createdAt: string;
     startedAt: string | null;

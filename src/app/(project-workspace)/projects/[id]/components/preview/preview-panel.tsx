@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,15 @@ import DownloadingModal from './downloading-modal';
 
 import type { RequirementsViewMode } from '@/lib/types';
 
+type SubmitStatus =
+  | 'pending'
+  | 'reviewing'
+  | 'committing'
+  | 'creating_pr'
+  | 'done'
+  | 'failed'
+  | null;
+
 interface PreviewPanelProps {
   projectId: string;
   projectName: string;
@@ -42,16 +52,20 @@ interface PreviewPanelProps {
   isSidebarCollapsed?: boolean;
   /** Callback to toggle sidebar visibility */
   onToggleSidebar?: () => void;
-  /** When true, shows the Create PR button */
-  showCreatePR?: boolean;
-  /** Callback to create a pull request */
-  onCreatePullRequest?: () => void;
-  /** When true, the Create PR button is enabled (requires completed build) */
-  canCreatePR?: boolean;
-  /** When true, the Create PR mutation is in progress */
-  isCreatingPR?: boolean;
-  /** URL of the created PR (when available, shows View PR button) */
+  /** When true, shows the Submit button */
+  showSubmit?: boolean;
+  /** Callback to submit the build */
+  onSubmit?: () => void;
+  /** When true, the Submit button is enabled (requires completed build) */
+  canSubmit?: boolean;
+  /** Current submit status from build job */
+  submitStatus?: SubmitStatus;
+  /** URL of the created PR (when available, shows View Changes button) */
   prUrl?: string | null;
+  /** When true, submit mutation is in progress (disables button immediately) */
+  isSubmitting?: boolean;
+  /** When true, submit mutation succeeded but status hasn't updated yet */
+  hasSubmitted?: boolean;
   // Requirements mode props
   /** Project status for status-based preview content */
   projectStatus?:
@@ -82,6 +96,41 @@ interface PreviewPanelProps {
   isConfirmingEnvironment?: boolean;
 }
 
+/**
+ * Get button label based on submit status
+ */
+function getSubmitButtonLabel(
+  submitStatus: SubmitStatus,
+  isSubmitting: boolean,
+  hasSubmitted: boolean
+): string {
+  // Show "Preparing..." during mutation or while waiting for status to update
+  if (isSubmitting || (hasSubmitted && !submitStatus)) return 'Preparing...';
+  switch (submitStatus) {
+    case 'pending':
+      return 'Preparing...';
+    case 'reviewing':
+      return 'Reviewing...';
+    case 'committing':
+    case 'creating_pr':
+      return 'Cleaning up...';
+    default:
+      return 'Submit';
+  }
+}
+
+/**
+ * Check if submit is in progress (any status that means work is happening)
+ */
+function isSubmitInProgress(submitStatus: SubmitStatus): boolean {
+  return (
+    submitStatus === 'pending' ||
+    submitStatus === 'reviewing' ||
+    submitStatus === 'committing' ||
+    submitStatus === 'creating_pr'
+  );
+}
+
 // Import requirements preview components
 import EnvironmentsPreview from './environments-preview';
 import InDevelopmentPreview from './in-development-preview';
@@ -97,11 +146,13 @@ export default function PreviewPanel({
   isNewProject = false,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  showCreatePR = false,
-  onCreatePullRequest,
-  canCreatePR = false,
-  isCreatingPR = false,
+  showSubmit = false,
+  onSubmit,
+  canSubmit = false,
+  submitStatus = null,
   prUrl = null,
+  isSubmitting = false,
+  hasSubmitted = false,
   // Requirements mode props
   projectStatus = 'active',
   stripeInvoiceUrl,
@@ -135,6 +186,52 @@ export default function PreviewPanel({
     getStatusIconType,
   } = usePreviewPanel({ projectId, sessionId, projectName, isNewProject });
   const isPreviewEnabled = Boolean(sessionId);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Listen for messages from the embedded iframe requesting the parent URL
+  // We need to get the parent URL to redirect back after Stripe Checkout
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Only process messages from the iframe's origin
+      if (!previewUrl) return;
+
+      try {
+        const iframeOrigin = new URL(previewUrl).origin;
+
+        // Verify the message is from our preview iframe
+        if (event.origin !== iframeOrigin) {
+          return;
+        }
+
+        // Handle request for parent URL
+        if (
+          event.data &&
+          event.data.type === 'PARENT_URL' &&
+          !event.data.url // No url means it's a request
+        ) {
+          // Send back the parent URL
+          if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(
+              {
+                type: 'PARENT_URL',
+                url: window.location.href, // Full URL with path
+              },
+              iframeOrigin // Send to specific origin for security
+            );
+          }
+        }
+      } catch (error) {
+        // Invalid URL or other error - ignore
+        console.error('Error handling iframe message:', error);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [previewUrl]);
 
   // Check if we're in requirements mode (B2C flow statuses)
   const isRequirementsMode =
@@ -309,11 +406,11 @@ export default function PreviewPanel({
               </TooltipTrigger>
               <TooltipContent>Refresh</TooltipContent>
             </Tooltip>
-            {showCreatePR && prUrl ? (
+            {showSubmit && (submitStatus === 'done' || prUrl) ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" size="sm" asChild>
-                    <Link href={prUrl} target="_blank" rel="noopener noreferrer">
+                    <Link href={prUrl || '#'} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="h-4 w-4 mr-1" />
                       View Changes
                     </Link>
@@ -321,29 +418,47 @@ export default function PreviewPanel({
                 </TooltipTrigger>
                 <TooltipContent>View your submitted changes on GitHub</TooltipContent>
               </Tooltip>
-            ) : showCreatePR && onCreatePullRequest ? (
+            ) : showSubmit && onSubmit ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={onCreatePullRequest}
-                      disabled={!canCreatePR || isCreatingPR}
+                      onClick={onSubmit}
+                      disabled={
+                        !canSubmit ||
+                        isSubmitting ||
+                        hasSubmitted ||
+                        isSubmitInProgress(submitStatus)
+                      }
                     >
-                      {isCreatingPR ? (
+                      {canSubmit &&
+                      (isSubmitting ||
+                        (hasSubmitted && !submitStatus) ||
+                        isSubmitInProgress(submitStatus)) ? (
                         <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                       ) : (
                         <Send className="h-4 w-4 mr-1" />
                       )}
-                      {isCreatingPR ? 'Creating...' : 'Submit'}
+                      {canSubmit
+                        ? getSubmitButtonLabel(submitStatus, isSubmitting, hasSubmitted)
+                        : 'Submit'}
                     </Button>
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {!canCreatePR
+                  {!canSubmit
                     ? 'A successful build is required before submitting'
-                    : 'Submit your changes'}
+                    : isSubmitting || (hasSubmitted && !submitStatus) || submitStatus === 'pending'
+                      ? 'Preparing submission...'
+                      : submitStatus === 'reviewing'
+                        ? 'Reviewing code quality...'
+                        : submitStatus === 'committing' || submitStatus === 'creating_pr'
+                          ? 'Finalizing changes...'
+                          : submitStatus === 'failed'
+                            ? 'Previous submit failed. Click to retry.'
+                            : 'Submit your changes for review and create a pull request'}
                 </TooltipContent>
               </Tooltip>
             ) : null}
@@ -382,6 +497,7 @@ export default function PreviewPanel({
             </div>
           ) : previewUrl ? (
             <iframe
+              ref={iframeRef}
               key={iframeKey}
               src={previewUrl}
               className="h-full w-full border-0"

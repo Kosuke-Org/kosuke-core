@@ -12,7 +12,7 @@ import {
   messageAttachments,
   tasks,
 } from '@/lib/db/schema';
-import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/client';
+import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
@@ -597,6 +597,9 @@ export async function POST(
 
     // Get GitHub token using project's App installation
     const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return ApiErrorHandler.badRequest('GitHub token not available for this project');
+    }
 
     console.log(`🔗 GitHub integration enabled for session: ${chatSession.id}`);
 
@@ -769,8 +772,6 @@ export async function POST(
                 cwd: '/app/project',
                 dbUrl: getSandboxDatabaseUrl(chatSession.id),
                 githubToken,
-                baseBranch: project.defaultBranch || 'main', // Review diffs feature branch vs base
-                enableReview: true, // Review runs once after all tickets
                 enableTest: sandboxConfig.test,
                 testUrl,
                 orgId: project.orgId ?? undefined,

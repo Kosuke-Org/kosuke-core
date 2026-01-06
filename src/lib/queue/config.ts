@@ -14,6 +14,7 @@ export const QUEUE_NAMES = {
   ENVIRONMENT: 'environment',
   VAMOS: 'vamos',
   DEPLOY: 'deploy',
+  SUBMIT: 'submit',
 } as const;
 
 /**
@@ -30,4 +31,6 @@ export const JOB_NAMES = {
   PROCESS_VAMOS: 'process-vamos',
   // Deploy jobs
   PROCESS_DEPLOY: 'process-deploy',
+  // Submit jobs
+  PROCESS_SUBMIT: 'process-submit',
 } as const;

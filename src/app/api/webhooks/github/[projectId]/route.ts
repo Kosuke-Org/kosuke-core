@@ -14,7 +14,7 @@ import * as Sentry from '@sentry/nextjs';
 
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
-import { getProjectGitHubToken, KOSUKE_BOT_EMAIL } from '@/lib/github/client';
+import { getProjectGitHubToken, KOSUKE_BOT_EMAIL } from '@/lib/github/installations';
 import {
   verifyWebhookSignature,
   type GitHubPullRequestPayload,
@@ -82,14 +82,17 @@ async function handlePushEvent(
     if (sandbox && sandbox.status === 'running') {
       // Get GitHub token using project's App installation
       const githubToken = await getProjectGitHubToken(project);
-
-      // Update sandbox with latest code
-      console.log(`🔄 Updating sandbox for session ${session.id} in project ${projectId}`);
-      await sandboxManager.updateSandbox(session.id, {
-        branch: branchName,
-        githubToken,
-      });
-      console.log(`✅ Sandbox updated for project ${projectId}`);
+      if (!githubToken) {
+        console.warn(`No GitHub token available for project ${projectId}, skipping sandbox update`);
+      } else {
+        // Update sandbox with latest code
+        console.log(`🔄 Updating sandbox for session ${session.id} in project ${projectId}`);
+        await sandboxManager.updateSandbox(session.id, {
+          branch: branchName,
+          githubToken,
+        });
+        console.log(`✅ Sandbox updated for project ${projectId}`);
+      }
     } else {
       console.log(`ℹ️ Sandbox not running for session ${session.id}, skipping update`);
     }

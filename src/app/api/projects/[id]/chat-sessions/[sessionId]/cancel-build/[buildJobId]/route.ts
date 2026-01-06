@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
-import { getProjectGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { cancelBuild } from '@/lib/queue';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';

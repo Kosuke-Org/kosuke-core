@@ -54,7 +54,7 @@ else
     bun run db:migrate
 
     # Seed database (only if not already seeded)
-    SEED_MARKER=".kosuke-db-seeded"
+    SEED_MARKER="/tmp/.kosuke-db-seeded"
     if [ ! -f "$SEED_MARKER" ]; then
         echo "🌱 Seeding database..."
         bun run db:seed

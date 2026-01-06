@@ -53,23 +53,6 @@ export interface ChatSessionMessagesResponse {
     mode: ChatSessionMode;
   };
 }
-
-// Pull Request types
-export interface CreatePullRequestData {
-  title?: string;
-  description?: string;
-  target_branch?: string;
-}
-
-export interface CreatePullRequestResponse {
-  pull_request_url: string;
-  pull_request_number: number;
-  title: string;
-  source_branch: string;
-  target_branch: string;
-  success: boolean;
-}
-
 // Chat Session Status Type
 export type ChatSessionStatus = 'active' | 'archived' | 'completed';
 

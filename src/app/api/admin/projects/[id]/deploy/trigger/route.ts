@@ -58,6 +58,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       );
 
       const githubToken = await getProjectGitHubToken(project);
+      if (!githubToken) {
+        return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
+      }
       const repoUrl =
         project.githubRepoUrl ||
         `https://github.com/${project.githubOwner}/${project.githubRepoName}`;

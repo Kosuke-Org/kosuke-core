@@ -67,6 +67,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
 
       const githubToken = await getProjectGitHubToken(project);
+      if (!githubToken) {
+        return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
+      }
       const repoUrl =
         project.githubRepoUrl ||
         `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
@@ -103,6 +106,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Get GitHub token for pushing commits
     const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
+    }
 
     // Add job to queue
     await vamosQueue.add(JOB_NAMES.PROCESS_VAMOS, {
