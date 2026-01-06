@@ -6,13 +6,13 @@
 
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, tasks } from '@/lib/db/schema';
+import { logBuildEvent } from '@/lib/logging';
 import { SandboxClient } from '@/lib/sandbox/client';
 import {
   BUILD_EVENTS,
   MIGRATE_EVENTS,
   SHIP_EVENTS,
   TEST_EVENTS,
-  formatBuildEvent,
   type BuildSSEEvent,
 } from '@Kosuke-Org/cli';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -159,9 +159,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
             const event = (eventType ? { type: eventType, data: parsed } : parsed) as BuildSSEEvent;
 
             // Log all events using centralized formatter
-            for (const line of formatBuildEvent(event)) {
-              console.log(`[BUILD] ${line}`);
-            }
+            logBuildEvent(event);
 
             // Handle database updates based on event type
             switch (event.type) {

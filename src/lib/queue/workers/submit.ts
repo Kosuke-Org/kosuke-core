@@ -6,8 +6,9 @@
 
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, chatSessions } from '@/lib/db/schema';
+import { logSubmitEvent } from '@/lib/logging';
 import { SandboxClient } from '@/lib/sandbox/client';
-import { SUBMIT_EVENTS, formatSubmitEvent, type SubmitSSEEvent } from '@Kosuke-Org/cli';
+import { SUBMIT_EVENTS, type SubmitSSEEvent } from '@Kosuke-Org/cli';
 import { eq } from 'drizzle-orm';
 import { createQueueEvents, createWorker } from '../client';
 import { QUEUE_NAMES } from '../config';
@@ -101,9 +102,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
             ) as SubmitSSEEvent;
 
             // Log all events using centralized formatter
-            for (const line of formatSubmitEvent(event)) {
-              console.log(`[SUBMIT] ${line}`);
-            }
+            logSubmitEvent(event);
 
             // Handle database updates based on event type
             switch (event.type) {
