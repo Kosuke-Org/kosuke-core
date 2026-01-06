@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -136,6 +137,52 @@ export default function PreviewPanel({
     getStatusIconType,
   } = usePreviewPanel({ projectId, sessionId, projectName, isNewProject });
   const isPreviewEnabled = Boolean(sessionId);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Listen for messages from the embedded iframe requesting the parent URL
+  // We need to get the parent URL to redirect back after Stripe Checkout
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Only process messages from the iframe's origin
+      if (!previewUrl) return;
+
+      try {
+        const iframeOrigin = new URL(previewUrl).origin;
+
+        // Verify the message is from our preview iframe
+        if (event.origin !== iframeOrigin) {
+          return;
+        }
+
+        // Handle request for parent URL
+        if (
+          event.data &&
+          event.data.type === 'PARENT_URL' &&
+          !event.data.url // No url means it's a request
+        ) {
+          // Send back the parent URL
+          if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(
+              {
+                type: 'PARENT_URL',
+                url: window.location.href, // Full URL with path
+              },
+              iframeOrigin // Send to specific origin for security
+            );
+          }
+        }
+      } catch (error) {
+        // Invalid URL or other error - ignore
+        console.error('Error handling iframe message:', error);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [previewUrl]);
 
   // Render status icon based on status type
   const renderStatusIcon = () => {
@@ -328,6 +375,7 @@ export default function PreviewPanel({
             </div>
           ) : previewUrl ? (
             <iframe
+              ref={iframeRef}
               key={iframeKey}
               src={previewUrl}
               className="h-full w-full border-0"
