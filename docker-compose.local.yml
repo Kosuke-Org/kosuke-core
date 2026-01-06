@@ -2,11 +2,17 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile.local
+    secrets:
+      - github_token
   env_file:
     - .env
   networks:
     - kosuke_network
   restart: unless-stopped
+
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN
 
 services:
   postgres:
@@ -56,6 +62,8 @@ services:
       - /app/.next
       - /dev/null:/app/.env.local:ro # Shadow .env.local with empty file
       - /var/run/docker.sock:/var/run/docker.sock
+      # Mount entire local kosuke-cli package for development
+      - ./sandbox/kosuke-cli:/app/node_modules/@Kosuke-Org/cli:cached
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,6 +81,8 @@ services:
       - /app/.next
       - /dev/null:/app/.env.local:ro # Shadow .env.local with empty file
       - /var/run/docker.sock:/var/run/docker.sock
+      # Mount entire local kosuke-cli package for development
+      - ./sandbox/kosuke-cli:/app/node_modules/@Kosuke-Org/cli:cached
     depends_on:
       redis:
         condition: service_healthy

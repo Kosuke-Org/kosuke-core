@@ -28,6 +28,15 @@ Ensure you have the following tools installed and configured:
 - **nvm (Node Version Manager)** - Optional, only needed if running linting/tests locally
   - Install from [github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm)
   - The project includes a `.nvmrc` file to automatically use Node.js 22.20.0
+- **GitHub Personal Access Token** - Required for installing `@Kosuke-Org/cli` from GitHub Packages
+  1. Go to [GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)](https://github.com/settings/tokens)
+  2. Click **Generate new token (classic)**
+  3. Select scope: `read:packages`
+  4. Copy the token and set it as an environment variable:
+     ```bash
+     export GITHUB_TOKEN=ghp_your_token_here
+     ```
+  5. Add this to your shell profile (`~/.zshrc` or `~/.bashrc`) for persistence
 - **GitHub OAuth App** - For user authentication and accessing user repositories (import functionality)
   1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
   2. Click **OAuth Apps** → **New OAuth App**
@@ -131,19 +140,53 @@ This builds `kosuke-sandbox-local:latest`. The `.env.local` file is pre-configur
 
 ### Kosuke CLI Development
 
-To work with **kosuke-cli** locally alongside kosuke-core with hot-reload:
+The `@Kosuke-Org/cli` package is used in two places:
+
+1. **kosuke-core workers** - Installed as npm package from GitHub Packages
+2. **Sandbox containers** - Mounted directly from `sandbox/kosuke-cli/`
+
+#### Setup
 
 ```bash
-# Clone kosuke-cli into the sandbox directory
+# Clone kosuke-cli into the sandbox directory (if not already present)
 cd sandbox
 git clone https://github.com/Kosuke-Org/kosuke-cli.git kosuke-cli
-cd kosuke-cli && npm install
-
-# Enable hot-reload: watches .ts files → auto-compiles → auto-restarts in preview containers
-just watch-agent
+cd kosuke-cli && npm install && npm run build
+cd ../..
 ```
 
-> The `just watch-agent` command runs `npm run build:watch` which watches TypeScript files and auto-compiles to `dist/`. Preview sandbox containers (created dynamically via `src/lib/sandbox/manager.ts`) mount `sandbox/kosuke-cli/` at `/app/kosuke-cli` when `HOST_PROJECT_PATH` is set, and `nodemon` inside the container auto-restarts the agent on changes. See `sandbox/Dockerfile`, `sandbox/entrypoint.sh`, and `sandbox/scripts/start-agent.sh` for implementation details.
+#### For kosuke-core workers (local hot-reload)
+
+Use npm link to override the published package with your local version:
+
+```bash
+# Link the local package (builds and links)
+just link-cli
+
+# Terminal 1: Watch for changes (auto-compiles TypeScript)
+just watch-cli
+```
+
+**To unlink and use the published version:**
+
+```bash
+just unlink-cli
+bun install
+```
+
+#### For sandbox containers (preview environments)
+
+Sandbox containers automatically mount `sandbox/kosuke-cli/` at `/app/kosuke-cli` when `HOST_PROJECT_PATH` is set. Changes are picked up via nodemon.
+
+```bash
+# Terminal 1: Watch for changes
+just watch-agent
+
+# Terminal 2: Run the app (sandbox containers use mounted CLI)
+just run
+```
+
+> See `sandbox/Dockerfile`, `sandbox/entrypoint.sh`, and `sandbox/scripts/start-agent.sh` for implementation details.
 
 ## Adding environment variables
 
