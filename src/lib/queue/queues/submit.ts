@@ -14,7 +14,7 @@ export interface SubmitJobData {
   githubToken: string;
   baseBranch?: string; // Base branch for PR (default: 'main')
   title?: string; // PR title (auto-generated if not provided)
-  userEmail?: string; // User email to include in PR description ("Created by: ...")
+  body?: string; // PR body/description (auto-generated if not provided)
   orgId?: string; // Optional - uses system default API key if not provided
 }
 

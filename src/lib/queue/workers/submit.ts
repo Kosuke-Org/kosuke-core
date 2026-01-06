@@ -24,7 +24,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
     githubToken,
     baseBranch,
     title,
-    userEmail,
+    body,
   } = job.data;
 
   console.log('\n' + '='.repeat(80));
@@ -56,7 +56,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
         githubToken,
         baseBranch: baseBranch || 'main',
         title,
-        userEmail,
+        body,
         verbose: false,
       }),
     });

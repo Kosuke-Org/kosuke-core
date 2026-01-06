@@ -106,11 +106,17 @@ export async function POST(
     let title: string | undefined;
     let userEmail: string | undefined;
     try {
-      const body = await request.json();
-      title = body?.title;
-      userEmail = body?.userEmail;
+      const reqBody = await request.json();
+      title = reqBody?.title;
+      userEmail = reqBody?.userEmail;
     } catch {
       // No body or invalid JSON - use defaults
+    }
+
+    // Construct PR body with session context and user attribution
+    let prBody = `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${session.branchName}`;
+    if (userEmail) {
+      prBody += `\n\nCreated by: ${userEmail}`;
     }
 
     // Enqueue submit job
@@ -124,7 +130,7 @@ export async function POST(
       githubToken,
       baseBranch: project.defaultBranch || 'main',
       title: title || `feat: ${session.branchName}`,
-      userEmail,
+      body: prBody,
       orgId: project.orgId ?? undefined,
     });
 
