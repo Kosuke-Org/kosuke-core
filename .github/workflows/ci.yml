@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: bun install
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.KOSUKE_CLI_TOKEN }}
 
       - name: Copy environment variables
         run: cp .env.local .env

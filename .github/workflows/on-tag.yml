@@ -52,7 +52,7 @@ jobs:
           build-args: |
             DOCKER_GID=988
           secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
+            github_token=${{ secrets.KOSUKE_CLI_TOKEN }}
           push: true
           platforms: linux/amd64
           tags: |
