@@ -125,10 +125,10 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   const updateDeployConfigMutation = useUpdateDeployConfig();
   const { data: deployLogsData } = useDeployLogs(id, deployJobData?.job?.id || null);
 
-  // Agent health - only poll when project is paid (vamos/deploy available)
+  // Agent health - poll when project is in_development or active (vamos/deploy available)
   const { data: agentHealth } = useAgentHealth({
     projectId: id,
-    enabled: Boolean(id) && project?.status === 'paid',
+    enabled: Boolean(id) && (project?.status === 'in_development' || project?.status === 'active'),
     pollingInterval: 10000,
   });
 
@@ -335,8 +335,8 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
         <div className="space-y-1 flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-            {/* Agent status badge - only show when project is paid */}
-            {project.status === 'paid' &&
+            {/* Agent status badge - show when project is in_development or active */}
+            {(project.status === 'in_development' || project.status === 'active') &&
               (() => {
                 const agentStatus = getAgentStatusDisplay();
                 return (
@@ -391,48 +391,48 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
             <Copy className="h-4 w-4 mr-2" />
             Clone
           </Button>
-          {project.status === 'paid' && (
-            <>
-              <Button
-                onClick={handleVamos}
-                variant="outline"
-                disabled={
-                  (!isAgentReady &&
-                    !agentHealth?.processing &&
-                    vamosJobData?.job?.status !== 'running' &&
-                    vamosJobData?.job?.status !== 'pending') ||
-                  triggerVamosMutation.isPending
-                }
-              >
-                {triggerVamosMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4 mr-2" />
-                )}
-                {vamosJobData?.job?.status === 'running' || agentHealth?.processing
-                  ? 'View Vamos'
-                  : 'Vamos'}
-              </Button>
-              <Button
-                onClick={handleDeploy}
-                disabled={
-                  (!isAgentReady &&
-                    !agentHealth?.processing &&
-                    deployJobData?.job?.status !== 'running' &&
-                    deployJobData?.job?.status !== 'pending') ||
-                  triggerDeployMutation.isPending
-                }
-              >
-                {triggerDeployMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Rocket className="h-4 w-4 mr-2" />
-                )}
-                {deployJobData?.job?.status === 'running' || agentHealth?.processing
-                  ? 'View Deploy'
-                  : 'Deploy'}
-              </Button>
-            </>
+          {project.status === 'in_development' && (
+            <Button
+              onClick={handleVamos}
+              variant="outline"
+              disabled={
+                (!isAgentReady &&
+                  !agentHealth?.processing &&
+                  vamosJobData?.job?.status !== 'running' &&
+                  vamosJobData?.job?.status !== 'pending') ||
+                triggerVamosMutation.isPending
+              }
+            >
+              {triggerVamosMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              {vamosJobData?.job?.status === 'running' || agentHealth?.processing
+                ? 'View Vamos'
+                : 'Vamos'}
+            </Button>
+          )}
+          {project.status === 'active' && (
+            <Button
+              onClick={handleDeploy}
+              disabled={
+                (!isAgentReady &&
+                  !agentHealth?.processing &&
+                  deployJobData?.job?.status !== 'running' &&
+                  deployJobData?.job?.status !== 'pending') ||
+                triggerDeployMutation.isPending
+              }
+            >
+              {triggerDeployMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4 mr-2" />
+              )}
+              {deployJobData?.job?.status === 'running' || agentHealth?.processing
+                ? 'View Deploy'
+                : 'Deploy'}
+            </Button>
           )}
         </div>
       </div>
