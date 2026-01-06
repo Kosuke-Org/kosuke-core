@@ -221,6 +221,20 @@ export const projectIntegrations = pgTable(
   })
 );
 
+// Maintenance settings - 1-1 relationship with projects
+export const maintenanceSettings = pgTable('maintenance_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id')
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  syncRulesEnabled: boolean('sync_rules_enabled').notNull().default(false),
+  analyzeEnabled: boolean('analyze_enabled').notNull().default(false),
+  securityCheckEnabled: boolean('security_check_enabled').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 // Build jobs - tracks build execution per session
 export const buildJobs = pgTable(
   'build_jobs',
@@ -293,12 +307,13 @@ export const tasks = pgTable(
   })
 );
 
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const projectsRelations = relations(projects, ({ one, many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
   diffs: many(diffs),
   commits: many(projectCommits),
   githubSyncSessions: many(githubSyncSessions),
+  maintenanceSettings: one(maintenanceSettings),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -384,6 +399,13 @@ export const projectIntegrationsRelations = relations(projectIntegrations, ({ on
   }),
 }));
 
+export const maintenanceSettingsRelations = relations(maintenanceSettings, ({ one }) => ({
+  project: one(projects, {
+    fields: [maintenanceSettings.projectId],
+    references: [projects.id],
+  }),
+}));
+
 // Organization API keys - for BYOK (Bring Your Own Key) functionality
 export const organizationApiKeys = pgTable('organization_api_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -439,3 +461,5 @@ export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type MaintenanceSettings = typeof maintenanceSettings.$inferSelect;
+export type NewMaintenanceSettings = typeof maintenanceSettings.$inferInsert;
