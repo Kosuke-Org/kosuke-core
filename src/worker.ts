@@ -40,7 +40,9 @@ async function main() {
     );
     console.log(`[WORKER]   - Build (concurrency: ${process.env.BUILD_WORKER_CONCURRENCY})`);
     console.log(`[WORKER]   - Submit (concurrency: ${process.env.SUBMIT_WORKER_CONCURRENCY})`);
-    console.log('[WORKER]   - Maintenance (concurrency: 2)\n');
+    console.log(
+      `[WORKER]   - Maintenance (concurrency: ${process.env.MAINTENANCE_WORKER_CONCURRENCY})\n`
+    );
 
     // Store references for graceful shutdown
     const workers = [previewWorker, buildWorker, submitWorker, maintenanceWorker];

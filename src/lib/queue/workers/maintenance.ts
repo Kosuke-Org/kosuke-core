@@ -231,8 +231,12 @@ async function callMaintenanceEndpoint(
  * Factory function - NO side effects until called
  */
 export function createMaintenanceWorker() {
+  if (!process.env.MAINTENANCE_WORKER_CONCURRENCY) {
+    throw new Error('MAINTENANCE_WORKER_CONCURRENCY environment variable is required');
+  }
+  const concurrency = parseInt(process.env.MAINTENANCE_WORKER_CONCURRENCY, 10);
   const worker = createWorker<MaintenanceJobData>(QUEUE_NAMES.MAINTENANCE, processMaintenanceJob, {
-    concurrency: 2, // Allow 2 concurrent maintenance jobs
+    concurrency,
   });
 
   const events = createQueueEvents(QUEUE_NAMES.MAINTENANCE);
@@ -257,10 +261,14 @@ export function createMaintenanceWorker() {
     console.error('='.repeat(80) + '\n');
   });
 
+  events.on('progress', ({ jobId, data }) => {
+    console.log(`[WORKER] 📊 Maintenance job ${jobId} progress:`, data);
+  });
+
   console.log('='.repeat(80));
   console.log('[WORKER] 🚀 Maintenance Worker Initialized');
   console.log('[WORKER]    Queue: ' + QUEUE_NAMES.MAINTENANCE);
-  console.log('[WORKER]    Concurrency: 2');
+  console.log('[WORKER]    Concurrency: ' + concurrency);
   console.log('[WORKER]    Ready to process maintenance jobs');
   console.log('='.repeat(80) + '\n');
 
