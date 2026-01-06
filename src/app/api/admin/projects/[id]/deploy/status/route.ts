@@ -3,7 +3,27 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
-import { deployJobs, projects } from '@/lib/db/schema';
+import { deployJobs, DeployJobStatus, projects } from '@/lib/db/schema';
+
+/**
+ * Derive the real job status from fields
+ * Handles inconsistent states where status may not match other fields
+ */
+function deriveJobStatus(job: {
+  status: DeployJobStatus;
+  error: string | null;
+  completedAt: Date | null;
+}): DeployJobStatus {
+  // If error is set, job failed (regardless of status field)
+  if (job.error) {
+    return 'failed';
+  }
+  // If completedAt is set but status is still running/pending, treat as failed
+  if (job.completedAt && (job.status === 'running' || job.status === 'pending')) {
+    return 'failed';
+  }
+  return job.status;
+}
 
 /**
  * GET /api/admin/projects/[id]/deploy/status
@@ -53,7 +73,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       hasJob: true,
       job: {
         id: latestJob.id,
-        status: latestJob.status,
+        status: deriveJobStatus(latestJob),
         currentStep: latestJob.currentStep,
         deployedServices,
         error: latestJob.error,

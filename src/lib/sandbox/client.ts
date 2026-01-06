@@ -37,6 +37,17 @@ export class SandboxClient {
     return this.baseUrl;
   }
 
+  /**
+   * Wait for the sandbox agent to be ready
+   * Polls the health endpoint until agent responds
+   * @param maxAttempts - Max poll attempts (default: 30 = 30 seconds with 1s delay)
+   * @returns true if agent is ready, false if timeout
+   */
+  async waitForReady(maxAttempts: number = 30): Promise<boolean> {
+    const manager = getSandboxManager();
+    return manager.waitForAgent(this.sessionId, maxAttempts);
+  }
+
   // ============================================================
   // AGENT HEALTH
   // ============================================================

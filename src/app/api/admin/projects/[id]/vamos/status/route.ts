@@ -3,7 +3,27 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
-import { projects, vamosJobs } from '@/lib/db/schema';
+import { projects, vamosJobs, VamosJobStatus } from '@/lib/db/schema';
+
+/**
+ * Derive the real job status from fields
+ * Handles inconsistent states where status may not match other fields
+ */
+function deriveJobStatus(job: {
+  status: VamosJobStatus;
+  error: string | null;
+  completedAt: Date | null;
+}): VamosJobStatus {
+  // If error is set, job failed (regardless of status field)
+  if (job.error) {
+    return 'failed';
+  }
+  // If completedAt is set but status is still running/pending, treat as failed
+  if (job.completedAt && (job.status === 'running' || job.status === 'pending')) {
+    return 'failed';
+  }
+  return job.status;
+}
 
 /**
  * GET /api/admin/projects/[id]/vamos/status
@@ -43,7 +63,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       hasJob: true,
       job: {
         id: latestJob.id,
-        status: latestJob.status,
+        status: deriveJobStatus(latestJob),
         phase: latestJob.phase,
         totalPhases: latestJob.totalPhases,
         completedPhases: latestJob.completedPhases,

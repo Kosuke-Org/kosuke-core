@@ -16,7 +16,8 @@ import type { VamosJobData, VamosJobResult } from '../queues/vamos';
  * Process a vamos job by calling kosuke-cli vamos command
  */
 async function processVamosJob(job: { data: VamosJobData }): Promise<VamosJobResult> {
-  const { vamosJobId, projectId, sessionId, cwd, dbUrl, url, withTests, isolated } = job.data;
+  const { vamosJobId, projectId, sessionId, cwd, dbUrl, url, withTests, isolated, githubToken } =
+    job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[VAMOS] 🚀 Starting vamos job ${vamosJobId}`);
@@ -38,6 +39,22 @@ async function processVamosJob(job: { data: VamosJobData }): Promise<VamosJobRes
 
   const sandboxClient = new SandboxClient(sessionId);
   const logs: unknown[] = [];
+
+  // Wait for sandbox agent to be ready
+  console.log(`[VAMOS] ⏳ Waiting for sandbox agent to be ready...`);
+
+  await db
+    .update(vamosJobs)
+    .set({ phase: 'Waiting for agent' })
+    .where(eq(vamosJobs.id, vamosJobId));
+
+  const isReady = await sandboxClient.waitForReady(30); // 30 seconds timeout
+
+  if (!isReady) {
+    throw new Error('Sandbox agent not ready after 30 seconds');
+  }
+
+  console.log(`[VAMOS] ✅ Sandbox agent is ready`);
 
   // Helper to save logs incrementally to the database
   // Batched to avoid too many DB writes - updates on significant events
@@ -67,6 +84,7 @@ async function processVamosJob(job: { data: VamosJobData }): Promise<VamosJobRes
         url,
         withTests,
         isolated,
+        githubToken,
       }),
     });
 

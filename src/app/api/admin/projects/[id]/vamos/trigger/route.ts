@@ -101,6 +101,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Get sandbox database URL from proper configuration
     const dbUrl = getSandboxDatabaseUrl(defaultSession.id);
 
+    // Get GitHub token for pushing commits
+    const githubToken = await getProjectGitHubToken(project);
+
     // Add job to queue
     await vamosQueue.add(JOB_NAMES.PROCESS_VAMOS, {
       vamosJobId: vamosJob.id,
@@ -111,6 +114,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       url: sandbox.url || undefined,
       withTests,
       isolated,
+      githubToken,
     });
 
     console.log(

@@ -37,6 +37,22 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
   const logs: unknown[] = [];
   const serviceUrls: string[] = [];
 
+  // Wait for sandbox agent to be ready
+  console.log(`[DEPLOY] ⏳ Waiting for sandbox agent to be ready...`);
+
+  await db
+    .update(deployJobs)
+    .set({ currentStep: 'Waiting for agent' })
+    .where(eq(deployJobs.id, deployJobId));
+
+  const isReady = await sandboxClient.waitForReady(30); // 30 seconds timeout
+
+  if (!isReady) {
+    throw new Error('Sandbox agent not ready after 30 seconds');
+  }
+
+  console.log(`[DEPLOY] ✅ Sandbox agent is ready`);
+
   try {
     // Call /api/deploy endpoint to execute deployment
     const deployUrl = `${sandboxClient.getBaseUrl()}/api/deploy`;

@@ -1,9 +1,10 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, GitCommitHorizontal, Loader2, RotateCcw, XCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface LogEvent {
@@ -30,6 +31,8 @@ interface StreamingLogsDialogProps {
   title: string;
   job: Job | null;
   logs: unknown[];
+  onRestart?: () => void;
+  isRestarting?: boolean;
 }
 
 export function StreamingLogsDialog({
@@ -38,6 +41,8 @@ export function StreamingLogsDialog({
   title,
   job,
   logs,
+  onRestart,
+  isRestarting,
 }: StreamingLogsDialogProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -232,6 +237,41 @@ export function StreamingLogsDialog({
         return null;
       }
 
+      case 'commit': {
+        const status = data.status as string;
+        const message = data.message as string;
+
+        // Don't render 'started' - the message events already show commit progress
+        if (status === 'started') {
+          return null;
+        }
+
+        // Don't render 'completed' - the message events already show success
+        if (status === 'completed') {
+          return null;
+        }
+
+        if (status === 'skipped') {
+          return (
+            <div key={index} className="py-0.5 text-sm text-muted-foreground pl-4">
+              <span>No changes to commit</span>
+            </div>
+          );
+        }
+
+        if (status === 'failed') {
+          return (
+            <div key={index} className="py-1 text-sm flex items-center text-destructive pl-4">
+              <XCircle className="h-3 w-3 mr-2 shrink-0" />
+              <GitCommitHorizontal className="h-3 w-3 mr-1.5 shrink-0" />
+              <span>Commit failed: {String(data.error || message)}</span>
+            </div>
+          );
+        }
+
+        return null;
+      }
+
       case 'error':
         return (
           <div key={index} className="py-1 text-sm text-destructive flex items-center">
@@ -274,9 +314,8 @@ export function StreamingLogsDialog({
       >
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-              {job?.status === 'running' && <Loader2 className="h-4 w-4 animate-spin" />}
               {job?.status === 'completed' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
               {job?.status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
               {title}
@@ -286,6 +325,21 @@ export function StreamingLogsDialog({
                 </span>
               )}
             </DialogTitle>
+            {onRestart && (
+              <Button variant="outline" size="sm" onClick={onRestart} disabled={isRestarting}>
+                {isRestarting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Restarting...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Restart
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </DialogHeader>
 

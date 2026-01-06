@@ -13,6 +13,7 @@ export interface VamosJobData {
   url?: string; // Test URL
   withTests: boolean;
   isolated: boolean;
+  githubToken: string; // For pushing commits to remote
 }
 
 /**

@@ -383,22 +383,29 @@ export class SandboxManager {
 
   /**
    * Wait for the sandbox agent to be ready
+   * Polls /agent/health and checks alive && ready flags
    */
   async waitForAgent(sessionId: string, maxAttempts: number = 30): Promise<boolean> {
     const agentUrl = this.getSandboxAgentUrl(sessionId);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const response = await fetch(`${agentUrl}/health`, {
+        const response = await fetch(`${agentUrl}/agent/health`, {
           method: 'GET',
           signal: AbortSignal.timeout(2000),
         });
         if (response.ok) {
-          console.log(`✅ Agent is ready (attempt ${attempt})`);
-          return true;
+          const health = await response.json();
+          if (health.alive && health.ready) {
+            console.log(`✅ Agent is ready (attempt ${attempt})`);
+            return true;
+          }
+          console.log(
+            `⏳ Agent responding but not ready yet (attempt ${attempt}): alive=${health.alive}, ready=${health.ready}`
+          );
         }
       } catch {
-        // Agent not ready yet
+        // Agent not ready yet - container might still be starting
       }
 
       if (attempt < maxAttempts) {
