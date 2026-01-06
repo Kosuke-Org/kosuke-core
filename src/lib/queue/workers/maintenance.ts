@@ -147,9 +147,8 @@ async function callMaintenanceEndpoint(
   error?: string;
 }> {
   try {
-    // Get the API base URL from environment
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const url = `${baseUrl}/api/maintenance`;
+    // Temporary hardcoded URL for fake maintenance endpoint (will be replaced with real CLI)
+    const url = 'http://nextjs:3000/api/maintenance';
 
     console.log(`[MAINTENANCE] 🔗 Calling CLI endpoint: ${url}`);
 

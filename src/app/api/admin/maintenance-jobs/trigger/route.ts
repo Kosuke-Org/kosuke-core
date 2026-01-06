@@ -30,22 +30,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid job type' }, { status: 400 });
     }
 
-    // Get target projects
-    let targetProjects: { id: string; name: string }[];
-
-    if (!projectIds || projectIds.length === 0) {
-      // Fetch all projects
-      targetProjects = await db
-        .select({ id: projects.id, name: projects.name })
-        .from(projects)
-        .where(eq(projects.isArchived, false));
-    } else {
-      // Fetch specified projects (excluding archived)
-      targetProjects = await db
-        .select({ id: projects.id, name: projects.name })
-        .from(projects)
-        .where(and(inArray(projects.id, projectIds), eq(projects.isArchived, false)));
+    // Build conditions - always filter archived, optionally filter by IDs
+    const conditions = [eq(projects.isArchived, false)];
+    if (projectIds && projectIds.length > 0) {
+      conditions.push(inArray(projects.id, projectIds));
     }
+
+    const targetProjects = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(and(...conditions));
 
     if (targetProjects.length === 0) {
       return NextResponse.json({ error: 'No projects found' }, { status: 404 });
