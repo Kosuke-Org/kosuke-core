@@ -3,11 +3,10 @@
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
-import { ArrowLeft, LayoutDashboard, LogOut, Settings } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
+import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +30,7 @@ import { useClerk, useUser } from '@clerk/nextjs';
 import ChatInterface from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
 import PreviewPanel from './components/preview/preview-panel';
+import { ProjectHeader } from './components/project-header';
 
 interface ProjectPageProps {
   params: Promise<{
@@ -115,6 +115,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const searchParams = useSearchParams();
 
   const sessionFromUrl = searchParams.get('session');
+  const showSettings = searchParams.get('show-settings') === 'true';
 
   const { user } = useUser();
   const {
@@ -227,6 +228,29 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     setShowSidebar(!showSidebar);
   };
 
+  // Handle project settings modal via URL query params
+  const handleSettingsClick = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('show-settings', 'true');
+    router.push(`/projects/${projectId}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSettingsModalChange = (open: boolean) => {
+    if (!open) {
+      // Remove show-settings from URL when closing
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('show-settings');
+      const newUrl = params.toString()
+        ? `/projects/${projectId}?${params.toString()}`
+        : `/projects/${projectId}`;
+      router.push(newUrl, { scroll: false });
+    }
+  };
+
+  const handleProjectDeleted = () => {
+    router.push('/projects');
+  };
+
   // Handle submitting build for review, commit, and PR creation
   const handleSubmitBuild = () => {
     if (!latestBuildData?.buildJobId) {
@@ -298,9 +322,25 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   };
 
   return (
-    <div className="flex h-screen w-full">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-        {/* Chat Panel - Header + Content */}
+    <div className="flex flex-col h-screen w-full">
+      <ProjectHeader
+        project={project}
+        showBackButton={!showSidebar}
+        onBackClick={toggleSidebar}
+        onSettingsClick={handleSettingsClick}
+      >
+        {renderUserSection()}
+      </ProjectHeader>
+
+      <ProjectSettingsModal
+        project={project}
+        open={showSettings}
+        onOpenChange={handleSettingsModalChange}
+        onProjectDeleted={handleProjectDeleted}
+      />
+
+      <ResizablePanelGroup direction="horizontal" className="flex-1 w-full">
+        {/* Chat Panel */}
         <ResizablePanel
           defaultSize={40}
           minSize={25}
@@ -311,45 +351,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           }}
         >
           <div className="flex flex-col h-full">
-            {/* Chat Header */}
-            <header className="h-14 flex items-center bg-background">
-              <div className="flex items-center h-full w-full relative">
-                <div className="px-4 flex items-center">
-                  <Link href="/" className="flex items-center">
-                    <Image
-                      src="/logo-dark.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="block dark:hidden"
-                      priority
-                    />
-                    <Image
-                      src="/logo.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="hidden dark:block"
-                      priority
-                    />
-                  </Link>
-                </div>
-
-                {/* Back to Sessions button - only show when in chat interface */}
-                {!showSidebar && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleSidebar}
-                    aria-label="Back to Sessions"
-                    title="Back to Sessions"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </header>
-
             {/* Chat Content */}
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
@@ -384,45 +385,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           <ResizableHandle className="hidden md:flex w-px! bg-transparent! border-none! after:bg-transparent! before:bg-transparent! px-1" />
         )}
 
-        {/* Preview Panel - Header + Content */}
+        {/* Preview Panel */}
         <ResizablePanel
           defaultSize={isChatCollapsed ? 100 : 60}
           minSize={40}
           className={cn('h-full flex-col overflow-hidden', !isChatCollapsed && 'hidden md:flex')}
         >
           <div className="flex flex-col h-full">
-            {/* Preview Header */}
-            <header className="h-14 flex items-center justify-between bg-background px-4">
-              <div className="flex items-center gap-4">
-                {/* Logo - show when sidebar is collapsed */}
-                {isChatCollapsed && (
-                  <Link href="/" className="flex items-center">
-                    <Image
-                      src="/logo-dark.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="block dark:hidden"
-                      priority
-                    />
-                    <Image
-                      src="/logo.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="hidden dark:block"
-                      priority
-                    />
-                  </Link>
-                )}
-                <h2 className="text-sm font-medium truncate max-w-[200px]">
-                  {project?.name || 'Loading Project...'}
-                </h2>
-              </div>
-
-              <div className="flex items-center gap-2">{renderUserSection()}</div>
-            </header>
-
             {/* Preview Content - with rounded border */}
             <div className="flex-1 overflow-hidden border rounded-md border-border">
               <PreviewPanel

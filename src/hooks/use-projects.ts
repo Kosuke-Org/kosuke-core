@@ -99,19 +99,18 @@ export function useDeleteProject() {
       return projectId;
     },
     onSuccess: projectId => {
-      // Invalidate all relevant queries with proper scope
-      queryClient.invalidateQueries({
-        queryKey: ['projects'],
-        refetchType: 'active',
+      // Remove the deleted project's queries (don't refetch - project no longer exists)
+      queryClient.removeQueries({
+        queryKey: ['project', projectId],
       });
-
-      // Invalidate specific project-related queries
-      queryClient.invalidateQueries({
+      queryClient.removeQueries({
         queryKey: ['files', projectId],
       });
 
+      // Invalidate the projects list to refresh it
       queryClient.invalidateQueries({
-        queryKey: ['project', projectId],
+        queryKey: ['projects'],
+        refetchType: 'active',
       });
 
       // Give the UI time to update before refetching
