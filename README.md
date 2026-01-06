@@ -28,30 +28,29 @@ Ensure you have the following tools installed and configured:
 - **nvm (Node Version Manager)** - Optional, only needed if running linting/tests locally
   - Install from [github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm)
   - The project includes a `.nvmrc` file to automatically use Node.js 22.20.0
-- **GitHub OAuth App** - For user authentication and accessing user repositories (import functionality)
+- **GitHub App** - For connecting Kosuke to your GitHub account
   1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
-  2. Click **OAuth Apps** → **New OAuth App**
+  2. Click **GitHub Apps** → **New GitHub App**
   3. Fill in the application details:
-     - **Application name**: `Kosuke Core Local` (or your preferred name)
+     - **Application name**: `Kosuke App Local` (or your preferred name)
      - **Homepage URL**: `http://localhost:3000`
-     - **Authorization callback URL**: `https://YOUR_CLERK_DOMAIN/v1/oauth_callback` (you'll get this from Clerk in the next step)
+     - **Authorization callback URL**: `https://LOCAL_HOST_URL_WITH_NGROK/api/auth/github/callback`
   4. Click **Register application**
-  5. Copy the **Client ID** (you'll need this for Clerk setup)
-  6. Click **Generate a new client secret** and copy it immediately (you'll need this for Clerk setup)
+  5. Copy the **Client ID**
+  6. Click **Generate a new client secret** and copy it immediately
   7. Keep this tab open - you'll configure the callback URL after setting up Clerk
-- **GitHub App** - For Kosuke organization operations (creating repos, pull/push etc.)
-  1. Go to your organization settings: `https://github.com/organizations/YOUR-ORG/settings/apps`
-  2. Click **New GitHub App**
-  3. Configure the app with required permissions:
+  8. Configure the app with required permissions:
      - **Repository permissions**: Contents (Read & Write), Administration (Read & Write), Pull requests (Read & Write)
      - **Organization permissions**: Members (Read-only)
-  4. Generate a private key (download the `.pem` file)
-  5. Install the app on your organization
-  6. Get your credentials and add to `.env`:
-     - `GITHUB_APP_ID` - Found on your app's settings page
-     - `GITHUB_APP_PRIVATE_KEY` - The private key content (format with `\n` for newlines)
-     - `GITHUB_APP_INSTALLATION_ID` - From the installation URL
-     - `GITHUB_WEBHOOK_SECRET` - Generate with `openssl rand -hex 32`
+  9. Generate a private key (download the `.pem` file)
+  10. Install the app on your organization
+  11. Get your credentials and add to `.env`:
+  - `GITHUB_APP_ID` - Found on your app's settings page
+  - `GITHUB_APP_PRIVATE_KEY` - The private key content (format with `\n` for newlines)
+  - `GITHUB_APP_INSTALLATION_ID` - From the installation URL
+  - `GITHUB_WEBHOOK_SECRET` - Generate with `openssl rand -hex 32`
+  - `GITHUB_APP_CLIENT_ID` - Found on your app's settings page
+  - `GITHUB_APP_CLIENT_SECRET` - Found on your app's settings page
 - **ngrok** (optional) - For testing GitHub webhooks locally
   1. Install ngrok: `brew install ngrok` or from [ngrok.com](https://ngrok.com)
   2. Create a free static domain at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains)
@@ -62,26 +61,14 @@ Ensure you have the following tools installed and configured:
   2. Create a new application:
      - Click **Create Application**
      - Enter your application name
-     - Under **Sign-in options**, select **Email**, **Google** and **GitHub**
+     - Under **Sign-in options**, select **Email**, **Google**
      - Click **Create Application**
-  3. Configure **GitHub OAuth** in Clerk:
-     - In your Clerk dashboard, go to **Configure** → **SSO Connections**
-     - Click on **GitHub**
-     - Toggle **Use custom credentials**
-     - Enter your **GitHub Client ID** (from step 5 of GitHub OAuth App setup)
-     - Enter your **GitHub Client Secret** (from step 6 of GitHub OAuth App setup)
-     - Copy the **Authorized redirect URI** shown (e.g., `https://your-app.clerk.accounts.dev/v1/oauth_callback`)
-     - Save the settings
-  4. Update **GitHub OAuth App callback URL**:
-     - Go back to your GitHub OAuth App settings
-     - Update the **Authorization callback URL** with the redirect URI from Clerk
-     - Click **Update application**
-  5. Get Clerk **API Keys**:
+  3. Get Clerk **API Keys**:
      - Navigate to **API Keys** in the Clerk dashboard
      - Copy the following keys to your `.env` file:
        - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Found under "Publishable key"
        - `CLERK_SECRET_KEY` - Found under "Secret keys"
-  6. **Enable Organizations** in Clerk:
+  4. **Enable Organizations** in Clerk:
      - Go to **Configure** → **Organizations** in the Clerk dashboard
      - Toggle **Enable organizations**
      - Toggle **Allow personal accounts**

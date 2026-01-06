@@ -19,9 +19,9 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
-import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
+import { useSubmitBuild } from '@/hooks/use-submit-build';
 import { useUser as useUserHook } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 import { useClerk, useUser } from '@clerk/nextjs';
@@ -131,17 +131,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
-  // Pull request functionality
-  const createPullRequestMutation = useCreatePullRequest(projectId);
-
   // Chat session state management - declare activeChatSessionId first
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
 
-  // Build status for PR creation and chat input
+  // Build status for submit and chat input
   const { data: latestBuildData } = useLatestBuild(projectId, activeChatSessionId);
-  const canCreatePR = latestBuildData?.status === 'completed';
+  const canSubmit = latestBuildData?.status === 'completed';
+
+  // Submit build functionality (review → commit → PR)
+  const submitBuildMutation = useSubmitBuild(projectId, activeChatSessionId);
   const isBuildInProgress =
-    latestBuildData?.status === 'pending' || latestBuildData?.status === 'running';
+    latestBuildData?.status === 'pending' ||
+    latestBuildData?.status === 'running' ||
+    latestBuildData?.status === 'validating';
   const isBuildFailed =
     latestBuildData?.status === 'failed' || latestBuildData?.status === 'cancelled';
 
@@ -249,19 +251,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     router.push('/projects');
   };
 
-  // Handle creating pull request from active chat session
-  const handleCreatePullRequest = () => {
-    if (!activeChatSessionId || !currentSession?.id) {
-      console.error('No active chat session for pull request creation');
+  // Handle submitting build for review, commit, and PR creation
+  const handleSubmitBuild = () => {
+    if (!latestBuildData?.buildJobId) {
+      console.error('No build job available for submission');
       return;
     }
 
-    createPullRequestMutation.mutate({
-      sessionId: currentSession.id,
-      data: {
-        title: currentSession.title,
-        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`,
-      },
+    submitBuildMutation.mutate({
+      buildJobId: latestBuildData.buildJobId,
+      userEmail: dbUser?.email,
     });
   };
 
@@ -375,6 +374,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       model={project?.model}
                       isBuildInProgress={isBuildInProgress}
                       isBuildFailed={isBuildFailed}
+                      hasPullRequest={Boolean(latestBuildData?.prUrl)}
                     />
                   </div>
                 )}
@@ -405,11 +405,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isNewProject={isNewProject}
                 isSidebarCollapsed={isChatCollapsed}
                 onToggleSidebar={toggleChatCollapsed}
-                showCreatePR={!showSidebar && Boolean(activeChatSessionId)}
-                onCreatePullRequest={handleCreatePullRequest}
-                canCreatePR={canCreatePR}
-                isCreatingPR={createPullRequestMutation.isPending}
-                prUrl={createPullRequestMutation.data?.pull_request_url}
+                showSubmit={!showSidebar && Boolean(activeChatSessionId)}
+                onSubmit={handleSubmitBuild}
+                canSubmit={canSubmit}
+                submitStatus={latestBuildData?.submitStatus}
+                prUrl={latestBuildData?.prUrl}
+                isSubmitting={submitBuildMutation.isPending}
+                hasSubmitted={submitBuildMutation.isSuccess}
               />
             </div>
           </div>

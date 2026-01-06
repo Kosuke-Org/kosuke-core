@@ -77,6 +77,8 @@ function validateEnvironmentVariables() {
     { key: 'QUEUE_REMOVE_ON_FAIL_DAYS', description: 'Days to keep failed jobs' },
     { key: 'QUEUE_REMOVE_ON_FAIL_COUNT', description: 'Max failed jobs to keep' },
     { key: 'QUEUE_WORKER_CONCURRENCY', description: 'Number of concurrent worker jobs' },
+    { key: 'BUILD_WORKER_CONCURRENCY', description: 'Concurrent build jobs per worker' },
+    { key: 'SUBMIT_WORKER_CONCURRENCY', description: 'Concurrent submit jobs per worker' },
 
     // Conditionally required based on feature flags
     ...(sentryEnabled

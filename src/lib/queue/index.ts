@@ -23,9 +23,11 @@ export {
   type MaintenanceJobResult,
 } from './queues/maintenance';
 export { previewQueue, schedulePreviewCleanup } from './queues/previews';
+export { submitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
 export { createBuildWorker } from './workers/build';
 export { createMaintenanceWorker } from './workers/maintenance';
 export { createPreviewWorker } from './workers/previews';
+export { createSubmitWorker } from './workers/submit';
 
 export async function scheduleAllJobs() {
   const { schedulePreviewCleanup } = await import('./queues/previews');
@@ -138,8 +140,8 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
       .where(
         and(
           inArray(buildJobs.id, buildJobIds),
-          // Only get pending/running builds
-          inArray(buildJobs.status, ['pending', 'running'])
+          // Only get active builds
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
         )
       );
 
@@ -151,7 +153,10 @@ export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBu
         completedAt: new Date(),
       })
       .where(
-        and(inArray(buildJobs.id, buildJobIds), inArray(buildJobs.status, ['pending', 'running']))
+        and(
+          inArray(buildJobs.id, buildJobIds),
+          inArray(buildJobs.status, ['pending', 'running', 'validating'])
+        )
       );
 
     // Mark all incomplete tasks for these builds as cancelled

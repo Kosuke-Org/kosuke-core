@@ -7,7 +7,7 @@ import crypto from 'crypto';
 
 import type { Project } from '@/lib/db/schema';
 
-import { getOctokit } from './client';
+import { getProjectOctokit } from './installations';
 
 /**
  * Get the webhook secret from environment
@@ -42,7 +42,7 @@ export async function createGitHubWebhook(project: Project): Promise<number | nu
     return null;
   }
 
-  const octokit = await getOctokit(project.isImported, project.createdBy!);
+  const octokit = getProjectOctokit(project);
 
   const webhookUrl = `${getWebhookBaseUrl()}/api/webhooks/github/${project.id}`;
   const secret = getWebhookSecret();
@@ -90,7 +90,7 @@ export async function deleteGitHubWebhook(project: Project): Promise<void> {
     return;
   }
 
-  const octokit = await getOctokit(project.isImported, project.createdBy!);
+  const octokit = getProjectOctokit(project);
 
   console.log(
     `Deleting webhook ${project.githubWebhookId} from ${project.githubOwner}/${project.githubRepoName}`

@@ -13,9 +13,11 @@ import { gracefulShutdown } from '@/lib/queue/client';
 import { buildQueue } from '@/lib/queue/queues/build';
 import { maintenanceQueue, scheduleMaintenanceJobs } from '@/lib/queue/queues/maintenance';
 import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { submitQueue } from '@/lib/queue/queues/submit';
 import { createBuildWorker } from '@/lib/queue/workers/build';
 import { createMaintenanceWorker } from '@/lib/queue/workers/maintenance';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
+import { createSubmitWorker } from '@/lib/queue/workers/submit';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
@@ -28,17 +30,21 @@ async function main() {
     // Initialize workers (explicit - no side effects on import)
     const previewWorker = createPreviewWorker();
     const buildWorker = createBuildWorker();
+    const submitWorker = createSubmitWorker();
     const maintenanceWorker = createMaintenanceWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
-    console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
-    console.log('[WORKER]   - Build (concurrency: 1)');
+    console.log(
+      `[WORKER]   - Preview Cleanup (concurrency: ${process.env.CLEANUP_WORKER_CONCURRENCY})`
+    );
+    console.log(`[WORKER]   - Build (concurrency: ${process.env.BUILD_WORKER_CONCURRENCY})`);
+    console.log(`[WORKER]   - Submit (concurrency: ${process.env.SUBMIT_WORKER_CONCURRENCY})`);
     console.log('[WORKER]   - Maintenance (concurrency: 2)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker, maintenanceWorker];
-    const queues = [previewQueue, buildQueue, maintenanceQueue];
+    const workers = [previewWorker, buildWorker, submitWorker, maintenanceWorker];
+    const queues = [previewQueue, buildQueue, submitQueue, maintenanceQueue];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

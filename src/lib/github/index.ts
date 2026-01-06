@@ -4,95 +4,109 @@ import type {
   GitHubRepository,
 } from '@/lib/types/github';
 import crypto from 'crypto';
-import { createKosukeOctokit, createUserOctokit } from './client';
 
-export async function listUserOrganizations(
-  userId: string,
-  page: number = 1,
-  perPage: number = 10
-): Promise<{
-  organizations: Array<{ login: string; id: number }>;
-  hasMore: boolean;
-}> {
-  const octokit = await createUserOctokit(userId);
+import {
+  createKosukeOrgOctokit,
+  getInstallationForRepo,
+  GITHUB_APP_INSTALL_URL,
+  listUserRepositoriesWithAppStatus,
+  userHasGitHubConnected,
+} from './installations';
 
-  const response = await octokit.rest.orgs.listForAuthenticatedUser({
-    per_page: perPage,
-    page,
-  });
+// Re-export the GitHubRepository type for use in hooks/components
+export type { GitHubRepository } from '@/lib/types/github';
 
-  const organizations = response.data.map(org => ({
-    login: org.login,
-    id: org.id,
-  }));
-
-  return { organizations, hasMore: response.data.length === perPage };
-}
-
+/**
+ * List all repositories the user has access to with their app installation status.
+ * Returns ALL repos - those with app installed can be imported, others show install prompt.
+ */
 export async function listUserRepositories(
   userId: string,
-  organization: string = 'personal',
   page: number = 1,
   perPage: number = 10,
   search: string = ''
-): Promise<{ repositories: GitHubRepository[]; hasMore: boolean }> {
-  const octokit = await createUserOctokit(userId);
+): Promise<{
+  repositories: GitHubRepository[];
+  hasMore: boolean;
+  needsGitHubConnection: boolean;
+  installUrl: string;
+}> {
+  // Check if user has GitHub connected
+  const hasGitHubBefore = await userHasGitHubConnected(userId);
+  if (!hasGitHubBefore) {
+    return {
+      repositories: [],
+      hasMore: false,
+      needsGitHubConnection: true,
+      installUrl: GITHUB_APP_INSTALL_URL,
+    };
+  }
 
-  if (organization === 'personal') {
-    // For personal repos, always use listForAuthenticatedUser with type: 'owner'
-    // This is more reliable than search API for personal repos
-    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
-      per_page: 100,
-      page: 1,
-      sort: 'updated',
-      affiliation: 'owner',
-    });
+  // Get all repos user has access to with their app installation status
+  // Note: This may delete the connection if token refresh fails
+  const allRepos = await listUserRepositoriesWithAppStatus(userId);
 
-    let repos = data as GitHubRepository[];
-
-    // Filter by search term if provided
-    if (search) {
-      const searchLower = search.toLowerCase();
-      repos = repos.filter(
-        repo =>
-          repo.name.toLowerCase().includes(searchLower) ||
-          repo.full_name.toLowerCase().includes(searchLower)
-      );
+  // Check if connection was deleted during token refresh failure
+  // If so, the user needs to reconnect
+  if (allRepos.length === 0) {
+    const hasGitHubAfter = await userHasGitHubConnected(userId);
+    if (!hasGitHubAfter) {
+      // Connection was deleted due to token expiration/refresh failure
+      return {
+        repositories: [],
+        hasMore: false,
+        needsGitHubConnection: true,
+        installUrl: GITHUB_APP_INSTALL_URL,
+      };
     }
-
-    // Apply pagination
-    const start = (page - 1) * perPage;
-    const paginatedRepos = repos.slice(start, start + perPage);
-
-    return {
-      repositories: paginatedRepos,
-      hasMore: start + perPage < repos.length,
-    };
   }
 
-  // Organization context
+  // Filter by search term if provided
+  let filteredRepos = allRepos;
   if (search) {
-    const { data } = await octokit.rest.search.repos({
-      q: `${search} org:${organization}`,
-      per_page: perPage,
-      page,
-      sort: 'updated',
-    });
-    return {
-      repositories: data.items as GitHubRepository[],
-      hasMore: data.items.length === perPage,
-    };
+    const searchLower = search.toLowerCase();
+    filteredRepos = allRepos.filter(
+      repo =>
+        repo.name.toLowerCase().includes(searchLower) ||
+        repo.full_name.toLowerCase().includes(searchLower)
+    );
   }
 
-  const { data } = await octokit.rest.repos.listForOrg({
-    org: organization,
-    per_page: perPage,
-    page,
-    sort: 'updated',
+  // Sort: repos with app installed first, then by name
+  filteredRepos.sort((a, b) => {
+    // First sort by appInstalled (true comes first)
+    if (a.appInstalled !== b.appInstalled) {
+      return a.appInstalled ? -1 : 1;
+    }
+    // Then sort alphabetically by full_name
+    return a.full_name.localeCompare(b.full_name);
   });
+
+  // Apply pagination
+  const start = (page - 1) * perPage;
+  const paginatedRepos = filteredRepos.slice(start, start + perPage);
+
   return {
-    repositories: data as GitHubRepository[],
-    hasMore: data.length === perPage,
+    repositories: paginatedRepos,
+    hasMore: start + perPage < filteredRepos.length,
+    needsGitHubConnection: false,
+    installUrl: GITHUB_APP_INSTALL_URL,
+  };
+}
+
+/**
+ * Check if the Kosuke App is installed on a repository
+ * Returns the installation ID if installed, null otherwise
+ */
+export async function checkAppInstallation(
+  owner: string,
+  repo: string
+): Promise<{ installationId: number | null; installUrl: string }> {
+  const installationId = await getInstallationForRepo(owner, repo);
+
+  return {
+    installationId,
+    installUrl: GITHUB_APP_INSTALL_URL,
   };
 }
 
@@ -102,7 +116,7 @@ export async function listUserRepositories(
 export async function createRepositoryFromTemplate(
   request: CreateRepositoryFromTemplateRequest
 ): Promise<GitHubRepoResponse> {
-  const octokit = createKosukeOctokit();
+  const octokit = createKosukeOrgOctokit();
   const kosukeOrg = process.env.NEXT_PUBLIC_GITHUB_WORKSPACE;
   if (!kosukeOrg) {
     throw new Error(

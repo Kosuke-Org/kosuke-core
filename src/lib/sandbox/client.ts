@@ -133,10 +133,10 @@ export class SandboxClient {
    * Pull latest changes in sandbox
    */
   async pull(branch: string, githubToken: string): Promise<GitPullResponse> {
-    const response = await fetch(`${this.baseUrl}/git/pull`, {
+    const response = await fetch(`${this.baseUrl}/api/git/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ branch, githubToken }),
+      body: JSON.stringify({ cwd: '/app/project', branch, githubToken }),
     });
 
     if (!response.ok) {

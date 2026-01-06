@@ -12,7 +12,7 @@ import {
   messageAttachments,
   tasks,
 } from '@/lib/db/schema';
-import { getGitHubToken, getOctokit } from '@/lib/github/client';
+import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
@@ -111,7 +111,7 @@ async function processFormDataRequest(
  * Close a GitHub PR
  */
 async function closePullRequest(
-  github: Awaited<ReturnType<typeof getOctokit>>,
+  github: ReturnType<typeof getProjectOctokit>,
   owner: string,
   repo: string,
   pullNumber: number
@@ -135,7 +135,7 @@ async function closePullRequest(
  * Reopen a GitHub PR
  */
 async function reopenPullRequest(
-  github: Awaited<ReturnType<typeof getOctokit>>,
+  github: ReturnType<typeof getProjectOctokit>,
   owner: string,
   repo: string,
   pullNumber: number
@@ -204,7 +204,8 @@ export async function PUT(
       session.pullRequestNumber
     ) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Get GitHub client using project's App installation
+        const github = getProjectOctokit(project);
 
         if (updateData.status === 'archived' && session.status === 'active') {
           // Archiving: close the PR
@@ -320,7 +321,8 @@ export async function DELETE(
     // Step 1: Close the associated PR if one exists
     if (session.pullRequestNumber && project.githubOwner && project.githubRepoName) {
       try {
-        const github = await getOctokit(project.isImported, userId);
+        // Get GitHub client using project's App installation
+        const github = getProjectOctokit(project);
         await closePullRequest(
           github,
           project.githubOwner,
@@ -527,19 +529,10 @@ export async function POST(
 
     console.log(`✅ Assistant message placeholder created with ID: ${assistantMessage.id}`);
 
-    // Get GitHub token based on project ownership
-    const githubToken = await getGitHubToken(project.isImported, userId);
-
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
     if (!githubToken) {
-      return new Response(
-        JSON.stringify({
-          error: 'GitHub token not available. Please connect your GitHub account.',
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return ApiErrorHandler.badRequest('GitHub token not available for this project');
     }
 
     console.log(`🔗 GitHub integration enabled for session: ${chatSession.id}`);
@@ -713,8 +706,6 @@ export async function POST(
                 cwd: '/app/project',
                 dbUrl: getSandboxDatabaseUrl(chatSession.id),
                 githubToken,
-                baseBranch: project.defaultBranch || 'main', // Review diffs feature branch vs base
-                enableReview: true, // Review runs once after all tickets
                 enableTest: sandboxConfig.test,
                 testUrl,
                 orgId: project.orgId ?? undefined,

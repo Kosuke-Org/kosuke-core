@@ -13,8 +13,6 @@ export interface BuildJobData {
   cwd?: string; // Working directory in sandbox (default: /app)
   dbUrl: string;
   githubToken: string;
-  baseBranch?: string; // Base branch for review diff (default: 'main')
-  enableReview: boolean;
   enableTest: boolean;
   testUrl?: string;
   orgId?: string; // Optional - uses system default API key if not provided
