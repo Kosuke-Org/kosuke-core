@@ -48,8 +48,10 @@ export function AsyncMultiSelect<T>({
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDoneRef = React.useRef(false);
 
-  // Debounced search
+  // Debounced search - only runs when popover is open
   React.useEffect(() => {
+    if (!open) return;
+
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -72,7 +74,7 @@ export function AsyncMultiSelect<T>({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [search, onSearch]);
+  }, [open, search, onSearch]);
 
   // Initial load when opening
   React.useEffect(() => {
