@@ -113,12 +113,6 @@ export async function POST(
       // No body or invalid JSON - use defaults
     }
 
-    // Construct PR body with session context and user attribution
-    let prBody = `Automated changes from Kosuke chat session: ${session.title}\n\nBranch: ${session.branchName}`;
-    if (userEmail) {
-      prBody += `\n\nCreated by: ${userEmail}`;
-    }
-
     // Enqueue submit job
     await submitQueue.add('submit', {
       buildJobId,
@@ -130,7 +124,7 @@ export async function POST(
       githubToken,
       baseBranch: project.defaultBranch || 'main',
       title: title || `feat: ${session.branchName}`,
-      body: prBody,
+      userEmail,
       orgId: project.orgId ?? undefined,
     });
 
