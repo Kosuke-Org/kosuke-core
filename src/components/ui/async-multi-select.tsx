@@ -46,6 +46,7 @@ export function AsyncMultiSelect<T>({
   const [options, setOptions] = React.useState<T[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLoadDoneRef = React.useRef(false);
 
   // Debounced search
   React.useEffect(() => {
@@ -75,14 +76,18 @@ export function AsyncMultiSelect<T>({
 
   // Initial load when opening
   React.useEffect(() => {
-    if (open && options.length === 0 && !isLoading) {
+    if (open && !initialLoadDoneRef.current && !isLoading) {
+      initialLoadDoneRef.current = true;
       setIsLoading(true);
       onSearch('')
         .then(setOptions)
         .catch(() => setOptions([]))
         .finally(() => setIsLoading(false));
     }
-  }, [open, options.length, isLoading, onSearch]);
+    if (!open) {
+      initialLoadDoneRef.current = false;
+    }
+  }, [open, isLoading, onSearch]);
 
   const selectedValues = React.useMemo(
     () => new Set(value.map(getOptionValue)),

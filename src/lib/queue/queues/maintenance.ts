@@ -172,29 +172,39 @@ export async function triggerMaintenanceJobNow(
 }
 
 /**
+ * Get the step value for a job type (from cron pattern *\/N)
+ */
+function getJobStep(jobType: MaintenanceJobType): number {
+  switch (jobType) {
+    case 'sync_rules':
+      return 7; // */7 - days 1, 8, 15, 22, 29
+    case 'analyze':
+      return 14; // */14 - days 1, 15, 29
+    case 'security_check':
+      return 3; // */3 - days 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31
+  }
+}
+
+/**
  * Calculate next run time for a job type
+ * Matches cron pattern *\/N behavior for day-of-month field
  */
 export function calculateNextRun(jobType: MaintenanceJobType): Date {
   const now = new Date();
   const next = new Date(now);
   next.setUTCHours(2, 0, 0, 0); // 2 AM UTC
 
-  // If it's already past 2 AM today, start from tomorrow
+  // If it's already past 2 AM today, start checking from tomorrow
   if (next <= now) {
-    next.setDate(next.getDate() + 1);
+    next.setUTCDate(next.getUTCDate() + 1);
   }
 
-  // Add the frequency offset
-  switch (jobType) {
-    case 'sync_rules':
-      // Next occurrence within 7 days
-      break;
-    case 'analyze':
-      // Next occurrence within 14 days
-      break;
-    case 'security_check':
-      // Next occurrence within 3 days
-      break;
+  const step = getJobStep(jobType);
+
+  // Find next day where (day - 1) % step === 0
+  // This matches cron's */step behavior: days 1, 1+step, 1+2*step, etc.
+  while ((next.getUTCDate() - 1) % step !== 0) {
+    next.setUTCDate(next.getUTCDate() + 1);
   }
 
   return next;

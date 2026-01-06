@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
 import { maintenanceJobRuns, maintenanceJobs, projects } from '@/lib/db/schema';
-import { and, asc, count, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('projectId');
-    const jobType = searchParams.get('jobType');
-    const status = searchParams.get('status');
+    const jobTypesParam = searchParams.get('jobTypes');
+    const statusesParam = searchParams.get('statuses');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -34,16 +34,27 @@ export async function GET(request: NextRequest) {
       jobConditions.push(eq(maintenanceJobs.projectId, projectId));
     }
 
-    if (jobType && jobType !== 'all') {
-      jobConditions.push(
-        eq(maintenanceJobs.jobType, jobType as 'sync_rules' | 'analyze' | 'security_check')
-      );
+    if (jobTypesParam) {
+      const jobTypes = jobTypesParam.split(',').filter(Boolean) as (
+        | 'sync_rules'
+        | 'analyze'
+        | 'security_check'
+      )[];
+      if (jobTypes.length > 0) {
+        jobConditions.push(inArray(maintenanceJobs.jobType, jobTypes));
+      }
     }
 
-    if (status && status !== 'all') {
-      runConditions.push(
-        eq(maintenanceJobRuns.status, status as 'pending' | 'running' | 'completed' | 'failed')
-      );
+    if (statusesParam) {
+      const statuses = statusesParam.split(',').filter(Boolean) as (
+        | 'pending'
+        | 'running'
+        | 'completed'
+        | 'failed'
+      )[];
+      if (statuses.length > 0) {
+        runConditions.push(inArray(maintenanceJobRuns.status, statuses));
+      }
     }
 
     if (dateFrom) {

@@ -103,8 +103,8 @@ export function MaintenanceJobsFilters({
   };
 
   const hasPendingChanges =
-    JSON.stringify(pendingJobTypes.sort()) !== JSON.stringify([...selectedJobTypes].sort()) ||
-    JSON.stringify(pendingStatuses.sort()) !== JSON.stringify([...selectedStatuses].sort()) ||
+    JSON.stringify([...pendingJobTypes].sort()) !== JSON.stringify([...selectedJobTypes].sort()) ||
+    JSON.stringify([...pendingStatuses].sort()) !== JSON.stringify([...selectedStatuses].sort()) ||
     pendingDateRange?.from?.getTime() !== dateFrom?.getTime() ||
     pendingDateRange?.to?.getTime() !== dateTo?.getTime();
 

@@ -74,10 +74,10 @@ export default function AdminMaintenanceJobsPage() {
       const params = new URLSearchParams();
 
       if (filters.selectedJobTypes.length > 0) {
-        params.set('jobType', filters.selectedJobTypes[0]);
+        params.set('jobTypes', filters.selectedJobTypes.join(','));
       }
       if (filters.selectedStatuses.length > 0) {
-        params.set('status', filters.selectedStatuses[0]);
+        params.set('statuses', filters.selectedStatuses.join(','));
       }
       if (filters.dateFrom) {
         params.set('dateFrom', filters.dateFrom.toISOString());
