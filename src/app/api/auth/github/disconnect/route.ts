@@ -1,13 +1,13 @@
-import { ApiErrorHandler } from '@/lib/api/errors';
-import { db } from '@/lib/db/drizzle';
-import { userGithubConnections } from '@/lib/db/schema';
 import { auth } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
+
+import { ApiErrorHandler } from '@/lib/api/errors';
+import { revokeToken } from '@/lib/github/oauth';
 
 /**
  * POST /api/auth/github/disconnect
- * Disconnects the user's GitHub account by removing their stored token.
+ * Disconnects the user's GitHub account by revoking the token on GitHub
+ * and removing it from the database.
  */
 export async function POST() {
   try {
@@ -16,13 +16,10 @@ export async function POST() {
       return ApiErrorHandler.unauthorized();
     }
 
-    // Delete the user's GitHub connection
-    const result = await db
-      .delete(userGithubConnections)
-      .where(eq(userGithubConnections.clerkUserId, userId))
-      .returning({ id: userGithubConnections.id });
+    // Revoke the token on GitHub and delete from database
+    const revoked = await revokeToken(userId);
 
-    if (result.length === 0) {
+    if (!revoked) {
       return NextResponse.json(
         { success: true, message: 'No GitHub connection found' },
         { status: 200 }

@@ -1,5 +1,4 @@
 import { createAppAuth } from '@octokit/auth-app';
-import { refreshToken as octokitRefreshToken } from '@octokit/oauth-methods';
 import { Octokit } from '@octokit/rest';
 import { eq } from 'drizzle-orm';
 
@@ -8,14 +7,12 @@ import type { Project } from '@/lib/db/schema';
 import { userGithubConnections } from '@/lib/db/schema';
 import type { GitHubRepository } from '@/lib/types/github';
 
+import { refreshUserToken } from './oauth';
+
 // GitHub App configuration
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID!;
 const GITHUB_APP_PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY?.replace(/\\n/g, '\n') || '';
 const GITHUB_APP_INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID!;
-
-// GitHub App OAuth credentials (for user token refresh)
-const GITHUB_APP_CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID;
-const GITHUB_APP_CLIENT_SECRET = process.env.GITHUB_APP_CLIENT_SECRET;
 
 // Token refresh buffer - refresh 5 minutes before expiry
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -136,30 +133,25 @@ async function deleteGitHubConnection(userId: string): Promise<void> {
  */
 async function refreshGitHubToken(
   userId: string,
-  refreshToken: string
+  currentRefreshToken: string
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date | null } | null> {
-  if (!GITHUB_APP_CLIENT_ID || !GITHUB_APP_CLIENT_SECRET) {
-    console.error('GitHub App OAuth credentials not configured for token refresh');
-    return null;
-  }
-
   try {
-    const { authentication } = await octokitRefreshToken({
-      clientType: 'github-app',
-      clientId: GITHUB_APP_CLIENT_ID,
-      clientSecret: GITHUB_APP_CLIENT_SECRET,
-      refreshToken,
-    });
+    // Use the centralized OAuth module for token refresh
+    const result = await refreshUserToken(currentRefreshToken);
+
+    if (!result) {
+      return null;
+    }
 
     // Calculate new expiration time
-    const expiresAt = authentication.expiresAt ? new Date(authentication.expiresAt) : null;
+    const expiresAt = result.expiresAt ? new Date(result.expiresAt) : null;
 
     // Update the database with new tokens
     await db
       .update(userGithubConnections)
       .set({
-        githubAccessToken: authentication.token,
-        githubRefreshToken: authentication.refreshToken,
+        githubAccessToken: result.token,
+        githubRefreshToken: result.refreshToken,
         githubTokenExpiresAt: expiresAt,
         updatedAt: new Date(),
       })
@@ -168,8 +160,8 @@ async function refreshGitHubToken(
     console.log(`Refreshed GitHub token for user ${userId}`);
 
     return {
-      accessToken: authentication.token,
-      refreshToken: authentication.refreshToken,
+      accessToken: result.token,
+      refreshToken: result.refreshToken,
       expiresAt,
     };
   } catch (error) {
