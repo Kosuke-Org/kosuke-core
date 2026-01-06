@@ -282,6 +282,16 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   };
 
   const handleStatusTransition = (newStatus: ProjectStatus) => {
+    // Require Stripe Invoice URL to be saved before transitioning to waiting_for_payment
+    if (newStatus === 'waiting_for_payment' && !project?.stripeInvoiceUrl) {
+      toast({
+        title: 'Invoice URL Required',
+        description:
+          'Please save a Stripe Invoice URL before transitioning to "Waiting for Payment".',
+        variant: 'destructive',
+      });
+      return;
+    }
     setPendingStatusTransition(newStatus);
     setStatusTransitionDialogOpen(true);
   };
@@ -495,59 +505,57 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
         </CardContent>
       </Card>
 
-      {/* Payment Status Card - Only show for B2C flow statuses */}
-      {['requirements_ready', 'waiting_for_payment', 'paid'].includes(project.status) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">Payment Status</CardTitle>
-            <CardDescription>
-              Set the Stripe invoice URL for this project. Use the status dropdown in the header to
-              transition between payment states.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="stripeInvoiceUrl">Stripe Invoice URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="stripeInvoiceUrl"
-                  placeholder="https://invoice.stripe.com/..."
-                  value={stripeInvoiceUrlInput}
-                  onChange={e => setStripeInvoiceUrlInput(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleSaveStripeInvoiceUrl}
-                  disabled={
-                    updatePaymentStatusMutation.isPending ||
-                    stripeInvoiceUrlInput === (project.stripeInvoiceUrl || '')
-                  }
-                >
-                  {updatePaymentStatusMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  <span className="ml-2">Save</span>
-                </Button>
-              </div>
-              {project.stripeInvoiceUrl && (
-                <p className="text-sm text-muted-foreground">
-                  Current:{' '}
-                  <Link
-                    href={project.stripeInvoiceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    {project.stripeInvoiceUrl}
-                  </Link>
-                </p>
-              )}
+      {/* Payment Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">Payment Status</CardTitle>
+          <CardDescription>
+            Set the Stripe invoice URL for this project. Use the status dropdown in the header to
+            transition between payment states.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="stripeInvoiceUrl">Stripe Invoice URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="stripeInvoiceUrl"
+                placeholder="https://invoice.stripe.com/..."
+                value={stripeInvoiceUrlInput}
+                onChange={e => setStripeInvoiceUrlInput(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSaveStripeInvoiceUrl}
+                disabled={
+                  updatePaymentStatusMutation.isPending ||
+                  stripeInvoiceUrlInput === (project.stripeInvoiceUrl || '')
+                }
+              >
+                {updatePaymentStatusMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span className="ml-2">Save</span>
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            {project.stripeInvoiceUrl && (
+              <p className="text-sm text-muted-foreground">
+                Current:{' '}
+                <Link
+                  href={project.stripeInvoiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {project.stripeInvoiceUrl}
+                </Link>
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Status Transition Confirmation Dialog */}
       <AlertDialog open={statusTransitionDialogOpen} onOpenChange={setStatusTransitionDialogOpen}>

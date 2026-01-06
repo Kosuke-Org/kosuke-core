@@ -5,6 +5,7 @@ import { use, useEffect, useRef, useState } from 'react';
 
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
+import { NavbarInbox } from '@/components/navbar-inbox';
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
 import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -288,42 +289,45 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     if (isSignedIn && clerkUser) {
       return (
-        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
-              <Avatar className="h-8 w-8 cursor-pointer transition-all">
-                {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 mt-1">
-            <div className="flex items-center justify-start gap-2 p-2">
-              <div className="flex flex-col space-y-0.5">
-                <p className="text-sm font-medium">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+        <>
+          <NavbarInbox />
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
+                <Avatar className="h-8 w-8 cursor-pointer transition-all">
+                  {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 mt-1">
+              <div className="flex items-center justify-start gap-2 p-2">
+                <div className="flex flex-col space-y-0.5">
+                  <p className="text-sm font-medium">{displayName}</p>
+                  <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+                </div>
               </div>
-            </div>
-            <DropdownMenuSeparator />
-            <OrganizationSwitcherComponent onClose={() => setDropdownOpen(false)} />
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/projects')} className="cursor-pointer">
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>Projects</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              <OrganizationSwitcherComponent onClose={() => setDropdownOpen(false)} />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push('/projects')} className="cursor-pointer">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                <span>Projects</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
       );
     }
 

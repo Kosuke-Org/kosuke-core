@@ -88,6 +88,17 @@ export default function WaitingForPaymentPreview({
               </Link>
               . Bear in mind that the price will increase a lot.
             </div>
+            <p className="text-center text-xs text-muted-foreground">
+              By proceeding, you agree to our{' '}
+              <Link
+                href="https://kosuke.ai/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Terms of Service
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </div>

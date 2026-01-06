@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { copyToClipboard } from '../chat/copy-message-content';
+import DeploymentDisclaimerBanner from './deployment-disclaimer-banner';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -224,44 +225,50 @@ export default function RequirementsEditor({
   }
 
   return (
-    <div className={cn('group/editor relative', className)}>
-      {/* Copy button - appears on hover */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleCopy}
-            className="absolute right-2 top-2 z-10 h-8 w-8 opacity-0 group-hover/editor:opacity-100 transition-opacity bg-background/80 hover:bg-accent"
-            aria-label="Copy requirements"
-          >
-            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Copy requirements</TooltipContent>
-      </Tooltip>
+    <div className={cn('group/editor', className)}>
+      {/* Deployment Disclaimer Banner */}
+      <DeploymentDisclaimerBanner />
 
-      <BlockNoteView
-        editor={editor}
-        editable={editable}
-        theme={blockNoteTheme}
-        onChange={handleChange}
-        data-requirements-editor
-        className={cn(
-          // Override BlockNote menu styles to match app's dropdown styling
-          '[&_.bn-container]:bg-transparent',
-          '[&_.bn-editor]:bg-transparent',
-          // Add vertical padding to the editor content area
-          '[&_.bn-editor]:py-4',
-          // Menu/dropdown styling to match shadcn dropdowns
-          '[&_.mantine-Menu-dropdown]:!bg-popover [&_.mantine-Menu-dropdown]:!border-border [&_.mantine-Menu-dropdown]:!shadow-md',
-          '[&_.bn-menu-dropdown]:!bg-popover [&_.bn-menu-dropdown]:!border-border [&_.bn-menu-dropdown]:!shadow-md',
-          '[&_.mantine-Menu-item]:!bg-transparent',
-          '[&_.mantine-Menu-item:hover]:!bg-accent',
-          '[&_.mantine-Menu-item[data-hovered]]:!bg-accent',
-          '[&_.mantine-Menu-item[aria-selected="true"]]:!bg-accent'
-        )}
-      />
+      {/* Editor area with copy button */}
+      <div className="relative">
+        {/* Copy button - appears on hover */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCopy}
+              className="absolute right-2 top-2 z-10 h-8 w-8 opacity-0 group-hover/editor:opacity-100 transition-opacity bg-background/80 hover:bg-accent"
+              aria-label="Copy requirements"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Copy requirements</TooltipContent>
+        </Tooltip>
+
+        <BlockNoteView
+          editor={editor}
+          editable={editable}
+          theme={blockNoteTheme}
+          onChange={handleChange}
+          data-requirements-editor
+          className={cn(
+            // Override BlockNote menu styles to match app's dropdown styling
+            '[&_.bn-container]:bg-transparent',
+            '[&_.bn-editor]:bg-transparent',
+            // Add vertical padding to the editor content area
+            '[&_.bn-editor]:py-4',
+            // Menu/dropdown styling to match shadcn dropdowns
+            '[&_.mantine-Menu-dropdown]:!bg-popover [&_.mantine-Menu-dropdown]:!border-border [&_.mantine-Menu-dropdown]:!shadow-md',
+            '[&_.bn-menu-dropdown]:!bg-popover [&_.bn-menu-dropdown]:!border-border [&_.bn-menu-dropdown]:!shadow-md',
+            '[&_.mantine-Menu-item]:!bg-transparent',
+            '[&_.mantine-Menu-item:hover]:!bg-accent',
+            '[&_.mantine-Menu-item[data-hovered]]:!bg-accent',
+            '[&_.mantine-Menu-item[aria-selected="true"]]:!bg-accent'
+          )}
+        />
+      </div>
     </div>
   );
 }

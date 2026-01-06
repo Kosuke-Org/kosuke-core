@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, CheckCircle2, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
 import type { SaveStatus } from '../requirements/requirements-editor';
@@ -148,7 +149,16 @@ export default function RequirementsPreview({
         <div className="flex flex-1 items-center justify-center p-4">
           <Alert className="max-w-xl text-center">
             <AlertDescription className="justify-items-center">
-              Your requirements document will appear here as you describe your project.
+              Your requirements document will appear here as you describe your project. Don&apos;t
+              know where to start?
+              <Link
+                href="https://links.kosuke.ai/contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline underline-offset-4 hover:text-primary"
+              >
+                Contact us
+              </Link>
             </AlertDescription>
           </Alert>
         </div>
