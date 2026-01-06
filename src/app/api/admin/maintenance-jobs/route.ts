@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
       .select({ count: count() })
       .from(maintenanceJobRuns)
       .innerJoin(maintenanceJobs, eq(maintenanceJobRuns.maintenanceJobId, maintenanceJobs.id))
+      .innerJoin(projects, eq(maintenanceJobs.projectId, projects.id))
       .where(allConditions.length > 0 ? and(...allConditions) : undefined);
     const total = totalResult[0]?.count || 0;
 
