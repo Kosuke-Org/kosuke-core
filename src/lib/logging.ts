@@ -425,7 +425,13 @@ function formatSubmitEvent(event: SubmitSSEEvent): string[] {
     }
 
     case SUBMIT_EVENTS.COMMIT_PROGRESS:
-      lines.push(`ℹ️ Commit: ${event.data.phase} (${event.data.attempt}/${event.data.maxRetries})`);
+      if (event.data.attempt !== undefined && event.data.maxRetries !== undefined) {
+        lines.push(
+          `ℹ️ Commit: ${event.data.phase} (${event.data.attempt}/${event.data.maxRetries})`
+        );
+      } else {
+        lines.push(`ℹ️ Commit: ${event.data.phase}`);
+      }
       break;
 
     case SUBMIT_EVENTS.COMMIT_SKIPPED:
