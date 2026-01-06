@@ -40,11 +40,11 @@ export async function POST(request: NextRequest) {
         .from(projects)
         .where(eq(projects.isArchived, false));
     } else {
-      // Fetch specified projects
+      // Fetch specified projects (excluding archived)
       targetProjects = await db
         .select({ id: projects.id, name: projects.name })
         .from(projects)
-        .where(inArray(projects.id, projectIds));
+        .where(and(inArray(projects.id, projectIds), eq(projects.isArchived, false)));
     }
 
     if (targetProjects.length === 0) {
