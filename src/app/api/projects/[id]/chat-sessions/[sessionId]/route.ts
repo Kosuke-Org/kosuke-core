@@ -706,8 +706,6 @@ export async function POST(
                 cwd: '/app/project',
                 dbUrl: getSandboxDatabaseUrl(chatSession.id),
                 githubToken,
-                baseBranch: project.defaultBranch || 'main', // Review diffs feature branch vs base
-                enableReview: true, // Review runs once after all tickets
                 enableTest: sandboxConfig.test,
                 testUrl,
                 orgId: project.orgId ?? undefined,

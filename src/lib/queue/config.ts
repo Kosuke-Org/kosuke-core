@@ -11,6 +11,7 @@
 export const QUEUE_NAMES = {
   PREVIEW_CLEANUP: 'preview-cleanup',
   BUILD: 'build',
+  SUBMIT: 'submit',
 } as const;
 
 /**
@@ -21,4 +22,6 @@ export const JOB_NAMES = {
   CLEANUP_INACTIVE_PREVIEWS: 'cleanup-inactive-previews',
   // Build jobs
   PROCESS_BUILD: 'process-build',
+  // Submit jobs
+  PROCESS_SUBMIT: 'process-submit',
 } as const;
