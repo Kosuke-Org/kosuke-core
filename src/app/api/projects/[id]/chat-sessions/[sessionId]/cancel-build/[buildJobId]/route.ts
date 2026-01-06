@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { cancelBuild } from '@/lib/queue';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
@@ -66,8 +66,8 @@ export async function POST(
 
     console.log(`🛑 Cancelling build job ${buildJobId} for session ${session.branchName}`);
 
-    // Get GitHub token for git reset
-    const githubToken = await getGitHubToken(project.isImported, userId);
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
 
     // Get sandbox client if sandbox is running
     let sandboxClient: SandboxClient | undefined;

@@ -1,6 +1,6 @@
 {
-  "id": "db2db044-4d81-47ea-96e3-f92b5b372f89",
-  "prevId": "604a8785-0350-48c1-8237-3f44847d66a0",
+  "id": "1273013f-46b0-49ec-851e-d100c0ec273d",
+  "prevId": "db2db044-4d81-47ea-96e3-f92b5b372f89",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -72,8 +72,12 @@
           "name": "attachments_project_id_projects_id_fk",
           "tableFrom": "attachments",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -204,8 +208,12 @@
           "name": "build_jobs_chat_session_id_chat_sessions_id_fk",
           "tableFrom": "build_jobs",
           "tableTo": "chat_sessions",
-          "columnsFrom": ["chat_session_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -213,8 +221,12 @@
           "name": "build_jobs_project_id_projects_id_fk",
           "tableFrom": "build_jobs",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -322,8 +334,12 @@
           "name": "chat_messages_project_id_projects_id_fk",
           "tableFrom": "chat_messages",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -331,8 +347,12 @@
           "name": "chat_messages_chat_session_id_chat_sessions_id_fk",
           "tableFrom": "chat_messages",
           "tableTo": "chat_sessions",
-          "columnsFrom": ["chat_session_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -479,8 +499,12 @@
           "name": "chat_sessions_project_id_projects_id_fk",
           "tableFrom": "chat_sessions",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -490,7 +514,10 @@
         "chat_sessions_project_branch_unique": {
           "name": "chat_sessions_project_branch_unique",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "branch_name"]
+          "columns": [
+            "project_id",
+            "branch_name"
+          ]
         }
       },
       "policies": {},
@@ -559,8 +586,12 @@
           "name": "diffs_project_id_projects_id_fk",
           "tableFrom": "diffs",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -568,8 +599,12 @@
           "name": "diffs_chat_message_id_chat_messages_id_fk",
           "tableFrom": "diffs",
           "tableTo": "chat_messages",
-          "columnsFrom": ["chat_message_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "chat_message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -642,8 +677,12 @@
           "name": "github_sync_sessions_project_id_projects_id_fk",
           "tableFrom": "github_sync_sessions",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -691,8 +730,12 @@
           "name": "message_attachments_message_id_chat_messages_id_fk",
           "tableFrom": "message_attachments",
           "tableTo": "chat_messages",
-          "columnsFrom": ["message_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -700,8 +743,12 @@
           "name": "message_attachments_attachment_id_attachments_id_fk",
           "tableFrom": "message_attachments",
           "tableTo": "attachments",
-          "columnsFrom": ["attachment_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "attachment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -757,7 +804,9 @@
         "organization_api_keys_org_id_unique": {
           "name": "organization_api_keys_org_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["org_id"]
+          "columns": [
+            "org_id"
+          ]
         }
       },
       "policies": {},
@@ -820,8 +869,12 @@
           "name": "project_commits_project_id_projects_id_fk",
           "tableFrom": "project_commits",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -895,8 +948,12 @@
           "name": "project_environment_variables_project_id_projects_id_fk",
           "tableFrom": "project_environment_variables",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -906,7 +963,10 @@
         "project_env_vars_unique_key": {
           "name": "project_env_vars_unique_key",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "key"]
+          "columns": [
+            "project_id",
+            "key"
+          ]
         }
       },
       "policies": {},
@@ -977,8 +1037,12 @@
           "name": "project_integrations_project_id_projects_id_fk",
           "tableFrom": "project_integrations",
           "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -988,7 +1052,11 @@
         "project_integrations_unique_key": {
           "name": "project_integrations_unique_key",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "integration_type", "integration_name"]
+          "columns": [
+            "project_id",
+            "integration_type",
+            "integration_name"
+          ]
         }
       },
       "policies": {},
@@ -1105,6 +1173,12 @@
         },
         "github_webhook_id": {
           "name": "github_webhook_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "github_installation_id": {
+          "name": "github_installation_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -1266,8 +1340,12 @@
           "name": "tasks_build_job_id_build_jobs_id_fk",
           "tableFrom": "tasks",
           "tableTo": "build_jobs",
-          "columnsFrom": ["build_job_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "build_job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1277,28 +1355,135 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.user_github_connections": {
+      "name": "user_github_connections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "clerk_user_id": {
+          "name": "clerk_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_access_token": {
+          "name": "github_access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_refresh_token": {
+          "name": "github_refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "github_token_expires_at": {
+          "name": "github_token_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "github_user_id": {
+          "name": "github_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_username": {
+          "name": "github_username",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_avatar_url": {
+          "name": "github_avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_github_connections_clerk_user_id_unique": {
+          "name": "user_github_connections_clerk_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "clerk_user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
     "public.build_status": {
       "name": "build_status",
       "schema": "public",
-      "values": ["pending", "running", "validating", "completed", "failed", "cancelled"]
+      "values": [
+        "pending",
+        "running",
+        "validating",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
     },
     "public.file_type": {
       "name": "file_type",
       "schema": "public",
-      "values": ["image", "document"]
+      "values": [
+        "image",
+        "document"
+      ]
     },
     "public.submit_status": {
       "name": "submit_status",
       "schema": "public",
-      "values": ["pending", "reviewing", "committing", "creating_pr", "done", "failed"]
+      "values": [
+        "pending",
+        "reviewing",
+        "committing",
+        "creating_pr",
+        "done",
+        "failed"
+      ]
     },
     "public.task_status": {
       "name": "task_status",
       "schema": "public",
-      "values": ["todo", "in_progress", "done", "error", "cancelled"]
+      "values": [
+        "todo",
+        "in_progress",
+        "done",
+        "error",
+        "cancelled"
+      ]
     }
   },
   "schemas": {},
