@@ -6,6 +6,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   test-nextjs:
     name: Test and Lint Next.js
