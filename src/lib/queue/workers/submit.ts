@@ -16,8 +16,16 @@ import type { SubmitJobData, SubmitJobResult } from '../queues/submit';
  * Process a submit job by calling kosuke-cli submit endpoint
  */
 async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJobResult> {
-  const { buildJobId, chatSessionId, sessionId, ticketsPath, githubToken, baseBranch, title } =
-    job.data;
+  const {
+    buildJobId,
+    chatSessionId,
+    sessionId,
+    ticketsPath,
+    githubToken,
+    baseBranch,
+    title,
+    userEmail,
+  } = job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[SUBMIT] 🚀 Starting submit job for build ${buildJobId}`);
@@ -48,6 +56,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
         githubToken,
         baseBranch: baseBranch || 'main',
         title,
+        userEmail,
         verbose: false,
       }),
     });

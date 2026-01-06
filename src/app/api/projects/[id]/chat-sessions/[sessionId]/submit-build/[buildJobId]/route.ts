@@ -102,13 +102,15 @@ export async function POST(
     // Update build job submit status to pending
     await db.update(buildJobs).set({ submitStatus: 'pending' }).where(eq(buildJobs.id, buildJobId));
 
-    // Parse optional body for PR title
+    // Parse optional body for PR title and user email
     let title: string | undefined;
+    let userEmail: string | undefined;
     try {
       const body = await request.json();
       title = body?.title;
+      userEmail = body?.userEmail;
     } catch {
-      // No body or invalid JSON - use default title
+      // No body or invalid JSON - use defaults
     }
 
     // Enqueue submit job
@@ -122,6 +124,7 @@ export async function POST(
       githubToken,
       baseBranch: project.defaultBranch || 'main',
       title: title || `feat: ${session.branchName}`,
+      userEmail,
       orgId: project.orgId ?? undefined,
     });
 

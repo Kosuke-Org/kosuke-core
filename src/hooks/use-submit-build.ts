@@ -11,6 +11,11 @@ interface SubmitBuildResponse {
   error?: string;
 }
 
+interface SubmitBuildParams {
+  buildJobId: string;
+  userEmail?: string;
+}
+
 /**
  * Hook to submit a build for review, commit, and PR creation
  */
@@ -19,7 +24,10 @@ export function useSubmitBuild(projectId: string, sessionId: string | null) {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (buildJobId: string): Promise<SubmitBuildResponse> => {
+    mutationFn: async ({
+      buildJobId,
+      userEmail,
+    }: SubmitBuildParams): Promise<SubmitBuildResponse> => {
       if (!sessionId) {
         throw new Error('No active session');
       }
@@ -31,6 +39,7 @@ export function useSubmitBuild(projectId: string, sessionId: string | null) {
           headers: {
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ userEmail }),
         }
       );
 
