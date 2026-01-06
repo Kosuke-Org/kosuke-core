@@ -565,8 +565,9 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
  * Factory function - NO side effects until called
  */
 export function createBuildWorker() {
+  const concurrency = parseInt(process.env.BUILD_WORKER_CONCURRENCY!, 10);
   const worker = createWorker<BuildJobData>(QUEUE_NAMES.BUILD, processBuildJob, {
-    concurrency: 1, // One build at a time per worker
+    concurrency,
   });
 
   const events = createQueueEvents(QUEUE_NAMES.BUILD);
@@ -597,7 +598,7 @@ export function createBuildWorker() {
   console.log('='.repeat(80));
   console.log('[WORKER] 🚀 Build Worker Initialized');
   console.log('[WORKER]    Queue: ' + QUEUE_NAMES.BUILD);
-  console.log('[WORKER]    Concurrency: 1');
+  console.log('[WORKER]    Concurrency: ' + concurrency);
   console.log('[WORKER]    Ready to process build jobs');
   console.log('='.repeat(80) + '\n');
 

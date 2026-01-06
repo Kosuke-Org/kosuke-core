@@ -31,9 +31,11 @@ async function main() {
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
-    console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
-    console.log('[WORKER]   - Build (concurrency: 1)');
-    console.log('[WORKER]   - Submit (concurrency: 1)\n');
+    console.log(
+      `[WORKER]   - Preview Cleanup (concurrency: ${process.env.CLEANUP_WORKER_CONCURRENCY})`
+    );
+    console.log(`[WORKER]   - Build (concurrency: ${process.env.BUILD_WORKER_CONCURRENCY})`);
+    console.log(`[WORKER]   - Submit (concurrency: ${process.env.SUBMIT_WORKER_CONCURRENCY})\n`);
 
     // Store references for graceful shutdown
     const workers = [previewWorker, buildWorker, submitWorker];
