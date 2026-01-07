@@ -208,8 +208,9 @@ export class SandboxClient {
     cwd: string,
     options?: {
       noTest?: boolean;
-      resume?: string | null;
+      resume?: string;
       images?: ImageInput[]; // Optional images (base64 or URL - CLI will normalize)
+      userId?: string; // User ID for tracking/logging
     }
   ): AsyncGenerator<Record<string, unknown>> {
     const config = getSandboxConfig();
@@ -229,6 +230,7 @@ export class SandboxClient {
         noTest,
         resume: options?.resume,
         images: options?.images,
+        userId: options?.userId,
       }),
     });
 

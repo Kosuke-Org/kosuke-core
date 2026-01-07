@@ -4,7 +4,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, chatMessages, tasks } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { buildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
@@ -68,11 +68,10 @@ export async function POST(
       `🔄 Restarting ${failedBuild.status} build job ${buildJobId} for session ${session.branchName}`
     );
 
-    // Get GitHub token for git reset
-    const githubToken = await getGitHubToken(project.isImported, userId);
-
+    // Get GitHub token using project's App installation
+    const githubToken = await getProjectGitHubToken(project);
     if (!githubToken) {
-      return ApiErrorHandler.unauthorized('GitHub token not available');
+      return ApiErrorHandler.badRequest('GitHub token not available for this project');
     }
 
     // Get sandbox client
@@ -203,6 +202,7 @@ export async function POST(
       githubToken,
       enableTest: sandboxConfig.test,
       testUrl,
+      userId,
     });
 
     console.log(`🚀 Enqueued new build job ${newBuildJob.id}`);

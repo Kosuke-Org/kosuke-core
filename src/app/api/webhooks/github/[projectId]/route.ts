@@ -14,7 +14,7 @@ import * as Sentry from '@sentry/nextjs';
 
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
-import { getGitHubToken } from '@/lib/github/client';
+import { getProjectGitHubToken, KOSUKE_BOT_EMAIL } from '@/lib/github/installations';
 import {
   verifyWebhookSignature,
   type GitHubPullRequestPayload,
@@ -23,23 +23,11 @@ import {
 import { getSandboxManager } from '@/lib/sandbox';
 
 /**
- * Get the sandbox commit email from environment
- */
-function getSandboxCommitEmail(): string {
-  const sandboxEmail = process.env.SANDBOX_GIT_EMAIL;
-  if (!sandboxEmail) {
-    throw new Error('SANDBOX_GIT_EMAIL environment variable is required');
-  }
-  return sandboxEmail;
-}
-
-/**
- * Check if all commits in the push are from the Kosuke sandbox
+ * Check if all commits in the push are from the Kosuke sandbox (Kosuke Bot)
  */
 function isSandboxPush(commits: GitHubPushPayload['commits']): boolean {
   if (commits.length === 0) return false;
-  const sandboxEmail = getSandboxCommitEmail();
-  return commits.every(commit => commit.author.email === sandboxEmail);
+  return commits.every(commit => commit.author.email === KOSUKE_BOT_EMAIL);
 }
 
 /**
@@ -92,23 +80,19 @@ async function handlePushEvent(
     const sandbox = await sandboxManager.getSandbox(session.id);
 
     if (sandbox && sandbox.status === 'running') {
-      // Get GitHub token based on project ownership
-      const githubToken = project.createdBy
-        ? await getGitHubToken(project.isImported, project.createdBy)
-        : null;
-
+      // Get GitHub token using project's App installation
+      const githubToken = await getProjectGitHubToken(project);
       if (!githubToken) {
-        console.warn(`⚠️ No GitHub token available for project ${projectId}`);
-        return { success: false, message: 'No GitHub token available' };
+        console.warn(`No GitHub token available for project ${projectId}, skipping sandbox update`);
+      } else {
+        // Update sandbox with latest code
+        console.log(`🔄 Updating sandbox for session ${session.id} in project ${projectId}`);
+        await sandboxManager.updateSandbox(session.id, {
+          branch: branchName,
+          githubToken,
+        });
+        console.log(`✅ Sandbox updated for project ${projectId}`);
       }
-
-      // Update sandbox with latest code
-      console.log(`🔄 Updating sandbox for session ${session.id} in project ${projectId}`);
-      await sandboxManager.updateSandbox(session.id, {
-        branch: branchName,
-        githubToken,
-      });
-      console.log(`✅ Sandbox updated for project ${projectId}`);
     } else {
       console.log(`ℹ️ Sandbox not running for session ${session.id}, skipping update`);
     }

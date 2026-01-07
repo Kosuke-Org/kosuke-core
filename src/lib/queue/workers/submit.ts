@@ -18,8 +18,16 @@ import type { SubmitJobData, SubmitJobResult } from '../queues/submit';
  * Process a submit job by calling kosuke-cli submit endpoint
  */
 async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJobResult> {
-  const { buildJobId, chatSessionId, sessionId, ticketsPath, githubToken, baseBranch, title } =
-    job.data;
+  const {
+    buildJobId,
+    chatSessionId,
+    sessionId,
+    ticketsPath,
+    githubToken,
+    baseBranch,
+    title,
+    userEmail,
+  } = job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[SUBMIT] 🚀 Starting submit job for build ${buildJobId}`);
@@ -50,6 +58,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
         githubToken,
         baseBranch: baseBranch || 'main',
         title,
+        userEmail,
         verbose: false,
       }),
     });
@@ -197,8 +206,9 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
  * Factory function - NO side effects until called
  */
 export function createSubmitWorker() {
+  const concurrency = parseInt(process.env.SUBMIT_WORKER_CONCURRENCY!, 10);
   const worker = createWorker<SubmitJobData>(QUEUE_NAMES.SUBMIT, processSubmitJob, {
-    concurrency: 1, // One submit at a time per worker
+    concurrency,
   });
 
   const events = createQueueEvents(QUEUE_NAMES.SUBMIT);
@@ -226,7 +236,7 @@ export function createSubmitWorker() {
   console.log('='.repeat(80));
   console.log('[WORKER] 🚀 Submit Worker Initialized');
   console.log('[WORKER]    Queue: ' + QUEUE_NAMES.SUBMIT);
-  console.log('[WORKER]    Concurrency: 1');
+  console.log('[WORKER]    Concurrency: ' + concurrency);
   console.log('[WORKER]    Ready to process submit jobs');
   console.log('='.repeat(80) + '\n');
 

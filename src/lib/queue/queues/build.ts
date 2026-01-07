@@ -9,6 +9,7 @@ export interface BuildJobData {
   chatSessionId: string;
   projectId: string;
   sessionId: string; // For sandbox URL
+  userId: string; // User ID for tracking/logging
   ticketsPath: string; // File path for tickets.json
   cwd?: string; // Working directory in sandbox (default: /app)
   dbUrl: string;
@@ -26,7 +27,6 @@ export interface BuildJobResult {
   totalTasks: number;
   completedTasks: number;
   failedTasks: number;
-  totalCost: number;
   error?: string;
 }
 

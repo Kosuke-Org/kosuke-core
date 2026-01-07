@@ -8,13 +8,7 @@ import { db } from '@/lib/db/drizzle';
 import { buildJobs, tasks } from '@/lib/db/schema';
 import { logBuildEvent } from '@/lib/logging';
 import { SandboxClient } from '@/lib/sandbox/client';
-import {
-  BUILD_EVENTS,
-  MIGRATE_EVENTS,
-  SHIP_EVENTS,
-  TEST_EVENTS,
-  type BuildSSEEvent,
-} from '@Kosuke-Org/cli';
+import { BUILD_EVENTS, type BuildSSEEvent } from '@Kosuke-Org/cli';
 import { and, eq, inArray } from 'drizzle-orm';
 import {
   clearBuildCancelSignal,
@@ -38,6 +32,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     githubToken,
     enableTest: _enableTest,
     testUrl,
+    userId,
   } = job.data;
 
   console.log('\n' + '='.repeat(80));
@@ -59,8 +54,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     .where(eq(buildJobs.id, buildJobId));
 
   const sandboxClient = new SandboxClient(sessionId);
-  let totalCost = 0;
-  let currentTicketCost = 0; // Track cost for current ticket
 
   try {
     // Call /api/build endpoint to execute build with existing tickets
@@ -87,7 +80,8 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         url: testUrl,
         headless: true,
         verbose: false,
-        trace: false,
+        isBrowserTracingEnabled: false,
+        userId,
       }),
     });
 
@@ -117,17 +111,11 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
         await reader.cancel();
         await clearBuildCancelSignal(buildJobId);
 
-        // Only update cost (status and tasks already updated by cancelBuild())
-        await db.update(buildJobs).set({ totalCost }).where(eq(buildJobs.id, buildJobId));
-
-        console.log(`[BUILD] 💰 Cost before cancellation: $${totalCost.toFixed(4)}`);
-
         return {
           success: false,
           totalTasks: 0,
           completedTasks: 0,
           failedTasks: 0,
-          totalCost,
         };
       }
 
@@ -187,27 +175,7 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                   );
                 break;
 
-              case SHIP_EVENTS.PHASE:
-                // Track implementation/linting cost
-                if (event.data.result?.cost) {
-                  currentTicketCost += event.data.result.cost;
-                }
-                break;
-
-              case TEST_EVENTS.DONE:
-                // Add test cost to current ticket
-                currentTicketCost += event.data.cost || 0;
-                break;
-
-              case MIGRATE_EVENTS.DONE:
-                // Add migrate cost to current ticket
-                currentTicketCost += event.data.cost || 0;
-                break;
-
-              case BUILD_EVENTS.TICKET_COMPLETED:
-                // Accumulate ticket cost into total
-                totalCost += currentTicketCost;
-
+              case BUILD_EVENTS.TICKET_COMPLETED: {
                 // Update task status to done or error based on result
                 const taskStatus = event.data.result === 'failed' ? 'error' : 'done';
                 await db
@@ -215,7 +183,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                   .set({
                     status: taskStatus,
                     error: event.data.result === 'failed' ? 'Task failed' : null,
-                    cost: currentTicketCost,
                     updatedAt: new Date(),
                   })
                   .where(
@@ -224,10 +191,8 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                       eq(tasks.externalId, event.data.ticket.id)
                     )
                   );
-
-                // Reset for next ticket
-                currentTicketCost = 0;
                 break;
+              }
 
               case BUILD_EVENTS.STOPPED:
                 // Mark only pending/todo tasks as cancelled
@@ -263,10 +228,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
                 break;
 
               case BUILD_EVENTS.DONE:
-                // Use max of local and sandbox cost (handles cancellation where sandbox sends 0)
-                const sandboxCost = event.data.totalCost || 0;
-                totalCost = Math.max(totalCost, sandboxCost);
-
                 if (event.data.success === false) {
                   throw new Error(event.data.error || 'Build failed');
                 }
@@ -301,7 +262,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       .set({
         status: finalStatus,
         completedAt: new Date(),
-        totalCost,
       })
       .where(eq(buildJobs.id, buildJobId));
 
@@ -315,7 +275,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     console.log(`[BUILD]    Total tasks: ${totalCount}`);
     console.log(`[BUILD]    ✅ Completed: ${completedCount}`);
     console.log(`[BUILD]    ❌ Failed: ${failedCount}`);
-    console.log(`[BUILD]    💰 Total Cost: $${totalCost.toFixed(4)}`);
     console.log('='.repeat(80) + '\n');
 
     return {
@@ -323,7 +282,6 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
       totalTasks: totalCount,
       completedTasks: completedCount,
       failedTasks: failedCount,
-      totalCost,
     };
   } catch (error) {
     console.error('\n' + '='.repeat(80));
@@ -331,13 +289,12 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
     console.error(`[BUILD] Error: ${error instanceof Error ? error.message : String(error)}`);
     console.error('='.repeat(80) + '\n');
 
-    // Update build job to failed with accumulated cost
+    // Update build job to failed
     await db
       .update(buildJobs)
       .set({
         status: 'failed',
         completedAt: new Date(),
-        totalCost,
       })
       .where(eq(buildJobs.id, buildJobId));
 
@@ -351,8 +308,9 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
  * Factory function - NO side effects until called
  */
 export function createBuildWorker() {
+  const concurrency = parseInt(process.env.BUILD_WORKER_CONCURRENCY!, 10);
   const worker = createWorker<BuildJobData>(QUEUE_NAMES.BUILD, processBuildJob, {
-    concurrency: 1, // One build at a time per worker
+    concurrency,
   });
 
   const events = createQueueEvents(QUEUE_NAMES.BUILD);
@@ -364,7 +322,6 @@ export function createBuildWorker() {
       const result = returnvalue as unknown as BuildJobResult;
       console.log(`[WORKER]    Success: ${result.success}`);
       console.log(`[WORKER]    Tasks: ${result.completedTasks}/${result.totalTasks}`);
-      console.log(`[WORKER]    Cost: $${result.totalCost?.toFixed(4) || '0.0000'}`);
     }
     console.log('='.repeat(80) + '\n');
   });
@@ -383,7 +340,7 @@ export function createBuildWorker() {
   console.log('='.repeat(80));
   console.log('[WORKER] 🚀 Build Worker Initialized');
   console.log('[WORKER]    Queue: ' + QUEUE_NAMES.BUILD);
-  console.log('[WORKER]    Concurrency: 1');
+  console.log('[WORKER]    Concurrency: ' + concurrency);
   console.log('[WORKER]    Ready to process build jobs');
   console.log('='.repeat(80) + '\n');
 

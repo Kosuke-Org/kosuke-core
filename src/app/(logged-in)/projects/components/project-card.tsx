@@ -10,26 +10,23 @@ import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/lib/db/schema';
-import { useUser } from '@clerk/nextjs';
+import type { ProjectWithOwnerStatus } from '@/lib/types/project';
 
 interface ProjectCardProps {
-  project: Project;
+  project: Project & ProjectWithOwnerStatus;
 }
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const { user } = useUser();
 
   const handleSettingsClick = () => {
     setShowSettingsModal(true);
   };
 
-  // Check if project is imported and GitHub is disconnected
-  const githubAccount = user?.externalAccounts?.find(
-    account => account.verification?.strategy === 'oauth_github'
-  );
+  // Check if imported project's owner has disconnected GitHub
+  // This affects ALL members, not just the viewing user
   const isImportedProject = project.isImported;
-  const needsReconnection = isImportedProject && !githubAccount;
+  const needsReconnection = isImportedProject && project.ownerHasGithub === false;
 
   return (
     <>
@@ -75,7 +72,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Reconnect Github</p>
+                        <p>Project owner needs to reconnect GitHub</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

@@ -170,8 +170,6 @@ function formatBuildPhaseEvent(event: BuildSSEEvent): string[] {
       lines.push(`   Processed: ${event.data.ticketsProcessed}`);
       lines.push(`   Succeeded: ${event.data.ticketsSucceeded}`);
       lines.push(`   Failed: ${event.data.ticketsFailed}`);
-      lines.push(`   Cost: $${event.data.totalCost.toFixed(4)}`);
-      lines.push(`   Tokens: I=${event.data.tokensUsed.input} O=${event.data.tokensUsed.output}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       lines.push(SEPARATOR);
       break;
@@ -203,14 +201,11 @@ function formatShipEvent(event: BuildSSEEvent): string[] {
 
     case SHIP_EVENTS.PHASE:
       lines.push(`ℹ️  Ship: ${event.data.phase} (${event.data.status})`);
-      if (event.data.result?.cost) lines.push(`   Cost: $${event.data.result.cost.toFixed(4)}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       break;
 
     case SHIP_EVENTS.DONE:
-      lines.push(
-        `✅ Ship Done | Fixes: ${event.data.implementationFixCount} | Cost: $${event.data.cost.toFixed(4)}`
-      );
+      lines.push(`✅ Ship Done | Fixes: ${event.data.implementationFixCount}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       break;
   }
@@ -253,9 +248,7 @@ function formatTestEvent(event: BuildSSEEvent): string[] {
       break;
 
     case TEST_EVENTS.DONE:
-      lines.push(
-        `✅ Test Done | Success: ${event.data.success} | Cost: $${event.data.cost.toFixed(4)}`
-      );
+      lines.push(`✅ Test Done | Success: ${event.data.success}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       break;
   }
@@ -286,9 +279,7 @@ function formatMigrateEvent(event: BuildSSEEvent): string[] {
       break;
 
     case MIGRATE_EVENTS.DONE:
-      lines.push(
-        `✅ Migration Done | Applied: ${event.data.migrationsApplied} | Cost: $${event.data.cost.toFixed(4)}`
-      );
+      lines.push(`✅ Migration Done | Applied: ${event.data.migrationsApplied}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       break;
   }

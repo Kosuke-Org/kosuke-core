@@ -7,8 +7,8 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
-import { createRepositoryFromTemplate } from '@/lib/github';
-import { getUserGitHubToken } from '@/lib/github/client';
+import { checkAppInstallation, createRepositoryFromTemplate } from '@/lib/github';
+import { createInstallationOctokit } from '@/lib/github/installations';
 import { createGitHubWebhook } from '@/lib/github/webhooks';
 
 // Schema for project creation with GitHub integration
@@ -46,6 +46,7 @@ export async function GET() {
       .where(and(eq(projects.orgId, orgId), eq(projects.isArchived, false)))
       .orderBy(desc(projects.createdAt));
 
+    // All projects now use GitHub App - no need to check owner's OAuth status
     return NextResponse.json(orgProjects);
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -75,9 +76,9 @@ async function createGitHubRepository(name: string) {
 
 /**
  * Helper function to import a GitHub repository
- * Parses repository URL, gets repo info, and clones it locally
+ * Requires the Kosuke GitHub App to be installed on the repository
  */
-async function importGitHubRepository(userId: string, repositoryUrl: string, projectId: string) {
+async function importGitHubRepository(repositoryUrl: string) {
   // Parse repository URL to get owner and repo name
   const urlMatch = repositoryUrl.match(/github\.com[/:]([\w-]+)\/([\w.-]+?)(?:\.git)?$/);
   if (!urlMatch) {
@@ -86,20 +87,23 @@ async function importGitHubRepository(userId: string, repositoryUrl: string, pro
 
   const [, owner, repo] = urlMatch;
 
-  // Get repository info using Octokit
-  const { createUserOctokit } = await import('@/lib/github/client');
-  const octokit = await createUserOctokit(userId);
+  // Check if Kosuke App is installed on the repository
+  const appStatus = await checkAppInstallation(owner, repo);
+
+  if (!appStatus.installationId) {
+    throw new Error(
+      `Kosuke GitHub App is not installed on ${owner}/${repo}. ` +
+        `Please install the app first: ${appStatus.installUrl}`
+    );
+  }
+
+  // Get repository info using the App installation
+  const octokit = createInstallationOctokit(appStatus.installationId);
 
   const { data: repoInfo } = await octokit.rest.repos.get({
     owner,
     repo,
   });
-
-  // Check github token is valid
-  const githubToken = await getUserGitHubToken(userId);
-  if (!githubToken) {
-    throw new Error('GitHub token not found');
-  }
 
   return {
     repoInfo: {
@@ -109,10 +113,7 @@ async function importGitHubRepository(userId: string, repositoryUrl: string, pro
       clone_url: repoInfo.clone_url,
       default_branch: repoInfo.default_branch,
     },
-    importResult: {
-      success: true,
-      project_id: projectId,
-    },
+    installationId: appStatus.installationId,
   };
 }
 
@@ -146,18 +147,6 @@ export async function POST(request: NextRequest) {
     // Validate GitHub configuration based on type
     if (github.type === 'import' && !github.repositoryUrl) {
       return ApiErrorHandler.badRequest('Repository URL is required for importing repositories');
-    }
-
-    // Check GitHub connection for import
-    if (github.type === 'import') {
-      const { getUserGitHubInfo } = await import('@/lib/github/client');
-      const githubInfo = await getUserGitHubInfo(userId);
-
-      if (!githubInfo) {
-        return ApiErrorHandler.unauthorized(
-          'GitHub connection required to import repositories. Please connect your GitHub account in settings.'
-        );
-      }
     }
 
     // Use a transaction to ensure atomicity
@@ -209,21 +198,18 @@ export async function POST(request: NextRequest) {
 
         return { project: updatedProject, mainSession };
       } else {
-        // Import mode - requires user GitHub connection
-        const { repoInfo } = await importGitHubRepository(
-          userId,
-          github.repositoryUrl!,
-          project.id
-        );
+        // Import mode - requires Kosuke App to be installed on the repo
+        const { repoInfo, installationId } = await importGitHubRepository(github.repositoryUrl!);
 
-        // Update project with GitHub info
+        // Update project with GitHub info and installation ID
         const [updatedProject] = await tx
           .update(projects)
           .set({
             githubRepoUrl: github.repositoryUrl,
-            githubOwner: repoInfo.owner, // User's GitHub username
+            githubOwner: repoInfo.owner,
             githubRepoName: repoInfo.name,
             isImported: true,
+            githubInstallationId: installationId,
             lastGithubSync: new Date(),
           })
           .where(eq(projects.id, project.id))

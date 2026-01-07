@@ -258,7 +258,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return;
     }
 
-    submitBuildMutation.mutate(latestBuildData.buildJobId);
+    submitBuildMutation.mutate({
+      buildJobId: latestBuildData.buildJobId,
+      userEmail: dbUser?.email,
+    });
   };
 
   const handleLogout = async () => {

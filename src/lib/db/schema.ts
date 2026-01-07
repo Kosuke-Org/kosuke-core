@@ -6,13 +6,16 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  real,
   text,
   timestamp,
   unique,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
 
 // File type enum for attachments
 export const fileTypeEnum = pgEnum('file_type', ['image', 'document']);
@@ -50,6 +53,10 @@ export const taskStatusEnum = pgEnum('task_status', [
 ]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
+// ------------------------------------------------------------
+// TABLES
+// ------------------------------------------------------------
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -68,6 +75,7 @@ export const projects = pgTable('projects', {
   lastGithubSync: timestamp('last_github_sync'),
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
   githubWebhookId: integer('github_webhook_id'), // GitHub webhook ID for cleanup on project deletion
+  githubInstallationId: integer('github_installation_id'), // GitHub App installation ID for this repo (null = use env var for Kosuke-Org)
 });
 
 export const chatSessions = pgTable(
@@ -95,14 +103,11 @@ export const chatSessions = pgTable(
     mergeCommitSha: varchar('merge_commit_sha', { length: 40 }),
     pullRequestNumber: integer('pull_request_number'),
   },
-  table => ({
-    lastActivityAtIdx: index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
+  table => [
+    index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
     // Branch name is unique within a project
-    projectBranchUnique: unique('chat_sessions_project_branch_unique').on(
-      table.projectId,
-      table.branchName
-    ),
-  })
+    unique('chat_sessions_project_branch_unique').on(table.projectId, table.branchName),
+  ]
 );
 
 export const chatMessages = pgTable('chat_messages', {
@@ -151,88 +156,6 @@ export const messageAttachments = pgTable('message_attachments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-export const diffs = pgTable('diffs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .references(() => projects.id)
-    .notNull(),
-  chatMessageId: uuid('chat_message_id')
-    .references(() => chatMessages.id)
-    .notNull(),
-  filePath: text('file_path').notNull(),
-  content: text('content').notNull(), // The diff content
-  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'applied', 'rejected'
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  appliedAt: timestamp('applied_at'),
-});
-
-export const projectCommits = pgTable('project_commits', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  commitSha: text('commit_sha').notNull(),
-  commitMessage: text('commit_message').notNull(),
-  commitUrl: text('commit_url'),
-  filesChanged: integer('files_changed').default(0),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-export const githubSyncSessions = pgTable('github_sync_sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  projectId: uuid('project_id')
-    .references(() => projects.id, { onDelete: 'cascade' })
-    .notNull(),
-  triggerType: varchar('trigger_type', { length: 50 }).notNull(), // 'manual', 'webhook', 'cron'
-  status: varchar('status', { length: 20 }).default('running'), // 'running', 'completed', 'failed'
-  changes: jsonb('changes'),
-  startedAt: timestamp('started_at').defaultNow(),
-  completedAt: timestamp('completed_at'),
-  logs: text('logs'),
-});
-
-export const projectEnvironmentVariables = pgTable(
-  'project_environment_variables',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(),
-    value: text('value').notNull(),
-    isSecret: boolean('is_secret').default(false),
-    description: text('description'),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  table => ({
-    uniqueProjectKey: unique('project_env_vars_unique_key').on(table.projectId, table.key),
-  })
-);
-
-export const projectIntegrations = pgTable(
-  'project_integrations',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    integrationType: text('integration_type').notNull(), // 'clerk', 'polar', 'stripe', 'custom'
-    integrationName: text('integration_name').notNull(),
-    config: text('config').notNull().default('{}'), // JSON string
-    enabled: boolean('enabled').default(true),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-  },
-  table => ({
-    uniqueProjectIntegration: unique('project_integrations_unique_key').on(
-      table.projectId,
-      table.integrationType,
-      table.integrationName
-    ),
-  })
-);
-
 // Build jobs - tracks build execution per session
 export const buildJobs = pgTable(
   'build_jobs',
@@ -260,18 +183,15 @@ export const buildJobs = pgTable(
     // Submit workflow status (review → commit → PR)
     submitStatus: submitStatusEnum('submit_status'),
 
-    // Cost
-    totalCost: real('total_cost').default(0),
-
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     startedAt: timestamp('started_at'),
     completedAt: timestamp('completed_at'),
   },
-  table => ({
-    sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),
-    statusIdx: index('idx_build_jobs_status').on(table.status),
-  })
+  table => [
+    index('idx_build_jobs_session').on(table.chatSessionId),
+    index('idx_build_jobs_status').on(table.status),
+  ]
 );
 
 // Tasks - individual task records for builds
@@ -297,26 +217,24 @@ export const tasks = pgTable(
     // Error details
     error: text('error'),
 
-    // Cost tracking
-    cost: real('cost').default(0),
-
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  table => ({
-    buildJobIdx: index('idx_tasks_build_job').on(table.buildJobId),
-    statusIdx: index('idx_tasks_status').on(table.status),
-    externalIdIdx: index('idx_tasks_external_id').on(table.externalId),
-  })
+  table => [
+    index('idx_tasks_build_job').on(table.buildJobId),
+    index('idx_tasks_status').on(table.status),
+    index('idx_tasks_external_id').on(table.externalId),
+  ]
 );
+
+// ------------------------------------------------------------
+// RELATIONS
+// ------------------------------------------------------------
 
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
-  diffs: many(diffs),
-  commits: many(projectCommits),
-  githubSyncSessions: many(githubSyncSessions),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -337,7 +255,6 @@ export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => 
     fields: [chatMessages.chatSessionId],
     references: [chatSessions.id],
   }),
-  diffs: many(diffs),
   messageAttachments: many(messageAttachments),
 }));
 
@@ -360,48 +277,6 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   }),
 }));
 
-export const diffsRelations = relations(diffs, ({ one }) => ({
-  project: one(projects, {
-    fields: [diffs.projectId],
-    references: [projects.id],
-  }),
-  chatMessage: one(chatMessages, {
-    fields: [diffs.chatMessageId],
-    references: [chatMessages.id],
-  }),
-}));
-
-export const projectCommitsRelations = relations(projectCommits, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectCommits.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const githubSyncSessionsRelations = relations(githubSyncSessions, ({ one }) => ({
-  project: one(projects, {
-    fields: [githubSyncSessions.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const projectEnvironmentVariablesRelations = relations(
-  projectEnvironmentVariables,
-  ({ one }) => ({
-    project: one(projects, {
-      fields: [projectEnvironmentVariables.projectId],
-      references: [projects.id],
-    }),
-  })
-);
-
-export const projectIntegrationsRelations = relations(projectIntegrations, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectIntegrations.projectId],
-    references: [projects.id],
-  }),
-}));
-
 // Organization API keys - for BYOK (Bring Your Own Key) functionality
 export const organizationApiKeys = pgTable('organization_api_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -411,8 +286,19 @@ export const organizationApiKeys = pgTable('organization_api_keys', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
-export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
-export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
+// User GitHub connections - stores GitHub App OAuth tokens per user
+export const userGithubConnections = pgTable('user_github_connections', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clerkUserId: text('clerk_user_id').notNull().unique(), // Clerk user ID
+  githubAccessToken: text('github_access_token').notNull(), // GitHub App user access token
+  githubRefreshToken: text('github_refresh_token'), // Refresh token (if available)
+  githubTokenExpiresAt: timestamp('github_token_expires_at'), // Token expiration
+  githubUserId: integer('github_user_id').notNull(), // GitHub user ID
+  githubUsername: varchar('github_username', { length: 255 }).notNull(), // GitHub username
+  githubAvatarUrl: text('github_avatar_url'), // GitHub avatar URL
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
 
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
@@ -433,6 +319,10 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   }),
 }));
 
+// ------------------------------------------------------------
+// TYPES
+// ------------------------------------------------------------
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -443,17 +333,11 @@ export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
 export type MessageAttachment = typeof messageAttachments.$inferSelect;
 export type NewMessageAttachment = typeof messageAttachments.$inferInsert;
-export type Diff = typeof diffs.$inferSelect;
-export type NewDiff = typeof diffs.$inferInsert;
-export type ProjectCommit = typeof projectCommits.$inferSelect;
-export type NewProjectCommit = typeof projectCommits.$inferInsert;
-export type GithubSyncSession = typeof githubSyncSessions.$inferSelect;
-export type NewGithubSyncSession = typeof githubSyncSessions.$inferInsert;
-export type ProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferSelect;
-export type NewProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferInsert;
-export type ProjectIntegration = typeof projectIntegrations.$inferSelect;
-export type NewProjectIntegration = typeof projectIntegrations.$inferInsert;
 export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
+export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
+export type UserGithubConnection = typeof userGithubConnections.$inferSelect;
+export type NewUserGithubConnection = typeof userGithubConnections.$inferInsert;
