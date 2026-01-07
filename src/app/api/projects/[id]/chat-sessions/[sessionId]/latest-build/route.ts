@@ -44,7 +44,7 @@ export async function GET(
       .limit(1);
 
     // Construct PR URL from session's pullRequestNumber if available
-    const prUrl =
+    const pullRequestUrl =
       latestBuild[0]?.pullRequestNumber &&
       latestBuild[0]?.githubOwner &&
       latestBuild[0]?.githubRepoName
@@ -56,7 +56,7 @@ export async function GET(
       status: latestBuild[0]?.buildJob.status ?? null,
       buildJobId: latestBuild[0]?.buildJob.id ?? null,
       submitStatus: latestBuild[0]?.buildJob.submitStatus ?? null,
-      prUrl,
+      pullRequestUrl,
     });
   } catch (error) {
     console.error('Error fetching latest build:', error);

@@ -374,7 +374,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       model={project?.model}
                       isBuildInProgress={isBuildInProgress}
                       isBuildFailed={isBuildFailed}
-                      hasPullRequest={Boolean(latestBuildData?.prUrl)}
+                      hasPullRequest={Boolean(latestBuildData?.pullRequestUrl)}
                     />
                   </div>
                 )}
@@ -409,7 +409,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 onSubmit={handleSubmitBuild}
                 canSubmit={canSubmit}
                 submitStatus={latestBuildData?.submitStatus}
-                prUrl={latestBuildData?.prUrl}
+                pullRequestUrl={latestBuildData?.pullRequestUrl}
                 isSubmitting={submitBuildMutation.isPending}
                 hasSubmitted={submitBuildMutation.isSuccess}
               />

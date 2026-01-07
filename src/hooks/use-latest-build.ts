@@ -5,7 +5,7 @@ interface LatestBuildResponse {
   status: 'pending' | 'running' | 'validating' | 'completed' | 'failed' | 'cancelled' | null;
   buildJobId: string | null;
   submitStatus: 'pending' | 'reviewing' | 'committing' | 'creating_pr' | 'done' | 'failed' | null;
-  prUrl: string | null;
+  pullRequestUrl: string | null;
 }
 
 /**
@@ -16,7 +16,13 @@ export function useLatestBuild(projectId: string, sessionId: string | null) {
     queryKey: ['latest-build', projectId, sessionId],
     queryFn: async (): Promise<LatestBuildResponse> => {
       if (!sessionId) {
-        return { hasBuild: false, status: null, buildJobId: null, submitStatus: null, prUrl: null };
+        return {
+          hasBuild: false,
+          status: null,
+          buildJobId: null,
+          submitStatus: null,
+          pullRequestUrl: null,
+        };
       }
 
       const response = await fetch(

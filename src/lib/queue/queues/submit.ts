@@ -23,7 +23,7 @@ export interface SubmitJobData {
  */
 export interface SubmitJobResult {
   success: boolean;
-  prUrl?: string;
+  pullRequestUrl?: string;
   error?: string;
 }
 

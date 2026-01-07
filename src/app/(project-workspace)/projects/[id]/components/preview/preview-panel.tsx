@@ -59,7 +59,7 @@ interface PreviewPanelProps {
   /** Current submit status from build job */
   submitStatus?: SubmitStatus;
   /** URL of the created PR (when available, shows View Changes button) */
-  prUrl?: string | null;
+  pullRequestUrl?: string | null;
   /** When true, submit mutation is in progress (disables button immediately) */
   isSubmitting?: boolean;
   /** When true, submit mutation succeeded but status hasn't updated yet */
@@ -114,7 +114,7 @@ export default function PreviewPanel({
   onSubmit,
   canSubmit = false,
   submitStatus = null,
-  prUrl = null,
+  pullRequestUrl = null,
   isSubmitting = false,
   hasSubmitted = false,
 }: PreviewPanelProps) {
@@ -292,11 +292,11 @@ export default function PreviewPanel({
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
-          {showSubmit && (submitStatus === 'done' || prUrl) ? (
+          {showSubmit && (submitStatus === 'done' || pullRequestUrl) ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={prUrl || '#'} target="_blank" rel="noopener noreferrer">
+                  <Link href={pullRequestUrl || '#'} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-1" />
                     View Changes
                   </Link>

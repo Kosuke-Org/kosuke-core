@@ -1,32 +1,23 @@
 /**
  * Maintenance Worker
  * Processes maintenance jobs from BullMQ queue
- * Calls the CLI maintenance command which handles branch creation, commits, and PR opening
- * The existing PR-to-chat-session sync creates the chat session when the PR is opened
+ * Creates a temporary sandbox, calls the CLI maintenance endpoint, then destroys the sandbox
  */
 
 import { db } from '@/lib/db/drizzle';
 import { maintenanceJobRuns, projects } from '@/lib/db/schema';
+import { getProjectGitHubToken } from '@/lib/github/installations';
+import { SandboxClient } from '@/lib/sandbox/client';
+import { getSandboxManager } from '@/lib/sandbox/manager';
+import { snakeToText } from '@/lib/utils';
 import { eq } from 'drizzle-orm';
 import { createQueueEvents, createWorker } from '../client';
 import { QUEUE_NAMES } from '../config';
-import type { MaintenanceJobData, MaintenanceJobResult } from '../queues/maintenance';
-
-/**
- * Get job display name for logging
- */
-function getJobDisplayName(jobType: string): string {
-  switch (jobType) {
-    case 'sync_rules':
-      return 'Sync Rules';
-    case 'code_analysis':
-      return 'Code Analysis';
-    case 'security_check':
-      return 'Security Check';
-    default:
-      return jobType;
-  }
-}
+import type {
+  MaintenanceCliResult,
+  MaintenanceJobData,
+  MaintenanceJobResult,
+} from '../queues/maintenance';
 
 /**
  * Process a maintenance job
@@ -35,24 +26,20 @@ async function processMaintenanceJob(job: {
   data: MaintenanceJobData;
 }): Promise<MaintenanceJobResult> {
   const { maintenanceJobId, projectId, jobType } = job.data;
+  const jobName = snakeToText(jobType);
 
   console.log('\n' + '='.repeat(80));
-  console.log(`[MAINTENANCE] 🚀 Starting ${getJobDisplayName(jobType)} job`);
+  console.log(`[MAINTENANCE] 🚀 Starting ${jobName} job`);
   console.log(`[MAINTENANCE] 📁 Project: ${projectId}`);
   console.log(`[MAINTENANCE] 🔧 Job ID: ${maintenanceJobId}`);
   console.log('='.repeat(80) + '\n');
 
-  // Create a run record
   const [run] = await db
     .insert(maintenanceJobRuns)
-    .values({
-      maintenanceJobId,
-      status: 'pending',
-    })
+    .values({ maintenanceJobId, status: 'pending' })
     .returning();
 
   try {
-    // Get project details
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, projectId),
     });
@@ -61,125 +48,141 @@ async function processMaintenanceJob(job: {
       throw new Error(`Project not found: ${projectId}`);
     }
 
-    // Skip archived projects - they're soft-deleted
     if (project.isArchived) {
       console.log(`[MAINTENANCE] ⏭️ Skipping archived project: ${projectId}`);
-
-      // Mark run as completed with skip message
-      await db
-        .update(maintenanceJobRuns)
-        .set({
-          status: 'completed',
-          completedAt: new Date(),
-          summary: 'Skipped: Project is archived',
-        })
-        .where(eq(maintenanceJobRuns.id, run.id));
-
-      return {
-        success: true,
-        runId: run.id,
-        summary: 'Skipped: Project is archived',
-      };
+      await updateRunStatus(run.id, 'completed', { summary: 'Skipped: Project is archived' });
+      return { success: true, runId: run.id, summary: 'Skipped: Project is archived' };
     }
 
     if (!project.githubOwner || !project.githubRepoName) {
       throw new Error('Project is not connected to a GitHub repository');
     }
 
-    // Update run status to running
-    await db
-      .update(maintenanceJobRuns)
-      .set({
-        status: 'running',
-        startedAt: new Date(),
-      })
-      .where(eq(maintenanceJobRuns.id, run.id));
-
+    await updateRunStatus(run.id, 'running');
     console.log(`[MAINTENANCE] 📝 Created run: ${run.id}`);
-    console.log(`[MAINTENANCE] 🏃 Status: running`);
 
-    // Call the CLI maintenance endpoint
-    // The CLI handles: branch creation, commits, PR opening
-    // Returns: success/failure, PR URL, summary
-    const cliResult = await callMaintenanceEndpoint(projectId, jobType);
+    const cliResult = await callMaintenanceEndpoint(
+      {
+        id: project.id,
+        orgId: project.orgId,
+        githubOwner: project.githubOwner,
+        githubRepoName: project.githubRepoName,
+        defaultBranch: project.defaultBranch,
+        githubInstallationId: project.githubInstallationId,
+      },
+      jobType,
+      run.id
+    );
 
     if (cliResult.success) {
-      console.log(`[MAINTENANCE] ✅ ${getJobDisplayName(jobType)} completed successfully`);
-      if (cliResult.prUrl) {
-        console.log(`[MAINTENANCE] 🔀 PR created: ${cliResult.prUrl}`);
+      console.log(`[MAINTENANCE] ✅ ${jobName} completed successfully`);
+      if (cliResult.pullRequestUrl) {
+        console.log(`[MAINTENANCE] 🔀 PR created: ${cliResult.pullRequestUrl}`);
       }
 
-      // Update run with success
-      await db
-        .update(maintenanceJobRuns)
-        .set({
-          status: 'completed',
-          completedAt: new Date(),
-          summary: cliResult.summary,
-          pullRequestUrl: cliResult.prUrl,
-          pullRequestNumber: cliResult.prNumber,
-        })
-        .where(eq(maintenanceJobRuns.id, run.id));
+      await updateRunStatus(run.id, 'completed', {
+        summary: cliResult.summary,
+        pullRequestUrl: cliResult.pullRequestUrl,
+        pullRequestNumber: cliResult.pullRequestNumber,
+      });
 
       return {
         success: true,
         runId: run.id,
-        pullRequestUrl: cliResult.prUrl,
+        pullRequestUrl: cliResult.pullRequestUrl,
         summary: cliResult.summary,
       };
-    } else {
-      throw new Error(cliResult.error || 'Maintenance job failed');
     }
+
+    throw new Error(cliResult.error || 'Maintenance job failed');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-
     console.error(`[MAINTENANCE] ❌ Job failed: ${errorMessage}`);
-
-    await db
-      .update(maintenanceJobRuns)
-      .set({
-        status: 'failed',
-        completedAt: new Date(),
-        error: errorMessage,
-      })
-      .where(eq(maintenanceJobRuns.id, run.id));
-
-    return {
-      success: false,
-      runId: run.id,
-      error: errorMessage,
-    };
+    await updateRunStatus(run.id, 'failed', { error: errorMessage });
+    return { success: false, runId: run.id, error: errorMessage };
   }
 }
 
 /**
- * Call the CLI maintenance endpoint
- * Currently calls a fake endpoint that simulates 30 seconds of work
- * In the future, this will call the real CLI maintenance command
+ * Update maintenance job run status
+ */
+async function updateRunStatus(
+  runId: string,
+  status: 'running' | 'completed' | 'failed',
+  data?: {
+    summary?: string;
+    pullRequestUrl?: string;
+    pullRequestNumber?: number;
+    error?: string;
+  }
+) {
+  await db
+    .update(maintenanceJobRuns)
+    .set({
+      status,
+      ...(status === 'running' && { startedAt: new Date() }),
+      ...(status !== 'running' && { completedAt: new Date() }),
+      ...data,
+    })
+    .where(eq(maintenanceJobRuns.id, runId));
+}
+
+/**
+ * Project data needed for sandbox creation
+ */
+interface ProjectForSandbox {
+  id: string;
+  orgId: string | null;
+  githubOwner: string;
+  githubRepoName: string;
+  defaultBranch: string | null;
+  githubInstallationId: number | null;
+}
+
+/**
+ * Call the CLI maintenance endpoint via a temporary sandbox
  */
 async function callMaintenanceEndpoint(
-  projectId: string,
-  jobType: string
-): Promise<{
-  success: boolean;
-  prUrl?: string;
-  prNumber?: number;
-  summary?: string;
-  error?: string;
-}> {
+  project: ProjectForSandbox,
+  jobType: string,
+  runId: string
+): Promise<MaintenanceCliResult> {
+  const sandboxManager = getSandboxManager();
+  const tempSessionId = `maintenance-${runId}`;
+
   try {
-    // Temporary hardcoded URL for fake maintenance endpoint (will be replaced with real CLI)
-    const url = 'http://nextjs:3000/api/maintenance';
+    const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return { success: false, error: 'Failed to get GitHub token for project' };
+    }
+
+    const repoUrl = `https://github.com/${project.githubOwner}/${project.githubRepoName}.git`;
+    const baseBranch = project.defaultBranch || 'main';
+
+    console.log(`[MAINTENANCE] 🐳 Creating temporary sandbox: ${tempSessionId}`);
+    console.log(`[MAINTENANCE]    Repo: ${repoUrl}`);
+    console.log(`[MAINTENANCE]    Branch: ${baseBranch}`);
+
+    // createSandbox waits for agent to be ready before returning
+    await sandboxManager.createSandbox({
+      sessionId: tempSessionId,
+      projectId: project.id,
+      orgId: project.orgId ?? undefined,
+      repoUrl,
+      branchName: baseBranch,
+      githubToken,
+      mode: 'development',
+    });
+
+    const sandboxClient = new SandboxClient(tempSessionId);
+    const url = `${sandboxClient.getBaseUrl()}/api/maintenance`;
 
     console.log(`[MAINTENANCE] 🔗 Calling CLI endpoint: ${url}`);
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
-      body: JSON.stringify({ projectId, jobType }),
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ cwd: '/app/project', jobType, githubToken, baseBranch }),
     });
 
     if (!response.ok) {
@@ -191,18 +194,32 @@ async function callMaintenanceEndpoint(
       return { success: false, error: 'No response body from CLI endpoint' };
     }
 
-    // Parse SSE stream
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let result: {
-      success: boolean;
-      prUrl?: string;
-      prNumber?: number;
-      summary?: string;
-      error?: string;
-    } = { success: false };
+    return await parseMaintenanceSSE(response.body);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    console.log(`[MAINTENANCE] 🧹 Cleaning up temporary sandbox: ${tempSessionId}`);
+    try {
+      await sandboxManager.destroySandbox(tempSessionId);
+      console.log(`[MAINTENANCE] ✅ Sandbox destroyed`);
+    } catch (cleanupError) {
+      console.error(`[MAINTENANCE] ⚠️ Failed to destroy sandbox:`, cleanupError);
+    }
+  }
+}
 
+/**
+ * Parse SSE stream from maintenance endpoint
+ */
+async function parseMaintenanceSSE(
+  body: ReadableStream<Uint8Array>
+): Promise<MaintenanceCliResult> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: MaintenanceCliResult = { success: false };
+
+  try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -219,31 +236,27 @@ async function callMaintenanceEndpoint(
 
         try {
           const parsed = JSON.parse(data);
-
           if (parsed.type === 'progress') {
             console.log(`[MAINTENANCE] 📊 ${parsed.message}`);
           } else if (parsed.type === 'done') {
             result = {
               success: parsed.success,
-              prUrl: parsed.prUrl,
-              prNumber: parsed.prNumber,
+              pullRequestUrl: parsed.pullRequestUrl,
+              pullRequestNumber: parsed.pullRequestNumber,
               summary: parsed.summary,
               error: parsed.error,
             };
           }
         } catch {
-          // Ignore parse errors for progress messages
+          // Ignore parse errors
         }
       }
     }
-
-    return result;
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+  } finally {
+    reader.releaseLock();
   }
+
+  return result;
 }
 
 /**
@@ -254,6 +267,7 @@ export function createMaintenanceWorker() {
   if (!process.env.MAINTENANCE_WORKER_CONCURRENCY) {
     throw new Error('MAINTENANCE_WORKER_CONCURRENCY environment variable is required');
   }
+
   const concurrency = parseInt(process.env.MAINTENANCE_WORKER_CONCURRENCY, 10);
   const worker = createWorker<MaintenanceJobData>(QUEUE_NAMES.MAINTENANCE, processMaintenanceJob, {
     concurrency,

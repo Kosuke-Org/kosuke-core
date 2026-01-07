@@ -76,7 +76,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let prUrl: string | undefined;
+    let pullRequestUrl: string | undefined;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -215,8 +215,8 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
                 break;
 
               case 'pr_completed':
-                prUrl = event.data.prUrl;
-                console.log(`[SUBMIT] ✅ PR created: ${prUrl}`);
+                pullRequestUrl = event.data.pullRequestUrl;
+                console.log(`[SUBMIT] ✅ PR created: ${pullRequestUrl}`);
                 break;
 
               case 'error':
@@ -225,10 +225,10 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
 
               case 'done':
                 if (event.data.success) {
-                  prUrl = event.data.prUrl || prUrl;
+                  pullRequestUrl = event.data.pullRequestUrl || pullRequestUrl;
                   console.log('\n' + '='.repeat(80));
                   console.log(`[SUBMIT] 🎉 Submit completed successfully`);
-                  console.log(`[SUBMIT] 📋 PR: ${prUrl}`);
+                  console.log(`[SUBMIT] 📋 PR: ${pullRequestUrl}`);
                   console.log('='.repeat(80) + '\n');
                 } else {
                   throw new Error(event.data.error || 'Submit failed');
@@ -256,9 +256,9 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
     await db.update(buildJobs).set({ submitStatus: 'done' }).where(eq(buildJobs.id, buildJobId));
 
     // Update chat session with PR number (extract from URL pathname)
-    if (prUrl) {
+    if (pullRequestUrl) {
       try {
-        const url = new URL(prUrl);
+        const url = new URL(pullRequestUrl);
         const pathSegments = url.pathname.split('/');
         const pullIndex = pathSegments.indexOf('pull');
         if (pullIndex !== -1 && pathSegments[pullIndex + 1]) {
@@ -271,7 +271,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
           }
         }
       } catch {
-        console.warn(`[SUBMIT] ⚠️  Failed to parse PR URL: ${prUrl}`);
+        console.warn(`[SUBMIT] ⚠️  Failed to parse PR URL: ${pullRequestUrl}`);
       }
     }
 
@@ -279,7 +279,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
 
     return {
       success: true,
-      prUrl,
+      pullRequestUrl,
     };
   } catch (error) {
     console.error('\n' + '='.repeat(80));
@@ -312,8 +312,8 @@ export function createSubmitWorker() {
     if (returnvalue) {
       const result = returnvalue as unknown as SubmitJobResult;
       console.log(`[WORKER]    Success: ${result.success}`);
-      if (result.prUrl) {
-        console.log(`[WORKER]    PR: ${result.prUrl}`);
+      if (result.pullRequestUrl) {
+        console.log(`[WORKER]    PR: ${result.pullRequestUrl}`);
       }
     }
     console.log('='.repeat(80) + '\n');

@@ -23,6 +23,18 @@ export interface MaintenanceJobResult {
 }
 
 /**
+ * CLI maintenance endpoint response
+ * Returned from /api/maintenance SSE stream's 'done' event
+ */
+export interface MaintenanceCliResult {
+  success: boolean;
+  pullRequestUrl?: string;
+  pullRequestNumber?: number;
+  summary?: string;
+  error?: string;
+}
+
+/**
  * Maintenance queue instance
  */
 export const maintenanceQueue = createQueue<MaintenanceJobData>(QUEUE_NAMES.MAINTENANCE);

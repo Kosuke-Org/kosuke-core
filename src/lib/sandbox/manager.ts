@@ -277,6 +277,12 @@ export class SandboxManager {
     console.log(`▶️ Starting container ${containerName}...`);
     await client.containerStart(createResult.Id);
 
+    // Wait for agent to be ready before returning
+    const agentReady = await this.waitForAgent(options.sessionId);
+    if (!agentReady) {
+      throw new Error(`Sandbox agent did not become ready: ${containerName}`);
+    }
+
     console.log(`✅ Sandbox ${containerName} started`);
     console.log(`   Preview URL: ${externalUrl}`);
 

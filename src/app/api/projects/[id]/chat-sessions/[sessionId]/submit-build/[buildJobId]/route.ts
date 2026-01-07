@@ -195,7 +195,7 @@ export async function GET(
     }
 
     // Construct PR URL from session's pullRequestNumber if available
-    const prUrl = session.pullRequestNumber
+    const pullRequestUrl = session.pullRequestNumber
       ? `https://github.com/${project.githubOwner}/${project.githubRepoName}/pull/${session.pullRequestNumber}`
       : null;
 
@@ -205,7 +205,7 @@ export async function GET(
         buildJobId: buildJob.id,
         buildStatus: buildJob.status,
         submitStatus: buildJob.submitStatus,
-        prUrl,
+        pullRequestUrl,
       },
     });
   } catch (error) {
