@@ -1,4 +1,4 @@
-name: Build Sandbox Image
+name: Build Sandbox Image (Staging)
 
 on:
   push:
@@ -6,8 +6,7 @@ on:
       - main
     paths:
       - 'sandbox/**'
-      - '.github/workflows/build-sandbox-image.yml'
-  workflow_dispatch:
+      - '.github/workflows/build-sandbox-stage.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -15,7 +14,7 @@ env:
 
 jobs:
   build-sandbox:
-    name: Build Sandbox Image
+    name: Build Sandbox Image (Staging)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,7 +41,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.ORG_NAME }}/kosuke-sandbox
+          images: ${{ env.REGISTRY }}/${{ env.ORG_NAME }}/kosuke-sandbox-stage
           tags: |
             type=raw,value=latest
             type=sha,prefix=
@@ -68,9 +67,10 @@ jobs:
       - name: Notify Slack - Success
         if: success()
         run: |
-          curl -X POST --data '{"text":"✅ Kosuke Sandbox Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ github.sha }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data '{"text":"✅ Kosuke Sandbox Staging Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox-stage:${{ github.sha }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 
       - name: Notify Slack - Failure
         if: failure()
         run: |
-          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Staging Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+

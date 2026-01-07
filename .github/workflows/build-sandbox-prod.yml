@@ -1,0 +1,78 @@
+name: Build Sandbox Image (Production)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+  ORG_NAME: Kosuke-Org
+
+jobs:
+  build-sandbox:
+    name: Build Sandbox Image (Production)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Read kosuke-cli version
+        id: cli-version
+        run: echo "version=$(cat sandbox/.kosuke-cli-version)" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata for Sandbox image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORG_NAME }}/kosuke-sandbox
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.VERSION }}
+            type=sha,prefix=
+
+      - name: Build and push Sandbox image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sandbox
+          file: ./sandbox/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            KOSUKE_CLI_MODE=production
+            KOSUKE_CLI_VERSION=${{ steps.cli-version.outputs.version }}
+            INSTALL_CHROMIUM=false
+          secrets: |
+            npm_token=${{ secrets.NPM_TOKEN }}
+
+      - name: Notify Slack - Success
+        if: success()
+        run: |
+          curl -X POST --data '{"text":"✅ Kosuke Sandbox Production Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ steps.version.outputs.VERSION }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+
+      - name: Notify Slack - Failure
+        if: failure()
+        run: |
+          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Production Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+
