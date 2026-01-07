@@ -59,23 +59,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     }
 
     // Create invitation via Clerk
-    try {
-      const invitation = await clerkService.createOrganizationInvitation({
-        orgId,
-        emailAddress: email,
-        role,
-        inviterUserId: userId,
-      });
+    const invitation = await clerkService.createOrganizationInvitation({
+      orgId,
+      emailAddress: email,
+      role,
+      inviterUserId: userId,
+    });
 
-      return NextResponse.json({ data: invitation });
-    } catch (clerkError) {
-      if (isClerkAPIResponseError(clerkError)) {
-        const message = clerkError.errors[0]?.longMessage ?? clerkError.errors[0]?.message;
-        return ApiErrorHandler.badRequest(message ?? 'Failed to send invitation');
-      }
-      throw clerkError;
-    }
+    return NextResponse.json({ data: invitation });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to send invitation');
+    }
     console.error('Failed to create invitation:', error);
     return ApiErrorHandler.handle(error);
   }

@@ -1,6 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PUT(request: NextRequest) {
@@ -23,6 +24,10 @@ export async function PUT(request: NextRequest) {
       success: 'Notification preferences updated successfully',
     });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to update notification preferences');
+    }
     console.error('Error updating notification preferences:', error);
     return ApiErrorHandler.handle(error);
   }
