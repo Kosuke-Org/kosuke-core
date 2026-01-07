@@ -89,7 +89,6 @@ function MaintenanceToggle({
   description,
   config,
   onToggle,
-  isUpdating,
 }: {
   jobType: MaintenanceJobType;
   icon: React.ReactNode;
@@ -97,7 +96,6 @@ function MaintenanceToggle({
   description: string;
   config: MaintenanceJobWithRun | undefined;
   onToggle: (jobType: MaintenanceJobType, enabled: boolean) => void;
-  isUpdating: boolean;
 }) {
   const isEnabled = config?.enabled ?? false;
   const latestRun = config?.latestRun;
@@ -132,7 +130,6 @@ function MaintenanceToggle({
         id={jobType}
         checked={isEnabled}
         onCheckedChange={checked => onToggle(jobType, checked)}
-        disabled={isUpdating}
       />
     </div>
   );
@@ -305,7 +302,6 @@ export function ProjectSettingsModal({
                     description="Automatically sync project rules (every 7 days)"
                     config={getJobConfig('sync_rules')}
                     onToggle={handleToggle}
-                    isUpdating={updateJob.isPending}
                   />
 
                   <MaintenanceToggle
@@ -315,7 +311,6 @@ export function ProjectSettingsModal({
                     description="Run code analysis on changes (every 14 days)"
                     config={getJobConfig('code_analysis')}
                     onToggle={handleToggle}
-                    isUpdating={updateJob.isPending}
                   />
 
                   <MaintenanceToggle
@@ -325,7 +320,6 @@ export function ProjectSettingsModal({
                     description="Scan for security vulnerabilities (every 3 days)"
                     config={getJobConfig('security_check')}
                     onToggle={handleToggle}
-                    isUpdating={updateJob.isPending}
                   />
                 </div>
               )}

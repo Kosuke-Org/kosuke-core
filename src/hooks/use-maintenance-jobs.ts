@@ -35,7 +35,7 @@ export function useMaintenanceJobs(projectId: string) {
 }
 
 /**
- * Hook for updating maintenance job settings
+ * Hook for updating maintenance job settings with optimistic updates
  */
 export function useUpdateMaintenanceJob(projectId: string) {
   const { toast } = useToast();
@@ -60,21 +60,45 @@ export function useUpdateMaintenanceJob(projectId: string) {
       }
       return response.json();
     },
-    onSuccess: (data, { jobType, enabled }) => {
-      // Invalidate to refetch with latest data
-      queryClient.invalidateQueries({ queryKey: maintenanceJobsKeys.project(projectId) });
+    onMutate: async ({ jobType, enabled }) => {
+      // Cancel any outgoing refetches to prevent overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: maintenanceJobsKeys.project(projectId) });
 
+      // Snapshot the previous value
+      const previousJobs = queryClient.getQueryData<MaintenanceJobWithRun[]>(
+        maintenanceJobsKeys.project(projectId)
+      );
+
+      // Optimistically update the cache
+      queryClient.setQueryData<MaintenanceJobWithRun[]>(
+        maintenanceJobsKeys.project(projectId),
+        old => old?.map(job => (job.jobType === jobType ? { ...job, enabled } : job)) ?? []
+      );
+
+      // Return context with snapshot for rollback
+      return { previousJobs };
+    },
+    onSuccess: (_data, { jobType, enabled }) => {
       toast({
         title: 'Settings updated',
         description: `${snakeToText(jobType)} ${enabled ? 'enabled' : 'disabled'}`,
       });
     },
-    onError: error => {
+    onError: (error, _variables, context) => {
+      // Rollback to previous value on error
+      if (context?.previousJobs) {
+        queryClient.setQueryData(maintenanceJobsKeys.project(projectId), context.previousJobs);
+      }
+
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to update maintenance job',
         variant: 'destructive',
       });
+    },
+    onSettled: () => {
+      // Refetch to ensure server state is synced
+      queryClient.invalidateQueries({ queryKey: maintenanceJobsKeys.project(projectId) });
     },
   });
 }
