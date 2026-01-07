@@ -145,33 +145,6 @@ export async function unscheduleMaintenanceJob(maintenanceJobId: string) {
 }
 
 /**
- * Trigger a maintenance job immediately (manual run)
- * This adds a one-time job to the queue without affecting the scheduled repeatable job
- */
-export async function triggerMaintenanceJobNow(
-  maintenanceJobId: string,
-  projectId: string,
-  jobType: MaintenanceJobType
-) {
-  const jobName = getJobName(jobType);
-
-  await maintenanceQueue.add(
-    jobName,
-    {
-      maintenanceJobId,
-      projectId,
-      jobType,
-    },
-    {
-      removeOnComplete: true,
-      removeOnFail: false,
-    }
-  );
-
-  console.log(`[MAINTENANCE] ▶️ Manually triggered ${jobType} for project ${projectId}`);
-}
-
-/**
  * Get the step value for a job type (from cron pattern *\/N)
  */
 function getJobStep(jobType: MaintenanceJobType): number {

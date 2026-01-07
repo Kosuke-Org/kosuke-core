@@ -17,7 +17,6 @@ export {
   maintenanceQueue,
   scheduleMaintenanceJob,
   scheduleMaintenanceJobs,
-  triggerMaintenanceJobNow,
   unscheduleMaintenanceJob,
   type MaintenanceJobData,
   type MaintenanceJobResult,

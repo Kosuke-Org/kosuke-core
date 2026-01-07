@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Building2, Database, MessageSquare, Wrench } from 'lucide-react';
+import { ArrowLeft, Building2, Database, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -47,12 +47,6 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
         url: '/admin/chat-sessions',
         icon: MessageSquare,
         isActive: pathname?.startsWith('/admin/chat-sessions'),
-      },
-      {
-        title: 'Maintenance Jobs',
-        url: '/admin/maintenance-jobs',
-        icon: Wrench,
-        isActive: pathname?.startsWith('/admin/maintenance-jobs'),
       },
     ],
     [pathname]
