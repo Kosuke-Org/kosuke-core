@@ -93,6 +93,7 @@ export function OrganizationSwitcherComponent({ onClose }: OrganizationSwitcherC
       router.replace(redirectTo ?? '/projects');
     } catch (error) {
       console.error('Failed to switch organization:', error);
+    } finally {
       setIsSwitching(false);
     }
   };
