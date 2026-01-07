@@ -145,7 +145,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to remove member',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setRemovingMemberId(null);
     }
@@ -176,7 +175,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to revoke invitation',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setRevokingInvitationId(null);
     }
@@ -221,7 +219,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to transfer ownership',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setIsTransferringOwnership(false);
     }
@@ -266,7 +263,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to update member role',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setUpdatingRoleUserId(null);
     }
