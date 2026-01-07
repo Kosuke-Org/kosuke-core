@@ -1,12 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-interface LatestBuildResponse {
-  hasBuild: boolean;
-  status: 'pending' | 'running' | 'validating' | 'completed' | 'failed' | 'cancelled' | null;
-  buildJobId: string | null;
-  submitStatus: 'pending' | 'reviewing' | 'committing' | 'creating_pr' | 'done' | 'failed' | null;
-  pullRequestUrl: string | null;
-}
+import type { LatestBuildResponse } from '@/lib/types';
 
 /**
  * Hook to fetch the latest build status for a chat session

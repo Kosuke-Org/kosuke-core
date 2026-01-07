@@ -1,3 +1,5 @@
+import type { BuildStatus, SubmitStatus } from '@/lib/db/schema';
+
 // Project Creation and Update Types
 export interface CreateProjectData {
   name: string;
@@ -18,4 +20,13 @@ export interface ProjectCreationStep {
 // Used for checking if invited members can access imported projects
 export interface ProjectWithOwnerStatus {
   ownerHasGithub?: boolean;
+}
+
+// Latest build status response from API
+export interface LatestBuildResponse {
+  hasBuild: boolean;
+  status: BuildStatus | null;
+  buildJobId: string | null;
+  submitStatus: SubmitStatus | null;
+  pullRequestUrl: string | null;
 }
