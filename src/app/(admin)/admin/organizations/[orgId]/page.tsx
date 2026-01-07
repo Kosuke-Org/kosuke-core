@@ -8,6 +8,7 @@ import { use } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UsageCard } from '@/components/usage-card';
 import type { ClerkOrganization } from '@/lib/types';
 
 interface OrganizationDetailResponse {
@@ -113,6 +114,9 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ o
           </CardContent>
         </Card>
       </div>
+
+      {/* Usage Card */}
+      <UsageCard orgId={orgId} />
     </div>
   );
 }

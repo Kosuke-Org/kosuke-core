@@ -202,6 +202,7 @@ export async function POST(
       githubToken,
       enableTest: sandboxConfig.test,
       testUrl,
+      userId,
     });
 
     console.log(`🚀 Enqueued new build job ${newBuildJob.id}`);

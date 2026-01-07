@@ -14,6 +14,10 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
 // File type enum for attachments
 export const fileTypeEnum = pgEnum('file_type', ['image', 'document']);
 export type FileType = (typeof fileTypeEnum.enumValues)[number];
@@ -90,6 +94,10 @@ export const deployJobStatusEnum = pgEnum('deploy_job_status', [
 ]);
 export type DeployJobStatus = (typeof deployJobStatusEnum.enumValues)[number];
 
+// ------------------------------------------------------------
+// TABLES
+// ------------------------------------------------------------
+
 export const projects = pgTable('projects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
@@ -144,14 +152,11 @@ export const chatSessions = pgTable(
     // Human-in-the-loop mode - autonomous (AI responds) or human_assisted (admin responds)
     mode: chatSessionModeEnum('mode').notNull().default('autonomous'),
   },
-  table => ({
-    lastActivityAtIdx: index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
+  table => [
+    index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
     // Branch name is unique within a project
-    projectBranchUnique: unique('chat_sessions_project_branch_unique').on(
-      table.projectId,
-      table.branchName
-    ),
-  })
+    unique('chat_sessions_project_branch_unique').on(table.projectId, table.branchName),
+  ]
 );
 
 export const chatMessages = pgTable('chat_messages', {
@@ -340,10 +345,10 @@ export const buildJobs = pgTable(
     startedAt: timestamp('started_at'),
     completedAt: timestamp('completed_at'),
   },
-  table => ({
-    sessionIdx: index('idx_build_jobs_session').on(table.chatSessionId),
-    statusIdx: index('idx_build_jobs_status').on(table.status),
-  })
+  table => [
+    index('idx_build_jobs_session').on(table.chatSessionId),
+    index('idx_build_jobs_status').on(table.status),
+  ]
 );
 
 // Tasks - individual task records for builds
@@ -376,11 +381,11 @@ export const tasks = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  table => ({
-    buildJobIdx: index('idx_tasks_build_job').on(table.buildJobId),
-    statusIdx: index('idx_tasks_status').on(table.status),
-    externalIdIdx: index('idx_tasks_external_id').on(table.externalId),
-  })
+  table => [
+    index('idx_tasks_build_job').on(table.buildJobId),
+    index('idx_tasks_status').on(table.status),
+    index('idx_tasks_external_id').on(table.externalId),
+  ]
 );
 
 // Environment job status enum (reuses build_status pattern)
@@ -490,6 +495,10 @@ export const deployJobs = pgTable(
   })
 );
 
+// ------------------------------------------------------------
+// RELATIONS
+// ------------------------------------------------------------
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
@@ -520,7 +529,6 @@ export const chatMessagesRelations = relations(chatMessages, ({ one, many }) => 
     fields: [chatMessages.chatSessionId],
     references: [chatSessions.id],
   }),
-  diffs: many(diffs),
   messageAttachments: many(messageAttachments),
 }));
 
@@ -600,9 +608,6 @@ export const organizationApiKeys = pgTable('organization_api_keys', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
-
-export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
-export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
 
 // User GitHub connections - stores GitHub App OAuth tokens per user
 export const userGithubConnections = pgTable('user_github_connections', {
@@ -763,6 +768,10 @@ export const deployJobsRelations = relations(deployJobs, ({ one }) => ({
   }),
 }));
 
+// ------------------------------------------------------------
+// TYPES
+// ------------------------------------------------------------
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -773,20 +782,12 @@ export type Attachment = typeof attachments.$inferSelect;
 export type NewAttachment = typeof attachments.$inferInsert;
 export type MessageAttachment = typeof messageAttachments.$inferSelect;
 export type NewMessageAttachment = typeof messageAttachments.$inferInsert;
-export type Diff = typeof diffs.$inferSelect;
-export type NewDiff = typeof diffs.$inferInsert;
-export type ProjectCommit = typeof projectCommits.$inferSelect;
-export type NewProjectCommit = typeof projectCommits.$inferInsert;
-export type GithubSyncSession = typeof githubSyncSessions.$inferSelect;
-export type NewGithubSyncSession = typeof githubSyncSessions.$inferInsert;
-export type ProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferSelect;
-export type NewProjectEnvironmentVariable = typeof projectEnvironmentVariables.$inferInsert;
-export type ProjectIntegration = typeof projectIntegrations.$inferSelect;
-export type NewProjectIntegration = typeof projectIntegrations.$inferInsert;
 export type BuildJob = typeof buildJobs.$inferSelect;
 export type NewBuildJob = typeof buildJobs.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
+export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
 export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
 export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;
 export type EnvironmentJob = typeof environmentJobs.$inferSelect;

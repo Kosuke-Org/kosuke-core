@@ -35,6 +35,7 @@
     "@blocknote/react": "^0.45.0",
     "@clerk/nextjs": "^6.36.5",
     "@docker/node-sdk": "^0.0.17",
+    "@langfuse/client": "^4.5.1",
     "@mantine/core": "^8.3.10",
     "@octokit/auth-app": "^8.1.2",
     "@octokit/oauth-app": "^8.0.3",

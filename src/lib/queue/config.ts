@@ -21,9 +21,7 @@ export const QUEUE_NAMES = {
  * Job names - organized by queue
  */
 export const JOB_NAMES = {
-  // Preview cleanup jobs
   CLEANUP_INACTIVE_PREVIEWS: 'cleanup-inactive-previews',
-  // Build jobs
   PROCESS_BUILD: 'process-build',
   // Environment jobs
   ANALYZE_ENVIRONMENT: 'analyze-environment',
