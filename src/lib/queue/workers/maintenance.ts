@@ -61,6 +61,27 @@ async function processMaintenanceJob(job: {
       throw new Error(`Project not found: ${projectId}`);
     }
 
+    // Skip archived projects - they're soft-deleted
+    if (project.isArchived) {
+      console.log(`[MAINTENANCE] ⏭️ Skipping archived project: ${projectId}`);
+
+      // Mark run as completed with skip message
+      await db
+        .update(maintenanceJobRuns)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+          summary: 'Skipped: Project is archived',
+        })
+        .where(eq(maintenanceJobRuns.id, run.id));
+
+      return {
+        success: true,
+        runId: run.id,
+        summary: 'Skipped: Project is archived',
+      };
+    }
+
     if (!project.githubOwner || !project.githubRepoName) {
       throw new Error('Project is not connected to a GitHub repository');
     }

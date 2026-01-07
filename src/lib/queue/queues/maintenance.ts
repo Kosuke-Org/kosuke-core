@@ -64,14 +64,19 @@ function getJobName(jobType: MaintenanceJobType): string {
  */
 export async function scheduleMaintenanceJobs() {
   const { db } = await import('@/lib/db/drizzle');
-  const { maintenanceJobs } = await import('@/lib/db/schema');
-  const { eq } = await import('drizzle-orm');
+  const { maintenanceJobs, projects } = await import('@/lib/db/schema');
+  const { eq, and } = await import('drizzle-orm');
 
-  // Get all enabled maintenance jobs
+  // Get all enabled maintenance jobs for non-archived projects
   const enabledJobs = await db
-    .select()
+    .select({
+      id: maintenanceJobs.id,
+      projectId: maintenanceJobs.projectId,
+      jobType: maintenanceJobs.jobType,
+    })
     .from(maintenanceJobs)
-    .where(eq(maintenanceJobs.enabled, true));
+    .innerJoin(projects, eq(maintenanceJobs.projectId, projects.id))
+    .where(and(eq(maintenanceJobs.enabled, true), eq(projects.isArchived, false)));
 
   console.log(`[MAINTENANCE] 📋 Found ${enabledJobs.length} enabled maintenance jobs`);
 
