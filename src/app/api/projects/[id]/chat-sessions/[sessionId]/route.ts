@@ -14,7 +14,8 @@ import {
 } from '@/lib/db/schema';
 import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
-import { buildQueue } from '@/lib/queue';
+import { JOB_NAMES } from '@/lib/queue/config';
+import { buildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
@@ -579,8 +580,9 @@ export async function POST(
         try {
           // Stream events from kosuke serve /api/plan (plan phase only)
           const planStream = sandboxClient.streamPlan(messageContent, '/app/project', {
-            resume: claudeSessionId, // Resume previous conversation if exists
+            resume: claudeSessionId || undefined, // Resume previous conversation if exists
             ...(imageUrls.length > 0 && { images: imageUrls }), // Include image URLs (fetched by CLI)
+            userId,
           });
 
           for await (const event of planStream) {
@@ -697,7 +699,7 @@ export async function POST(
                 ? eventData.ticketsFile.slice('/app/project/'.length)
                 : eventData.ticketsFile;
 
-              await buildQueue.add('build', {
+              await buildQueue.add(JOB_NAMES.PROCESS_BUILD, {
                 buildJobId: buildJob.id,
                 chatSessionId: chatSession.id,
                 projectId,
@@ -708,6 +710,7 @@ export async function POST(
                 githubToken,
                 enableTest: sandboxConfig.test,
                 testUrl,
+                userId,
                 orgId: project.orgId ?? undefined,
               });
 
