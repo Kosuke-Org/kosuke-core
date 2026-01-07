@@ -3,19 +3,23 @@ import type { GitHubRepository } from '@/lib/types/github';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-export function useGitHubRepositories(
-  userId: string,
-  enabled: boolean = true,
-  organization: string = 'personal',
-  search: string = ''
-) {
+interface RepositoriesResponse {
+  repositories: GitHubRepository[];
+  hasMore: boolean;
+  needsGitHubConnection: boolean;
+  installUrl: string;
+}
+
+/**
+ * Fetch all repositories the user has access to with their app installation status.
+ * Repos with appInstalled=true can be imported directly.
+ * Repos with appInstalled=false need the Kosuke app installed first.
+ */
+export function useGitHubRepositories(enabled: boolean = true, search: string = '') {
   const query = useInfiniteQuery({
-    queryKey: ['github-repositories', userId, organization, search],
-    queryFn: async ({
-      pageParam,
-    }): Promise<{ repositories: GitHubRepository[]; hasMore: boolean }> => {
+    queryKey: ['github-repos-with-status', search],
+    queryFn: async ({ pageParam }): Promise<RepositoriesResponse> => {
       const params = new URLSearchParams({
-        organization,
         page: pageParam.toString(),
         per_page: '10',
       });
@@ -26,17 +30,19 @@ export function useGitHubRepositories(
       if (!response.ok) {
         throw new Error('Failed to fetch GitHub repositories');
       }
-      const data: ApiResponse<{ repositories: GitHubRepository[]; hasMore: boolean }> =
-        await response.json();
+      const data: ApiResponse<RepositoriesResponse> = await response.json();
       return data.data;
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage, _allPages, lastPageParam) => {
       return lastPage.hasMore ? lastPageParam + 1 : undefined;
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Always stale
+    gcTime: 0, // Never cache
     retry: 2,
-    enabled: !!userId && !!organization && enabled,
+    enabled,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const repositories = useMemo(
@@ -44,8 +50,17 @@ export function useGitHubRepositories(
     [query.data?.pages]
   );
 
+  const needsGitHubConnection = useMemo(
+    () => query.data?.pages[0]?.needsGitHubConnection ?? false,
+    [query.data?.pages]
+  );
+
+  const installUrl = useMemo(() => query.data?.pages[0]?.installUrl ?? '', [query.data?.pages]);
+
   return {
     ...query,
     repositories,
+    needsGitHubConnection,
+    installUrl,
   };
 }

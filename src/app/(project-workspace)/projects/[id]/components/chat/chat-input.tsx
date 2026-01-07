@@ -116,15 +116,14 @@ export default function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={isLoading || disabled}
-          className="min-h-[100px] max-h-[200px] resize-none border-0 !bg-transparent px-3 py-3 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
-          rows={3}
-          style={{ height: '100px' }} // Set initial fixed height
+          className="min-h-[60px] max-h-[200px] resize-none border-0 !bg-transparent px-3 pt-3 pb-0 shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm disabled:cursor-text"
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"
         />
 
-        <div className="flex items-center gap-2 px-3 absolute bottom-3 right-0">
+        {/* Footer with action buttons */}
+        <div className="flex items-center justify-end px-3 py-2">
           <input
             type="file"
             ref={fileInputRef}
@@ -135,7 +134,7 @@ export default function ChatInput({
             id="file-upload"
           />
 
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             <Button
               type="button"
               variant="ghost"

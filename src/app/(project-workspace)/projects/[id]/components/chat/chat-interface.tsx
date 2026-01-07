@@ -28,6 +28,7 @@ export default function ChatInterface({
   model,
   isBuildInProgress = false,
   isBuildFailed = false,
+  hasPullRequest = false,
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -341,13 +342,15 @@ export default function ChatInterface({
           isStreaming={isStreaming}
           onStop={cancelStream}
           placeholder={
-            isBuildFailed
-              ? 'Build stopped. Use the restart button above to try again.'
-              : isBuildInProgress
-                ? 'Build in progress...'
-                : 'Type your message...'
+            hasPullRequest
+              ? 'Pull request created. Start a new chat to make more changes.'
+              : isBuildFailed
+                ? 'Build stopped. Use the restart button above to try again.'
+                : isBuildInProgress
+                  ? 'Build in progress...'
+                  : 'Type your message...'
           }
-          disabled={isBuildInProgress || isBuildFailed}
+          disabled={isBuildInProgress || isBuildFailed || hasPullRequest}
           data-testid="chat-input"
           className="chat-input"
         />

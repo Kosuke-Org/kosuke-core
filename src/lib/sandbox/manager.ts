@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { decrypt } from '@/lib/crypto';
 import { db } from '@/lib/db/drizzle';
 import { organizationApiKeys } from '@/lib/db/schema';
+import { KOSUKE_BOT_EMAIL, KOSUKE_BOT_NAME } from '@/lib/github/installations';
 
 import { SandboxClient } from './client';
 import { getSandboxConfig } from './config';
@@ -229,8 +230,9 @@ export class SandboxManager {
       `LANGFUSE_SECRET_KEY=${process.env.LANGFUSE_SECRET_KEY || ''}`,
       `LANGFUSE_PUBLIC_KEY=${process.env.LANGFUSE_PUBLIC_KEY || ''}`,
       `LANGFUSE_BASE_URL=${process.env.LANGFUSE_BASE_URL || ''}`,
-      // Git identity for sandbox commits
-      `KOSUKE_GIT_EMAIL=${process.env.SANDBOX_GIT_EMAIL}`,
+      // Git identity for sandbox commits - uses Kosuke Bot identity
+      `KOSUKE_GIT_NAME=${KOSUKE_BOT_NAME}`,
+      `KOSUKE_GIT_EMAIL=${KOSUKE_BOT_EMAIL}`,
       // Pass __KSK__* resolved values (same name as placeholder)
       `__KSK__PREVIEW_RESEND_API_KEY=${process.env.PREVIEW_RESEND_API_KEY || ''}`,
     ];

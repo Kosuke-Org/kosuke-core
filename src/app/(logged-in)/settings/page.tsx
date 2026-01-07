@@ -1,6 +1,7 @@
 'use client';
 
-import { Github, Loader2, Unlink, Upload } from 'lucide-react';
+import { ExternalLink, Github, Info, Loader2, Unlink, Upload } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -8,9 +9,11 @@ import { useGitHubOAuth } from '@/hooks/use-github-oauth';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-user';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 import {
   Dialog,
   DialogContent,
@@ -19,11 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUser as useClerkUser } from '@clerk/nextjs';
+
+const GITHUB_APP_INSTALL_URL =
+  process.env.NEXT_PUBLIC_GITHUB_APP_INSTALL_URL ||
+  `https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app'}`;
 
 export default function SettingsPage() {
   const {
@@ -62,11 +70,24 @@ export default function SettingsPage() {
     disconnectGitHub,
     clearConnectingState,
     githubAccount,
+    refetch: refetchGitHubStatus,
   } = useGitHubOAuth();
 
   // Show success toast when redirected back from GitHub OAuth
   const hasShownToastRef = useRef(false);
+  const hasRefetchedRef = useRef(false);
 
+  // Force refetch when redirected back from GitHub OAuth to get fresh data
+  useEffect(() => {
+    if (searchParams.get('githubConnected') === 'true' && !hasRefetchedRef.current) {
+      hasRefetchedRef.current = true;
+      // Clear the connecting state and force a refetch to get fresh data
+      clearConnectingState();
+      refetchGitHubStatus();
+    }
+  }, [searchParams, clearConnectingState, refetchGitHubStatus]);
+
+  // Show toast and clean up URL after confirming GitHub is connected
   useEffect(() => {
     if (
       searchParams.get('githubConnected') === 'true' &&
@@ -74,9 +95,6 @@ export default function SettingsPage() {
       !hasShownToastRef.current
     ) {
       hasShownToastRef.current = true;
-
-      // Clear the connecting state now that we're back from OAuth
-      clearConnectingState();
 
       toast({
         title: 'GitHub Connected',
@@ -88,7 +106,38 @@ export default function SettingsPage() {
       url.searchParams.delete('githubConnected');
       router.replace(url.pathname, { scroll: false });
     }
-  }, [searchParams, isGitHubConnected, router, toast, clearConnectingState]);
+  }, [searchParams, isGitHubConnected, router, toast]);
+
+  // Handle error query param from GitHub OAuth callback
+  const hasShownErrorToastRef = useRef(false);
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error && !hasShownErrorToastRef.current) {
+      hasShownErrorToastRef.current = true;
+
+      const errorMessages: Record<string, string> = {
+        github_not_configured: 'GitHub App is not configured. Please contact support.',
+        invalid_callback: 'Invalid callback from GitHub. Please try again.',
+        invalid_state: 'Invalid state parameter. Please try connecting again.',
+        token_exchange_failed: 'Failed to exchange token with GitHub. Please try again.',
+        no_access_token: 'No access token received from GitHub. Please try again.',
+        user_fetch_failed: 'Failed to fetch GitHub user info. Please try again.',
+        callback_failed: 'GitHub connection failed. Please try again.',
+        access_denied: 'Access denied. You cancelled the GitHub authorization.',
+      };
+
+      toast({
+        title: 'GitHub Connection Failed',
+        description: errorMessages[error] || `An error occurred: ${error}`,
+        variant: 'destructive',
+      });
+
+      // Clean up URL without reloading the page
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      router.replace(url.pathname, { scroll: false });
+    }
+  }, [searchParams, router, toast]);
 
   // Track name changes
   const [hasNameChanged, setHasNameChanged] = useState(false);
@@ -151,25 +200,7 @@ export default function SettingsPage() {
   };
 
   const openDisconnectDialog = () => {
-    if (!githubAccount?.id) return;
-
-    // Check if user has other authentication methods
-    const otherExternalAccounts =
-      clerkUserFull?.externalAccounts?.filter(acc => acc.id !== githubAccount.id) || [];
-    const hasPassword = clerkUserFull?.passwordEnabled;
-    const hasOtherAuth = otherExternalAccounts.length > 0 || hasPassword;
-
-    if (!hasOtherAuth) {
-      // Show error - can't disconnect last auth method
-      toast({
-        title: 'Cannot disconnect',
-        description:
-          'You cannot disconnect your last authentication method. Please add another sign-in method first.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    if (!isGitHubConnected) return;
     setDisconnectDialogOpen(true);
   };
 
@@ -418,6 +449,25 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+
+                {/* GitHub App Installation Banner */}
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>GitHub App Installation</AlertTitle>
+                  <AlertDescription>
+                    To import repositories, make sure you have installed the Kosuke GitHub App in
+                    your organization or personal account.
+                    <Link
+                      href={GITHUB_APP_INSTALL_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center font-medium underline underline-offset-4 hover:text-primary"
+                    >
+                      Install GitHub App
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </Link>
+                  </AlertDescription>
+                </Alert>
               </div>
             </CardContent>
           </Card>

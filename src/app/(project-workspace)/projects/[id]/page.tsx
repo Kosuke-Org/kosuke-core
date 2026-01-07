@@ -3,11 +3,10 @@
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
 
-import { ArrowLeft, LayoutDashboard, LogOut, Settings } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
+import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,9 +19,9 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
-import { useCreatePullRequest } from '@/hooks/use-create-pull-request';
 import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
+import { useSubmitBuild } from '@/hooks/use-submit-build';
 import { useUser as useUserHook } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 import { useClerk, useUser } from '@clerk/nextjs';
@@ -31,6 +30,7 @@ import { useClerk, useUser } from '@clerk/nextjs';
 import ChatInterface from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
 import PreviewPanel from './components/preview/preview-panel';
+import { ProjectHeader } from './components/project-header';
 
 interface ProjectPageProps {
   params: Promise<{
@@ -115,6 +115,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const searchParams = useSearchParams();
 
   const sessionFromUrl = searchParams.get('session');
+  const showSettings = searchParams.get('show-settings') === 'true';
 
   const { user } = useUser();
   const {
@@ -130,17 +131,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
-  // Pull request functionality
-  const createPullRequestMutation = useCreatePullRequest(projectId);
-
   // Chat session state management - declare activeChatSessionId first
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
 
-  // Build status for PR creation and chat input
+  // Build status for submit and chat input
   const { data: latestBuildData } = useLatestBuild(projectId, activeChatSessionId);
-  const canCreatePR = latestBuildData?.status === 'completed';
+  const canSubmit = latestBuildData?.status === 'completed';
+
+  // Submit build functionality (review → commit → PR)
+  const submitBuildMutation = useSubmitBuild(projectId, activeChatSessionId);
   const isBuildInProgress =
-    latestBuildData?.status === 'pending' || latestBuildData?.status === 'running';
+    latestBuildData?.status === 'pending' ||
+    latestBuildData?.status === 'running' ||
+    latestBuildData?.status === 'validating';
   const isBuildFailed =
     latestBuildData?.status === 'failed' || latestBuildData?.status === 'cancelled';
 
@@ -225,19 +228,39 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     setShowSidebar(!showSidebar);
   };
 
-  // Handle creating pull request from active chat session
-  const handleCreatePullRequest = () => {
-    if (!activeChatSessionId || !currentSession?.id) {
-      console.error('No active chat session for pull request creation');
+  // Handle project settings modal via URL query params
+  const handleSettingsClick = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('show-settings', 'true');
+    router.push(`/projects/${projectId}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSettingsModalChange = (open: boolean) => {
+    if (!open) {
+      // Remove show-settings from URL when closing
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('show-settings');
+      const newUrl = params.toString()
+        ? `/projects/${projectId}?${params.toString()}`
+        : `/projects/${projectId}`;
+      router.push(newUrl, { scroll: false });
+    }
+  };
+
+  const handleProjectDeleted = () => {
+    router.push('/projects');
+  };
+
+  // Handle submitting build for review, commit, and PR creation
+  const handleSubmitBuild = () => {
+    if (!latestBuildData?.buildJobId) {
+      console.error('No build job available for submission');
       return;
     }
 
-    createPullRequestMutation.mutate({
-      sessionId: currentSession.id,
-      data: {
-        title: currentSession.title,
-        description: `Automated changes from Kosuke chat session: ${currentSession.title}\n\nBranch: ${currentSession.branchName}`,
-      },
+    submitBuildMutation.mutate({
+      buildJobId: latestBuildData.buildJobId,
+      userEmail: dbUser?.email,
     });
   };
 
@@ -302,9 +325,25 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   };
 
   return (
-    <div className="flex h-screen w-full">
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-        {/* Chat Panel - Header + Content */}
+    <div className="flex flex-col h-screen w-full">
+      <ProjectHeader
+        project={project}
+        showBackButton={!showSidebar}
+        onBackClick={toggleSidebar}
+        onSettingsClick={handleSettingsClick}
+      >
+        {renderUserSection()}
+      </ProjectHeader>
+
+      <ProjectSettingsModal
+        project={project}
+        open={showSettings}
+        onOpenChange={handleSettingsModalChange}
+        onProjectDeleted={handleProjectDeleted}
+      />
+
+      <ResizablePanelGroup direction="horizontal" className="flex-1 w-full">
+        {/* Chat Panel */}
         <ResizablePanel
           defaultSize={40}
           minSize={25}
@@ -315,45 +354,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           }}
         >
           <div className="flex flex-col h-full">
-            {/* Chat Header */}
-            <header className="h-14 flex items-center bg-background">
-              <div className="flex items-center h-full w-full relative">
-                <div className="px-4 flex items-center">
-                  <Link href="/" className="flex items-center">
-                    <Image
-                      src="/logo-dark.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="block dark:hidden"
-                      priority
-                    />
-                    <Image
-                      src="/logo.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="hidden dark:block"
-                      priority
-                    />
-                  </Link>
-                </div>
-
-                {/* Back to Sessions button - only show when in chat interface */}
-                {!showSidebar && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleSidebar}
-                    aria-label="Back to Sessions"
-                    title="Back to Sessions"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </header>
-
             {/* Chat Content */}
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
@@ -374,6 +374,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       model={project?.model}
                       isBuildInProgress={isBuildInProgress}
                       isBuildFailed={isBuildFailed}
+                      hasPullRequest={Boolean(latestBuildData?.prUrl)}
                     />
                   </div>
                 )}
@@ -387,45 +388,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           <ResizableHandle className="hidden md:flex w-px! bg-transparent! border-none! after:bg-transparent! before:bg-transparent! px-1" />
         )}
 
-        {/* Preview Panel - Header + Content */}
+        {/* Preview Panel */}
         <ResizablePanel
           defaultSize={isChatCollapsed ? 100 : 60}
           minSize={40}
           className={cn('h-full flex-col overflow-hidden', !isChatCollapsed && 'hidden md:flex')}
         >
           <div className="flex flex-col h-full">
-            {/* Preview Header */}
-            <header className="h-14 flex items-center justify-between bg-background px-4">
-              <div className="flex items-center gap-4">
-                {/* Logo - show when sidebar is collapsed */}
-                {isChatCollapsed && (
-                  <Link href="/" className="flex items-center">
-                    <Image
-                      src="/logo-dark.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="block dark:hidden"
-                      priority
-                    />
-                    <Image
-                      src="/logo.svg"
-                      alt="Kosuke"
-                      width={24}
-                      height={24}
-                      className="hidden dark:block"
-                      priority
-                    />
-                  </Link>
-                )}
-                <h2 className="text-sm font-medium truncate max-w-[200px]">
-                  {project?.name || 'Loading Project...'}
-                </h2>
-              </div>
-
-              <div className="flex items-center gap-2">{renderUserSection()}</div>
-            </header>
-
             {/* Preview Content - with rounded border */}
             <div className="flex-1 overflow-hidden border rounded-md border-border">
               <PreviewPanel
@@ -436,11 +405,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isNewProject={isNewProject}
                 isSidebarCollapsed={isChatCollapsed}
                 onToggleSidebar={toggleChatCollapsed}
-                showCreatePR={!showSidebar && Boolean(activeChatSessionId)}
-                onCreatePullRequest={handleCreatePullRequest}
-                canCreatePR={canCreatePR}
-                isCreatingPR={createPullRequestMutation.isPending}
-                prUrl={createPullRequestMutation.data?.pull_request_url}
+                showSubmit={!showSidebar && Boolean(activeChatSessionId)}
+                onSubmit={handleSubmitBuild}
+                canSubmit={canSubmit}
+                submitStatus={latestBuildData?.submitStatus}
+                prUrl={latestBuildData?.prUrl}
+                isSubmitting={submitBuildMutation.isPending}
+                hasSubmitted={submitBuildMutation.isSuccess}
               />
             </div>
           </div>
