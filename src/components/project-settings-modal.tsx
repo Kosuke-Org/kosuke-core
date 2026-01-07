@@ -170,6 +170,19 @@ export function ProjectSettingsModal({
     };
   }, []);
 
+  // Reset delete confirmation state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setShowDeleteConfirmation(false);
+      setDeleteRepo(false);
+      setRepoConfirmationText('');
+      setDeleteStage(null);
+      setDeleteProgress(0);
+      setIsCompleting(false);
+      operationStartedRef.current = false;
+    }
+  }, [open]);
+
   // Handle the deletion progress visualization
   useEffect(() => {
     // When operation starts
