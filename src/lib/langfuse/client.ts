@@ -121,7 +121,7 @@ async function fetchAllObservationsForOrg(orgId: string): Promise<Observation[]>
   const response = await langfuse.api.observationsV2.getMany({
     userId: orgId,
     fields: 'core,usage,metadata',
-    //type: 'GENERATION',
+    type: 'GENERATION',
     limit: 1000,
   });
   console.log(
