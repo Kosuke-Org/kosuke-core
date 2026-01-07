@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrganization } from '@clerk/nextjs';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertCircle, CloudDownload } from 'lucide-react';
 import Link from 'next/link';
@@ -18,6 +19,8 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project }: ProjectCardProps) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const { membership } = useOrganization();
+  const isAdmin = membership?.role === 'org:admin';
 
   const handleSettingsClick = () => {
     setShowSettingsModal(true);
@@ -94,6 +97,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
         project={project}
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
+        isAdmin={isAdmin}
       />
     </>
   );
