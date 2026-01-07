@@ -4,14 +4,14 @@ import { z } from 'zod';
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { maintenanceJobRuns, maintenanceJobs } from '@/lib/db/schema';
+import { maintenanceJobRuns, maintenanceJobs, maintenanceJobTypeEnum } from '@/lib/db/schema';
 import { verifyProjectAccess } from '@/lib/projects';
 import { calculateNextRun, scheduleMaintenanceJob, unscheduleMaintenanceJob } from '@/lib/queue';
 import { desc, eq } from 'drizzle-orm';
 
 // Schema for updating maintenance job
 const updateMaintenanceJobSchema = z.object({
-  jobType: z.enum(['sync_rules', 'analyze', 'security_check']),
+  jobType: z.enum(maintenanceJobTypeEnum.enumValues),
   enabled: z.boolean(),
 });
 
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
 
     // Create placeholder configs for missing job types (for UI display)
-    const allJobTypes = ['sync_rules', 'analyze', 'security_check'] as const;
+    const allJobTypes = maintenanceJobTypeEnum.enumValues;
     const existingTypes = new Set(jobs.map(j => j.jobType));
     const missingConfigs = allJobTypes
       .filter(type => !existingTypes.has(type))

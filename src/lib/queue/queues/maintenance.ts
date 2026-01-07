@@ -37,7 +37,7 @@ function getJobFrequency(jobType: MaintenanceJobType): string {
   switch (jobType) {
     case 'sync_rules':
       return '0 2 */7 * *'; // Every 7 days at 2 AM
-    case 'analyze':
+    case 'code_analysis':
       return '0 2 */14 * *'; // Every 14 days at 2 AM
     case 'security_check':
       return '0 2 */3 * *'; // Every 3 days at 2 AM
@@ -51,8 +51,8 @@ function getJobName(jobType: MaintenanceJobType): string {
   switch (jobType) {
     case 'sync_rules':
       return JOB_NAMES.MAINTENANCE_SYNC_RULES;
-    case 'analyze':
-      return JOB_NAMES.MAINTENANCE_ANALYZE;
+    case 'code_analysis':
+      return JOB_NAMES.MAINTENANCE_CODE_ANALYSIS;
     case 'security_check':
       return JOB_NAMES.MAINTENANCE_SECURITY_CHECK;
   }
@@ -151,7 +151,7 @@ function getJobStep(jobType: MaintenanceJobType): number {
   switch (jobType) {
     case 'sync_rules':
       return 7; // */7 - days 1, 8, 15, 22, 29
-    case 'analyze':
+    case 'code_analysis':
       return 14; // */14 - days 1, 15, 29
     case 'security_check':
       return 3; // */3 - days 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31

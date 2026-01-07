@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       // Get display name for job type
       const jobDisplayNames: Record<string, string> = {
         sync_rules: 'Sync Rules',
-        analyze: 'Code Analysis',
+        code_analysis: 'Code Analysis',
         security_check: 'Security Check',
       };
       const jobDisplayName = jobDisplayNames[jobType] || jobType;

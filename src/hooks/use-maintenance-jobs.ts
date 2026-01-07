@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useToast } from '@/hooks/use-toast';
 import type { MaintenanceJob, MaintenanceJobRun, MaintenanceJobType } from '@/lib/db/schema';
+import { snakeToText } from '@/lib/utils';
 
 /**
  * Extended maintenance job with latest run and next run info
@@ -33,20 +34,6 @@ const maintenanceJobsKeys = {
   all: ['maintenance-jobs'] as const,
   project: (projectId: string) => [...maintenanceJobsKeys.all, projectId] as const,
 };
-
-/**
- * Get display name for job type
- */
-function getJobDisplayName(jobType: MaintenanceJobType): string {
-  switch (jobType) {
-    case 'sync_rules':
-      return 'Sync Rules';
-    case 'analyze':
-      return 'Analyze';
-    case 'security_check':
-      return 'Security Check';
-  }
-}
 
 /**
  * Hook for fetching maintenance jobs for a project
@@ -97,7 +84,7 @@ export function useUpdateMaintenanceJob(projectId: string) {
 
       toast({
         title: 'Settings updated',
-        description: `${getJobDisplayName(jobType)} ${enabled ? 'enabled' : 'disabled'}`,
+        description: `${snakeToText(jobType)} ${enabled ? 'enabled' : 'disabled'}`,
       });
     },
     onError: error => {

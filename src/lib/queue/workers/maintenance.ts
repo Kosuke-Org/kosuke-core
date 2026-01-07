@@ -19,7 +19,7 @@ function getJobDisplayName(jobType: string): string {
   switch (jobType) {
     case 'sync_rules':
       return 'Sync Rules';
-    case 'analyze':
+    case 'code_analysis':
       return 'Code Analysis';
     case 'security_check':
       return 'Security Check';

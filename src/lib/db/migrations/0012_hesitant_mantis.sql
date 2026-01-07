@@ -1,5 +1,5 @@
 CREATE TYPE "public"."maintenance_job_run_status" AS ENUM('pending', 'running', 'completed', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."maintenance_job_type" AS ENUM('sync_rules', 'analyze', 'security_check');--> statement-breakpoint
+CREATE TYPE "public"."maintenance_job_type" AS ENUM('sync_rules', 'code_analysis', 'security_check');--> statement-breakpoint
 CREATE TABLE "maintenance_job_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"maintenance_job_id" uuid NOT NULL,

@@ -57,7 +57,7 @@ export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 // Maintenance job type enum
 export const maintenanceJobTypeEnum = pgEnum('maintenance_job_type', [
   'sync_rules',
-  'analyze',
+  'code_analysis',
   'security_check',
 ]);
 export type MaintenanceJobType = (typeof maintenanceJobTypeEnum.enumValues)[number];

@@ -278,7 +278,16 @@ export function ProjectSettingsModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={nextOpen => {
+          // Prevent closing during active delete operation
+          if (!nextOpen && (isPending || isCompleting)) {
+            return;
+          }
+          onOpenChange(nextOpen);
+        }}
+      >
         <DialogContent className="sm:max-w-[500px] border border-border bg-card">
           <DialogHeader>
             <DialogTitle>Project Settings</DialogTitle>
@@ -303,11 +312,11 @@ export function ProjectSettingsModal({
                   />
 
                   <MaintenanceToggle
-                    jobType="analyze"
+                    jobType="code_analysis"
                     icon={<Search className="h-4 w-4 text-muted-foreground" />}
-                    label="Analyze"
+                    label="Code Analysis"
                     description="Run code analysis on changes (every 14 days)"
-                    config={getJobConfig('analyze')}
+                    config={getJobConfig('code_analysis')}
                     onToggle={handleToggle}
                     isUpdating={updateJob.isPending}
                   />

@@ -25,6 +25,6 @@ export const JOB_NAMES = {
   PROCESS_SUBMIT: 'process-submit',
   // Maintenance jobs
   MAINTENANCE_SYNC_RULES: 'maintenance-sync-rules',
-  MAINTENANCE_ANALYZE: 'maintenance-analyze',
+  MAINTENANCE_CODE_ANALYSIS: 'maintenance-code-analysis',
   MAINTENANCE_SECURITY_CHECK: 'maintenance-security-check',
 } as const;
