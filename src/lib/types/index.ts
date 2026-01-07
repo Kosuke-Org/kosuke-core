@@ -12,6 +12,7 @@ export type {
 export * from './ghost';
 export * from './github';
 export * from './infrastructure';
+export * from './maintenance';
 export * from './organization';
 export * from './preview';
 export * from './preview-urls';

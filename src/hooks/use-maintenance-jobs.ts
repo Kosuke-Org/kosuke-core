@@ -1,31 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useToast } from '@/hooks/use-toast';
-import type { MaintenanceJob, MaintenanceJobRun, MaintenanceJobType } from '@/lib/db/schema';
+import type { MaintenanceJobType } from '@/lib/db/schema';
+import type {
+  MaintenanceJobsResponse,
+  MaintenanceJobWithRun,
+  UpdateMaintenanceJobResponse,
+} from '@/lib/types';
 import { snakeToText } from '@/lib/utils';
-
-/**
- * Extended maintenance job with latest run and next run info
- */
-export interface MaintenanceJobWithRun {
-  id: string | null;
-  projectId: string;
-  jobType: MaintenanceJobType;
-  enabled: boolean;
-  createdAt: string | null;
-  updatedAt: string | null;
-  latestRun: MaintenanceJobRun | null;
-  nextRunAt: string | null;
-}
-
-interface MaintenanceJobsResponse {
-  jobs: MaintenanceJobWithRun[];
-}
-
-interface UpdateMaintenanceJobResponse {
-  job: MaintenanceJob;
-  nextRunAt: string | null;
-}
 
 /**
  * Query key factory for maintenance jobs

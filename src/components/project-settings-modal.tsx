@@ -21,12 +21,9 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { useDeleteProject } from '@/hooks/use-projects';
-import {
-  useMaintenanceJobs,
-  useUpdateMaintenanceJob,
-  type MaintenanceJobWithRun,
-} from '@/hooks/use-maintenance-jobs';
+import { useMaintenanceJobs, useUpdateMaintenanceJob } from '@/hooks/use-maintenance-jobs';
 import type { MaintenanceJobType, Project } from '@/lib/db/schema';
+import type { MaintenanceJobWithRun } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface ProjectSettingsModalProps {
