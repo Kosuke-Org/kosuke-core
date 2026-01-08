@@ -11,6 +11,7 @@ import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/lib/db/schema';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import type { ProjectWithOwnerStatus } from '@/lib/types/project';
 
 interface ProjectCardProps {
@@ -20,7 +21,7 @@ interface ProjectCardProps {
 export default function ProjectCard({ project }: ProjectCardProps) {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { membership } = useOrganization();
-  const isAdmin = membership?.role === 'org:admin';
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
 
   const handleSettingsClick = () => {
     setShowSettingsModal(true);

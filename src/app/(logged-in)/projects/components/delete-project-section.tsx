@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -22,99 +22,20 @@ export function DeleteProjectSection({
   onProjectDeleted,
   onDeletingChange,
 }: DeleteProjectSectionProps) {
-  const { mutate: deleteProject, isPending, isSuccess, isError } = useDeleteProject();
+  const { mutate: deleteProject, isPending } = useDeleteProject();
 
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [deleteRepo, setDeleteRepo] = useState(false);
   const [repoConfirmationText, setRepoConfirmationText] = useState('');
-  const [deleteStage, setDeleteStage] = useState<string | null>(null);
-  const [deleteProgress, setDeleteProgress] = useState(0);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
-  const operationStartedRef = useRef<boolean>(false);
 
-  const isDeleting = isPending || isCompleting;
-
-  // Notify parent of deletion state changes
   useEffect(() => {
-    onDeletingChange?.(isDeleting);
-  }, [isDeleting, onDeletingChange]);
-
-  // Clear timers on unmount
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach(timer => clearTimeout(timer));
-      timersRef.current = [];
-    };
-  }, []);
-
-  // Handle the deletion progress visualization
-  useEffect(() => {
-    // When operation starts
-    if (isPending && !operationStartedRef.current) {
-      operationStartedRef.current = true;
-      setDeleteStage('Preparing to delete project...');
-      setDeleteProgress(10);
-
-      // Clear any existing timers
-      timersRef.current.forEach(timer => clearTimeout(timer));
-      timersRef.current = [];
-
-      // Set up progressive indicators for better UX
-      const stages = [
-        { time: 800, stage: 'Cleaning up project files...', progress: 25 },
-        { time: 2000, stage: 'Removing node_modules...', progress: 40 },
-        { time: 4000, stage: 'Deleting project directory...', progress: 60 },
-        { time: 6000, stage: 'Finalizing deletion...', progress: 85 },
-      ];
-
-      stages.forEach(({ time, stage, progress }) => {
-        const timer = setTimeout(() => {
-          if (isPending) {
-            setDeleteStage(stage);
-            setDeleteProgress(progress);
-          }
-        }, time);
-
-        timersRef.current.push(timer);
-      });
-    }
-
-    // When operation succeeds
-    if (isSuccess && !isCompleting && operationStartedRef.current) {
-      setDeleteStage('Project deleted successfully!');
-      setDeleteProgress(100);
-      setIsCompleting(true);
-
-      // Add a delay before calling callback to show the success state
-      const timer = setTimeout(() => {
-        onProjectDeleted?.();
-
-        // Reset state after callback
-        setTimeout(() => {
-          resetState();
-        }, 300);
-      }, 1000);
-
-      timersRef.current.push(timer);
-    }
-
-    // When operation errors
-    if (isError && operationStartedRef.current) {
-      setDeleteStage('Error deleting project. Please try again.');
-      setDeleteProgress(0);
-      operationStartedRef.current = false;
-    }
-  }, [isPending, isSuccess, isError, isCompleting, onProjectDeleted]);
+    onDeletingChange?.(isPending);
+  }, [isPending, onDeletingChange]);
 
   const resetState = () => {
     setShowConfirmation(false);
     setDeleteRepo(false);
     setRepoConfirmationText('');
-    setDeleteStage(null);
-    setDeleteProgress(0);
-    setIsCompleting(false);
-    operationStartedRef.current = false;
   };
 
   const handleDeleteClick = () => {
@@ -122,22 +43,19 @@ export function DeleteProjectSection({
   };
 
   const handleCancelDelete = () => {
-    if (isDeleting) return;
+    if (isPending) return;
     resetState();
   };
 
   const handleDelete = () => {
-    try {
-      // Reset state for new deletion attempt
-      operationStartedRef.current = false;
-      setIsCompleting(false);
-
-      // Trigger the deletion
-      deleteProject({ projectId: project.id, deleteRepo });
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      setDeleteStage('Error deleting project. Please try again.');
-    }
+    deleteProject(
+      { projectId: project.id, deleteRepo },
+      {
+        onSuccess: () => {
+          onProjectDeleted?.();
+        },
+      }
+    );
   };
 
   const isRepoConfirmationValid = !deleteRepo || repoConfirmationText === project.name;
@@ -165,7 +83,7 @@ export function DeleteProjectSection({
           ) : (
             // Expanded confirmation state
             <div className="space-y-4">
-              {!isDeleting ? (
+              {!isPending ? (
                 <>
                   <p className="text-sm text-foreground">
                     Are you sure you want to delete project{' '}
@@ -255,31 +173,22 @@ export function DeleteProjectSection({
                 </>
               ) : (
                 // Deletion in progress
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Deleting project files. This may take a moment, please don&apos;t close this
-                    window.
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center mb-2">
-                      {isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full bg-green-500 mr-2" />
-                      )}
-                      <span className="text-sm text-muted-foreground">{deleteStage}</span>
-                    </div>
-                    <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-500 ease-in-out ${
-                          isSuccess ? 'bg-green-500' : 'bg-primary'
-                        }`}
-                        style={{ width: `${deleteProgress}%` }}
-                      />
-                    </div>
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-destructive" />
+                  <div className="space-y-0.5">
+                    <p className="text-sm text-foreground">
+                      Deleting{' '}
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                        {project.name}
+                      </code>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {deleteRepo
+                        ? 'Removing project files and GitHub repository...'
+                        : 'Removing project files...'}
+                    </p>
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}

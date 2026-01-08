@@ -23,6 +23,7 @@ import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
 import { useSubmitBuild } from '@/hooks/use-submit-build';
 import { useUser as useUserHook } from '@/hooks/use-user';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { cn } from '@/lib/utils';
 import { useClerk, useOrganization, useUser } from '@clerk/nextjs';
 
@@ -129,7 +130,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     initials,
   } = useUserHook();
   const { signOut } = useClerk();
-  const isAdmin = membership?.role === 'org:admin';
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
