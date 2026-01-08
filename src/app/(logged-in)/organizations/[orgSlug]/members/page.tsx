@@ -9,6 +9,7 @@ import {
   Mail,
   MoreVertical,
   Repeat,
+  Shield,
   Trash2,
   X,
 } from 'lucide-react';
@@ -35,6 +36,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useOrganizationMembers } from '@/hooks/use-organization-members';
@@ -46,11 +54,9 @@ export default function OrganizationMembersPage() {
   const { organization, isLoaded, membership, memberships, invitations } = useOrganization({
     memberships: {
       pageSize: ITEMS_PER_PAGE,
-      keepPreviousData: true,
     },
     invitations: {
       pageSize: ITEMS_PER_PAGE,
-      keepPreviousData: true,
     },
   });
   const {
@@ -62,10 +68,13 @@ export default function OrganizationMembersPage() {
     revokingInvitationId,
     transferOwnership,
     isTransferringOwnership,
+    updateMemberRole,
+    updatingRoleUserId,
   } = useOrganizationMembers();
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'org:admin' | 'org:member'>('org:member');
   const [transferringUserId, setTransferringUserId] = useState<string | null>(null);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState<{
@@ -100,8 +109,10 @@ export default function OrganizationMembersPage() {
     await inviteMember({
       email: inviteEmail,
       organizationId: organization.id,
+      role: inviteRole,
     });
     setInviteEmail('');
+    setInviteRole('org:member');
     setInviteDialogOpen(false);
     invitations?.revalidate?.();
   };
@@ -146,9 +157,25 @@ export default function OrganizationMembersPage() {
     }
   };
 
+  const handleUpdateRole = async (targetUserId: string, newRole: 'org:admin' | 'org:member') => {
+    await updateMemberRole({
+      userId: targetUserId,
+      organizationId: organization.id,
+      role: newRole,
+    });
+    memberships?.revalidate?.();
+  };
+
   // Calculate total pages
   const totalMembersPages = Math.ceil((memberships?.count ?? 0) / ITEMS_PER_PAGE);
   const totalInvitationsPages = Math.ceil((invitations?.count ?? 0) / ITEMS_PER_PAGE);
+
+  // Check if a member has any pending operation
+  const isMemberBusy = (memberId: string | undefined) =>
+    memberId &&
+    (removingMemberId === memberId ||
+      transferringUserId === memberId ||
+      updatingRoleUserId === memberId);
 
   return (
     <div className="space-y-6">
@@ -213,16 +240,35 @@ export default function OrganizationMembersPage() {
                     <DialogTitle>Invite Member</DialogTitle>
                     <DialogDescription>Send an invitation to join {displayName}.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="inviteEmail">Email Address</Label>
-                      <Input
-                        id="inviteEmail"
-                        type="email"
-                        placeholder="colleague@example.com"
-                        value={inviteEmail}
-                        onChange={e => setInviteEmail(e.target.value)}
-                      />
+                  <div className="py-4">
+                    <div className="flex gap-3">
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor="inviteEmail">Email Address</Label>
+                        <Input
+                          id="inviteEmail"
+                          type="email"
+                          placeholder="colleague@example.com"
+                          value={inviteEmail}
+                          onChange={e => setInviteEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="w-28 space-y-2">
+                        <Label htmlFor="inviteRole">Role</Label>
+                        <Select
+                          value={inviteRole}
+                          onValueChange={value =>
+                            setInviteRole(value as 'org:admin' | 'org:member')
+                          }
+                        >
+                          <SelectTrigger id="inviteRole">
+                            <SelectValue placeholder="Role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="org:member">Member</SelectItem>
+                            <SelectItem value="org:admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -302,13 +348,11 @@ export default function OrganizationMembersPage() {
                                 size="icon"
                                 className="shrink-0"
                                 disabled={
-                                  removingMemberId === member.publicUserData?.userId ||
-                                  transferringUserId === member.publicUserData?.userId ||
+                                  isMemberBusy(member.publicUserData?.userId) ||
                                   isTransferringOwnership
                                 }
                               >
-                                {removingMemberId === member.publicUserData?.userId ||
-                                transferringUserId === member.publicUserData?.userId ? (
+                                {isMemberBusy(member.publicUserData?.userId) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <MoreVertical className="h-4 w-4 text-muted-foreground" />
@@ -317,27 +361,42 @@ export default function OrganizationMembersPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {/* Only show transfer option if current user is creator/admin */}
-                              {isCreator && (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      const memberName =
-                                        member.publicUserData?.firstName &&
-                                        member.publicUserData?.lastName
-                                          ? `${member.publicUserData.firstName} ${member.publicUserData.lastName}`
-                                          : member.publicUserData?.identifier || 'this member';
-                                      openTransferDialog(
-                                        member.publicUserData!.userId!,
-                                        memberName
-                                      );
-                                    }}
-                                  >
-                                    <Repeat className="h-4 w-4 mr-2" />
-                                    Transfer
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
+                              {/* Role change option */}
+                              {member.role === 'org:member' ? (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleUpdateRole(member.publicUserData!.userId!, 'org:admin')
+                                  }
+                                >
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  Make Admin
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleUpdateRole(member.publicUserData!.userId!, 'org:member')
+                                  }
+                                >
+                                  <Shield className="h-4 w-4 mr-2" />
+                                  Make Member
+                                </DropdownMenuItem>
                               )}
+                              {isCreator && (
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const memberName =
+                                      member.publicUserData?.firstName &&
+                                      member.publicUserData?.lastName
+                                        ? `${member.publicUserData.firstName} ${member.publicUserData.lastName}`
+                                        : member.publicUserData?.identifier || 'this member';
+                                    openTransferDialog(member.publicUserData!.userId!, memberName);
+                                  }}
+                                >
+                                  <Repeat className="h-4 w-4 mr-2" />
+                                  Transfer Ownership
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => handleRemoveMember(member.publicUserData?.userId)}
                                 className="text-destructive focus:text-destructive"
@@ -405,7 +464,18 @@ export default function OrganizationMembersPage() {
                             <Mail className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{invite.emailAddress}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{invite.emailAddress}</p>
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                                  invite.role === 'org:admin'
+                                    ? 'bg-primary/10 text-primary font-medium'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}
+                              >
+                                {invite.role === 'org:admin' ? 'Admin' : 'Member'}
+                              </span>
+                            </div>
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
                               <span>Pending</span>

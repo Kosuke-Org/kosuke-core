@@ -1,6 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PUT(request: NextRequest) {
@@ -28,22 +29,21 @@ export async function PUT(request: NextRequest) {
       return ApiErrorHandler.badRequest('File size must be less than 2MB');
     }
 
-    try {
-      // Update user's image using Clerk's native API
-      await clerkService.updateUserImage(userId, file);
+    // Update user's image using Clerk's native API
+    await clerkService.updateUserImage(userId, file);
 
-      // Get updated user to return new image URL
-      const updatedUser = await clerkService.getUser(userId);
+    // Get updated user to return new image URL
+    const updatedUser = await clerkService.getUser(userId);
 
-      return NextResponse.json({
-        success: 'Profile image updated successfully',
-        imageUrl: updatedUser.imageUrl,
-      });
-    } catch (uploadError) {
-      console.error('Error uploading image:', uploadError);
-      return ApiErrorHandler.handle(uploadError);
-    }
+    return NextResponse.json({
+      success: 'Profile image updated successfully',
+      imageUrl: updatedUser.imageUrl,
+    });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to update profile image');
+    }
     console.error('Error updating profile image:', error);
     return ApiErrorHandler.handle(error);
   }

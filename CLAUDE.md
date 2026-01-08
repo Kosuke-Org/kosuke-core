@@ -151,6 +151,42 @@ import { ClerkService } from '@/lib/clerk/service';
 const service = new ClerkService(); // NO! Use singleton
 ```
 
+### Clerk API Error Handling - MANDATORY
+
+**Always handle Clerk API errors with `isClerkAPIResponseError` in API routes to surface meaningful error messages.**
+
+```typescript
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
+import { ApiErrorHandler } from '@/lib/api/errors';
+
+export async function POST(request: Request) {
+  try {
+    // ... validation and authorization ...
+
+    // Clerk API call
+    await clerkService.createOrganization({ name, createdBy: userId });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    // Handle Clerk-specific errors with meaningful messages
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Operation failed');
+    }
+    console.error('Operation failed:', error);
+    return ApiErrorHandler.handle(error);
+  }
+}
+```
+
+**Key Points:**
+
+- Check `isClerkAPIResponseError` first in the catch block
+- Extract message from `error.errors[0]?.longMessage` (preferred) or `error.errors[0]?.message`
+- Return `ApiErrorHandler.badRequest()` for user-actionable Clerk errors
+- Re-throw or use `ApiErrorHandler.handle()` for non-Clerk errors
+- Works for all Clerk mutations: create, update, delete operations
+
 ## Component Architecture & UI Guidelines
 
 - **Shadcn Components**: Use pre-installed components from `./components/ui`
@@ -1007,6 +1043,93 @@ const previewWorker = createPreviewWorker();
 - ✅ **ALWAYS** use factory functions: `export function createWorker() { return createWorker(...); }`
 - ✅ **ALWAYS** call worker factories explicitly in `src/worker.ts`
 - ✅ **NEVER** call worker factories in API routes (only import queues)
+
+## Kosuke CLI SSE Event Handling - MANDATORY
+
+**Use typed event constants from `@Kosuke-Org/cli` for all SSE event handling in workers. NEVER hardcode event type strings.**
+
+### Imports
+
+```typescript
+import {
+  BUILD_EVENTS,
+  SUBMIT_EVENTS,
+  SHIP_EVENTS,
+  TEST_EVENTS,
+  MIGRATE_EVENTS,
+  VALIDATION_EVENTS,
+  type BuildSSEEvent,
+  type SubmitSSEEvent,
+} from '@Kosuke-Org/cli';
+import { logBuildEvent, logSubmitEvent } from '@/lib/logging';
+```
+
+### Event Parsing Pattern
+
+When parsing SSE streams, always use typed events:
+
+```typescript
+// ✅ CORRECT - Use typed constants and both checks
+if (eventData && eventType) {
+  const parsed = JSON.parse(eventData);
+  const event = { type: eventType, data: parsed } as BuildSSEEvent;
+
+  // Log with centralized formatter
+  logBuildEvent(event);
+
+  // Handle with typed constants
+  switch (event.type) {
+    case BUILD_EVENTS.STARTED:
+      // Handle started event
+      break;
+    case BUILD_EVENTS.TICKET_COMPLETED:
+      // Handle ticket completed
+      break;
+    case BUILD_EVENTS.DONE:
+      // Handle done
+      break;
+  }
+}
+```
+
+```typescript
+// ❌ WRONG - Hardcoded strings and non-null assertion
+if (eventData) {
+  const event = { type: eventType!, data: parsed }; // Bad: uses !
+
+  switch (event.type) {
+    case 'started': // Bad: hardcoded string
+    case 'ticket_completed': // Bad: hardcoded string
+    case 'done': // Bad: hardcoded string
+  }
+}
+```
+
+### Centralized Logging
+
+Use `src/lib/logging.ts` formatters for consistent worker output:
+
+```typescript
+import { logBuildEvent, logSubmitEvent } from '@/lib/logging';
+
+// In build worker
+for await (const event of buildStream) {
+  logBuildEvent(event); // Formats with [BUILD] prefix and emojis
+}
+
+// In submit worker
+for await (const event of submitStream) {
+  logSubmitEvent(event); // Formats with [SUBMIT] prefix and emojis
+}
+```
+
+### Rules
+
+- ❌ **NEVER** use hardcoded strings like `'started'`, `'done'`, `'ticket_completed'`
+- ✅ **ALWAYS** use typed constants: `BUILD_EVENTS.STARTED`, `BUILD_EVENTS.DONE`
+- ✅ **ALWAYS** check both `eventData && eventType` before parsing (avoids `!` assertions)
+- ✅ **ALWAYS** use centralized logging functions from `@/lib/logging`
+- ✅ **ALWAYS** cast parsed events to proper types: `as BuildSSEEvent`, `as SubmitSSEEvent`
 
 ## TypeScript and Type Safety Guidelines
 
