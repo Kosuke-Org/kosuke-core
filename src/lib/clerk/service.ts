@@ -328,13 +328,11 @@ export class ClerkService {
     offset?: number;
     query?: string;
   }): Promise<{ data: ClerkOrganization[]; totalCount: number }> {
-    console.log('Calling listOrganizations with params:', params);
     const response = await this.client.organizations.getOrganizationList({
       limit: params?.limit,
       offset: params?.offset,
       query: params?.query,
     });
-    console.log('response', response);
 
     const organizations = response.data.map(org => {
       const publicMetadata = (org.publicMetadata || {}) as OrgPublicMetadata;
