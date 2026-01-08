@@ -1,3 +1,4 @@
+import { REQUIREMENTS_EVENTS } from '@Kosuke-Org/cli';
 import { auth } from '@clerk/nextjs/server';
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -293,25 +294,25 @@ export async function POST(
             const eventData = event as { type?: string; data?: Record<string, unknown> };
 
             // Forward events to client in real-time
-            if (eventData.type === 'started') {
+            if (eventData.type === REQUIREMENTS_EVENTS.STARTED) {
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
-            } else if (eventData.type === 'message' && eventData.data) {
+            } else if (eventData.type === REQUIREMENTS_EVENTS.MESSAGE && eventData.data) {
               const text = (eventData.data as { text?: string }).text;
               if (text) {
                 assistantResponse += text;
               }
               // Stream message event immediately to client
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
-            } else if (eventData.type === 'tool_call') {
+            } else if (eventData.type === REQUIREMENTS_EVENTS.TOOL_CALL) {
               // Stream tool call events to client
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
-            } else if (eventData.type === 'tool_result') {
+            } else if (eventData.type === REQUIREMENTS_EVENTS.TOOL_RESULT) {
               // Stream tool result events to client
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
-            } else if (eventData.type === 'search_results') {
+            } else if (eventData.type === REQUIREMENTS_EVENTS.SEARCH_RESULTS) {
               // Stream search results events to client (web search results)
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
-            } else if (eventData.type === 'done' && eventData.data) {
+            } else if (eventData.type === REQUIREMENTS_EVENTS.DONE && eventData.data) {
               const doneData = eventData.data as {
                 response?: string;
                 docsCreated?: boolean;
@@ -323,7 +324,7 @@ export async function POST(
                 // Send error in done event
                 controller.enqueue(
                   new TextEncoder().encode(
-                    `data: ${JSON.stringify({ type: 'done', data: { error: doneData.error } })}\n\n`
+                    `data: ${JSON.stringify({ type: REQUIREMENTS_EVENTS.DONE, data: { error: doneData.error } })}\n\n`
                   )
                 );
                 controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
@@ -363,7 +364,7 @@ export async function POST(
 
           // Send done event with saved message info
           const doneEvent = {
-            type: 'done',
+            type: REQUIREMENTS_EVENTS.DONE,
             data: {
               message: {
                 id: assistantMessage.id,
@@ -381,7 +382,7 @@ export async function POST(
         } catch (error) {
           console.error('[API /requirements/messages] Stream error:', error);
           const errorEvent = {
-            type: 'error',
+            type: REQUIREMENTS_EVENTS.ERROR,
             data: {
               error: error instanceof Error ? error.message : 'Unknown error occurred',
             },

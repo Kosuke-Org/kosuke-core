@@ -1,7 +1,9 @@
-import { useToast } from '@/hooks/use-toast';
-import type { ContentBlock, RequirementsMessage, ToolInput } from '@/lib/types';
+import { REQUIREMENTS_EVENTS } from '@Kosuke-Org/cli';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
+
+import { useToast } from '@/hooks/use-toast';
+import type { ContentBlock, RequirementsMessage, ToolInput } from '@/lib/types';
 
 interface RequirementsStreamingState {
   isStreaming: boolean;
@@ -126,7 +128,7 @@ export function useSendRequirementsMessage(projectId: string) {
               }
 
               // Handle different event types
-              if (data.type === 'tool_call') {
+              if (data.type === REQUIREMENTS_EVENTS.TOOL_CALL) {
                 const toolData = data.data as { action?: string; params?: Record<string, unknown> };
 
                 // Format tool call content
@@ -157,7 +159,7 @@ export function useSendRequirementsMessage(projectId: string) {
                   ...prev,
                   streamingContentBlocks: [...contentBlocks],
                 }));
-              } else if (data.type === 'message') {
+              } else if (data.type === REQUIREMENTS_EVENTS.MESSAGE) {
                 const messageData = data.data as { text?: string };
 
                 if (messageData?.text) {
@@ -186,7 +188,7 @@ export function useSendRequirementsMessage(projectId: string) {
                     streamingContentBlocks: [...contentBlocks],
                   }));
                 }
-              } else if (data.type === 'done') {
+              } else if (data.type === REQUIREMENTS_EVENTS.DONE) {
                 const doneData = data.data as {
                   message?: RequirementsMessage;
                   docsContent?: string;
@@ -202,7 +204,7 @@ export function useSendRequirementsMessage(projectId: string) {
                 }
                 docs = doneData?.docsContent;
                 isStreamActive = false;
-              } else if (data.type === 'error') {
+              } else if (data.type === REQUIREMENTS_EVENTS.ERROR) {
                 const errorData = data.data as { error?: string };
                 throw new Error(errorData?.error || 'Stream error');
               }
