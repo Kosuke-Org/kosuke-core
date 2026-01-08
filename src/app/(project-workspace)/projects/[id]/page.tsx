@@ -23,8 +23,9 @@ import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
 import { useSubmitBuild } from '@/hooks/use-submit-build';
 import { useUser as useUserHook } from '@/hooks/use-user';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { cn } from '@/lib/utils';
-import { useClerk, useUser } from '@clerk/nextjs';
+import { useClerk, useOrganization, useUser } from '@clerk/nextjs';
 
 // Import components
 import ChatInterface from './components/chat/chat-interface';
@@ -118,6 +119,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const showSettings = searchParams.get('show-settings') === 'true';
 
   const { user } = useUser();
+  const { membership } = useOrganization();
   const {
     clerkUser,
     user: dbUser,
@@ -128,6 +130,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     initials,
   } = useUserHook();
   const { signOut } = useClerk();
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
@@ -340,6 +343,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         open={showSettings}
         onOpenChange={handleSettingsModalChange}
         onProjectDeleted={handleProjectDeleted}
+        isAdmin={isAdmin}
       />
 
       <ResizablePanelGroup direction="horizontal" className="flex-1 w-full">

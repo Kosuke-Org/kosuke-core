@@ -1,5 +1,6 @@
 'use client';
 
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { useOrganization } from '@clerk/nextjs';
 import { Copy, Loader2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -57,7 +58,7 @@ export default function OrganizationGeneralPage() {
   }
 
   const isPersonal = organization.publicMetadata?.isPersonal === true;
-  const isAdmin = membership?.role === 'org:admin';
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
   const displayName = isPersonal ? 'Personal Workspace' : organization.name;
 
   const copyToClipboard = async (text: string, field: 'name' | 'id') => {

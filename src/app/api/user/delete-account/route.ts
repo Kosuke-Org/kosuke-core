@@ -1,6 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { NextResponse } from 'next/server';
 
@@ -29,7 +30,7 @@ export async function DELETE() {
 
       if (isPersonal) continue;
 
-      if (membership.role === 'org:admin') {
+      if (membership.role === ORG_ROLES.ADMIN) {
         const orgMembers = await clerkService.getOrganizationMembers(org.id);
         const otherMembers = orgMembers.data.filter(m => m.publicUserData?.userId !== userId);
 

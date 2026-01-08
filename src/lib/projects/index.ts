@@ -7,6 +7,7 @@
 import { clerkService } from '@/lib/clerk';
 import { db } from '@/lib/db/drizzle';
 import { chatSessions, projects } from '@/lib/db/schema';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { and, eq } from 'drizzle-orm';
 
 export interface ProjectAccessResult {
@@ -44,7 +45,7 @@ export async function verifyProjectAccess(
   }
 
   // User has access - also check if they're an admin
-  const isAdmin = membership.role === 'org:admin';
+  const isAdmin = membership.role === ORG_ROLES.ADMIN;
 
   return {
     hasAccess: true,
