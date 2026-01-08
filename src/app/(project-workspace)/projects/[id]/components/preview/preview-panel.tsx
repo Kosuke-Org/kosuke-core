@@ -101,9 +101,6 @@ function isSubmitInProgress(submitStatus: SubmitStatus): boolean {
   );
 }
 
-// We use it in the template preview iframe to redirect to a specific url (e.g. after Stripe callback urls)
-const IFRAME_REDIRECT_URL_PARAM = 'iframeRedirectUrl';
-
 export default function PreviewPanel({
   projectId,
   projectName,
@@ -158,26 +155,20 @@ export default function PreviewPanel({
         }
 
         // Handle request for parent URL
-        if (event.data && event.data.type === 'PARENT_URL' && !event.data.url) {
-          const params = new URLSearchParams(window.location.search);
-          const iframeRedirectUrl = params.get(IFRAME_REDIRECT_URL_PARAM);
-
-          // Send back the parent URL and optional iframe redirect
+        if (
+          event.data &&
+          event.data.type === 'PARENT_URL' &&
+          !event.data.url // No url means it's a request
+        ) {
+          // Send back the parent URL
           if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage(
               {
                 type: 'PARENT_URL',
                 url: window.location.href, // Full URL with path
-                ...(iframeRedirectUrl && { iframeRedirectUrl }),
               },
               iframeOrigin // Send to specific origin for security
             );
-          }
-
-          if (iframeRedirectUrl) {
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete(IFRAME_REDIRECT_URL_PARAM);
-            window.history.replaceState({}, '', newUrl.toString());
           }
         }
       } catch (error) {
