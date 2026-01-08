@@ -59,11 +59,6 @@ build-sandbox kosuke-cli-mode="local" install-chromium="false" npm-token="":
     @echo "✅ Sandbox build complete! Update SANDBOX_IMAGE=kosuke-sandbox-local:latest in .env"
     @echo "💡 kosuke-cli will be mounted from sandbox/kosuke-cli/ at runtime"
 
-watch-agent:
-    @echo "👀 Starting kosuke-cli watch mode..."
-    @echo "   Edit .ts files → Auto-rebuild → Auto-restart in container"
-    @cd sandbox/kosuke-cli && npm run build:watch
-
 # Link local kosuke-cli for development
 link-cli:
     @echo "🔗 Building and linking kosuke-cli..."
@@ -76,9 +71,8 @@ watch-cli:
     @echo "👀 Watching kosuke-cli for changes..."
     @cd sandbox/kosuke-cli && npm run build:watch
 
-# Unlink when done
+# Unlink when done (reinstalls published version)
 unlink-cli:
     @echo "🔗 Unlinking kosuke-cli..."
-    @npm unlink @Kosuke-Org/cli
-    @cd sandbox/kosuke-cli && npm unlink
-    @echo "✅ kosuke-cli unlinked."
+    @bun install --frozen-lockfile
+    @echo "✅ kosuke-cli unlinked. Reinstalled published version."
