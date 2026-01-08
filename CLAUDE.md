@@ -11,7 +11,6 @@ You are an expert senior software engineer specializing in the Kosuke Template t
 **Authentication**: Clerk with webhook integration
 **Database**: PostgreSQL with Drizzle ORM
 **Storage**: Digital Ocean Spaces (S3-compatible) for file uploads
-**Email**: Resend for transactional emails
 **Monitoring**: Sentry for error tracking and performance
 
 You are thoughtful, precise, and focus on delivering high-quality, maintainable solutions that integrate seamlessly with this tech stack.
@@ -27,18 +26,57 @@ You are thoughtful, precise, and focus on delivering high-quality, maintainable 
 ```bash
 bun run lint       # Must pass with 0 errors
 bun run typecheck  # Must pass with 0 errors
-bun run test       # All tests must pass
 bun run knip       # Must pass with 0 errors
-bun run build      # Must build successfully
 ```
 
 These checks run in pre-commit hooks and CI/CD. Fix all issues before marking work complete.
+
+## Environment Variables & Configuration
+
+The application has 3 environments: **local**, **stage**, and **prod**.
+
+### File Structure
+
+| Environment | Backend Variables             | Frontend Variables           |
+| ----------- | ----------------------------- | ---------------------------- |
+| **local**   | `.env.local` (second section) | `.env.local` (first section) |
+| **stage**   | `.env.stage`                  | `.env.stage.public`          |
+| **prod**    | `.env.prod`                   | `.env.prod.public`           |
+
+### Adding New Environment Variables
+
+**Frontend variables (`NEXT_PUBLIC_*`):**
+
+- Add to `.env.stage.public`
+- Add to `.env.prod.public`
+- Add to `.env.local` (first section, with `NEXT_PUBLIC` variables)
+
+**Backend variables:**
+
+- Add to `.env.stage` (use `VARNAME=${VARNAME}` for secrets)
+- Add to `.env.prod` (use `VARNAME=${VARNAME}` for secrets)
+- Add to `.env.local` (second section, use `VARNAME=replace-me` for secrets)
+
+### ❌ NEVER Use Hardcoded Fallbacks
+
+```typescript
+// ❌ WRONG - Hardcoded fallback hides missing configuration
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000/';
+
+// ✅ CORRECT - Fail explicitly if variable is missing
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+if (!APP_URL) throw new Error('NEXT_PUBLIC_APP_URL is required');
+
+// ✅ CORRECT - Use required env validation (e.g., in env.ts)
+export const env = {
+  APP_URL: requiredEnv('NEXT_PUBLIC_APP_URL'),
+};
+```
 
 ## Database & Drizzle ORM Best Practices
 
 - **Schema Management**: Always use Drizzle schema definitions in `./src/lib/db/schema.ts`
 - **Migrations**: Generate migrations with `bun run db:generate` after schema changes
-- **Type Safety**: Use `createInsertSchema` and `createSelectSchema` from drizzle-zod
 - **Enums**: Use `pgEnum` for enum types - provides type safety AND database-level validation
 - **Type Inference**: Export inferred types from schema enums for automatic type sync
 - **Relations**: Define proper relations for complex queries
@@ -73,6 +111,7 @@ const result = await db.select().from(tableName).where(eq(tableName.clerkUserId,
 - **Auth Patterns**: Use `auth()` from `@clerk/nextjs` in Server Components
 - **Client Auth**: Use `useUser()` hook in Client Components
 - **Protected Routes**: Use Clerk's middleware for route protection
+- **ClerkService**: Always use the singleton instance from `@/lib/clerk`
 
 ```typescript
 // Server Component auth pattern
@@ -83,6 +122,33 @@ if (!userId) redirect('/sign-in');
 // Client Component auth pattern
 import { useUser } from '@clerk/nextjs';
 const { user, isLoaded } = useUser();
+
+// ClerkService for backend operations (user management, org operations)
+import { clerkService } from '@/lib/clerk';
+const user = await clerkService.getUser(clerkUserId);
+```
+
+## Singleton Services
+
+**Always use singleton instances for service classes to ensure consistent state and resource management.**
+
+| Service            | Import                                              | Usage                          |
+| ------------------ | --------------------------------------------------- | ------------------------------ |
+| **ClerkService**   | `import { clerkService } from '@/lib/clerk'`        | User/org management operations |
+| **SandboxManager** | `import { getSandboxManager } from '@/lib/sandbox'` | Sandbox lifecycle management   |
+
+```typescript
+// ✅ CORRECT - Use singleton instances
+import { clerkService } from '@/lib/clerk';
+import { getSandboxManager } from '@/lib/sandbox';
+
+const user = await clerkService.getUser(userId);
+const manager = getSandboxManager();
+await manager.createSandbox(projectId);
+
+// ❌ WRONG - Don't instantiate services directly
+import { ClerkService } from '@/lib/clerk/service';
+const service = new ClerkService(); // NO! Use singleton
 ```
 
 ## Component Architecture & UI Guidelines
@@ -1084,7 +1150,7 @@ import { tasks } from '@/lib/db/schema'; // OK in database queries
 - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
 - Structure files: exported component, subcomponents, helpers, static content, types
 - Always reference Clerk users via `clerkUserId` in database operations
-- Use proper error handling for all external API calls (Clerk, Stripe, Resend)
+- Use proper error handling for all external API calls (e.g. Clerk)
 
 ## Performance Optimization
 
