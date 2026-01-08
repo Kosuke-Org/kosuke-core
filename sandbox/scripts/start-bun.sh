@@ -38,24 +38,27 @@ echo "✅ Dependencies installed"
 # DATABASE SETUP
 # ============================================================
 
-if [ "$KOSUKE_MODE" = "production" ]; then
-    echo "🗄️ Running database migrations..."
-    bun run db:migrate
-else
-    echo "🗄️ Setting up development database..."
-
-    # Run migrations first
-    bun run db:migrate
-
-    # Seed database (only if not already seeded)
-    SEED_MARKER="/tmp/.kosuke-db-seeded"
-    if [ ! -f "$SEED_MARKER" ]; then
-        echo "🌱 Seeding database..."
-        bun run db:seed
-        touch "$SEED_MARKER"
+# Helper to run npm script only if it exists in package.json
+run_script_if_exists() {
+    local script_name=$1
+    if grep -q "\"$script_name\":" package.json 2>/dev/null; then
+        bun run "$script_name"
     else
-        echo "✅ Database already seeded"
+        echo "ℹ️ Script '$script_name' not found in package.json, skipping"
     fi
+}
+
+echo "🗄️ Running database migrations..."
+run_script_if_exists "db:migrate"
+
+# Seed database (only if not already seeded)
+SEED_MARKER="/tmp/.kosuke-db-seeded"
+if [ ! -f "$SEED_MARKER" ]; then
+    echo "🌱 Seeding database..."
+    run_script_if_exists "db:seed"
+    touch "$SEED_MARKER"
+else
+    echo "✅ Database already seeded"
 fi
 
 # ============================================================
