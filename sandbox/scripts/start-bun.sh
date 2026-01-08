@@ -55,14 +55,16 @@ run_script_if_exists() {
 echo "🗄️ Running database migrations ($DB_MIGRATE_CMD)..."
 run_script_if_exists "$DB_MIGRATE_CMD"
 
-# Seed database (only if not already seeded)
-SEED_MARKER="/tmp/.kosuke-db-seeded"
-if [ ! -f "$SEED_MARKER" ]; then
-    echo "🌱 Seeding database ($DB_SEED_CMD)..."
-    run_script_if_exists "$DB_SEED_CMD"
-    touch "$SEED_MARKER"
-else
-    echo "✅ Database already seeded"
+# Seed database (only in development, and only if not already seeded)
+if [ "$KOSUKE_MODE" != "production" ]; then
+    SEED_MARKER="/tmp/.kosuke-db-seeded"
+    if [ ! -f "$SEED_MARKER" ]; then
+        echo "🌱 Seeding database ($DB_SEED_CMD)..."
+        run_script_if_exists "$DB_SEED_CMD"
+        touch "$SEED_MARKER"
+    else
+        echo "✅ Database already seeded"
+    fi
 fi
 
 # ============================================================
