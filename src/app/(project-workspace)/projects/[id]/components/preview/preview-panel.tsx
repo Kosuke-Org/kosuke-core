@@ -158,6 +158,8 @@ export default function PreviewPanel({
           return;
         }
 
+        console.log('Message from preview iframe:', event.data);
+
         // Handle request for parent URL
         if (event.data && event.data.type === 'PARENT_URL' && !event.data.url) {
           const params = new URLSearchParams(window.location.search);
