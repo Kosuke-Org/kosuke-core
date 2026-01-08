@@ -1,3 +1,4 @@
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
@@ -36,6 +37,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ o
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to delete organization');
+    }
     console.error('Error deleting organization:', error);
     return ApiErrorHandler.handle(error);
   }

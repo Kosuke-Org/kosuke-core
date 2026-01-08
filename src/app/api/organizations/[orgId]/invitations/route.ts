@@ -1,6 +1,7 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
 import { ORG_ROLES } from '@/lib/types/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -68,6 +69,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
 
     return NextResponse.json({ data: invitation });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to send invitation');
+    }
     console.error('Failed to create invitation:', error);
     return ApiErrorHandler.handle(error);
   }

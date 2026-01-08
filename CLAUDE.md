@@ -151,6 +151,42 @@ import { ClerkService } from '@/lib/clerk/service';
 const service = new ClerkService(); // NO! Use singleton
 ```
 
+### Clerk API Error Handling - MANDATORY
+
+**Always handle Clerk API errors with `isClerkAPIResponseError` in API routes to surface meaningful error messages.**
+
+```typescript
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
+import { ApiErrorHandler } from '@/lib/api/errors';
+
+export async function POST(request: Request) {
+  try {
+    // ... validation and authorization ...
+
+    // Clerk API call
+    await clerkService.createOrganization({ name, createdBy: userId });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    // Handle Clerk-specific errors with meaningful messages
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Operation failed');
+    }
+    console.error('Operation failed:', error);
+    return ApiErrorHandler.handle(error);
+  }
+}
+```
+
+**Key Points:**
+
+- Check `isClerkAPIResponseError` first in the catch block
+- Extract message from `error.errors[0]?.longMessage` (preferred) or `error.errors[0]?.message`
+- Return `ApiErrorHandler.badRequest()` for user-actionable Clerk errors
+- Re-throw or use `ApiErrorHandler.handle()` for non-Clerk errors
+- Works for all Clerk mutations: create, update, delete operations
+
 ## Component Architecture & UI Guidelines
 
 - **Shadcn Components**: Use pre-installed components from `./components/ui`

@@ -2,6 +2,7 @@ import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
 import { ORG_ROLES } from '@/lib/types/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { NextResponse } from 'next/server';
 
 export async function DELETE() {
@@ -53,6 +54,10 @@ export async function DELETE() {
 
     return NextResponse.json({ success: 'Account deleted successfully' });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to delete account');
+    }
     console.error('Error deleting account:', error);
     return ApiErrorHandler.handle(error);
   }
