@@ -326,10 +326,12 @@ export class ClerkService {
   async listOrganizations(params?: {
     limit?: number;
     offset?: number;
+    query?: string;
   }): Promise<{ data: ClerkOrganization[]; totalCount: number }> {
     const response = await this.client.organizations.getOrganizationList({
-      limit: params?.limit || 100,
-      offset: params?.offset || 0,
+      limit: params?.limit,
+      offset: params?.offset,
+      query: params?.query,
     });
 
     const organizations = response.data.map(org => {
