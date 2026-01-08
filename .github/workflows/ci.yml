@@ -31,9 +31,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      - name: Disable minimum release age for CI
-        run: sed -i 's/minimumReleaseAge = .*/minimumReleaseAge = 0/' bunfig.toml
-
       - name: Install dependencies
         run: bun install
         env:
