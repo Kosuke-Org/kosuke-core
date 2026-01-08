@@ -139,10 +139,10 @@ async function processBuildJob(job: { data: BuildJobData }): Promise<BuildJobRes
           }
         }
 
-        if (eventData) {
+        if (eventData && eventType) {
           try {
             const parsed = JSON.parse(eventData);
-            const event = { type: eventType!, data: parsed } as BuildSSEEvent;
+            const event = { type: eventType, data: parsed } as BuildSSEEvent;
 
             // Log all events using centralized formatter
             logBuildEvent(event);

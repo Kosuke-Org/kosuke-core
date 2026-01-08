@@ -942,6 +942,93 @@ const previewWorker = createPreviewWorker();
 - ✅ **ALWAYS** call worker factories explicitly in `src/worker.ts`
 - ✅ **NEVER** call worker factories in API routes (only import queues)
 
+## Kosuke CLI SSE Event Handling - MANDATORY
+
+**Use typed event constants from `@Kosuke-Org/cli` for all SSE event handling in workers. NEVER hardcode event type strings.**
+
+### Imports
+
+```typescript
+import {
+  BUILD_EVENTS,
+  SUBMIT_EVENTS,
+  SHIP_EVENTS,
+  TEST_EVENTS,
+  MIGRATE_EVENTS,
+  VALIDATION_EVENTS,
+  type BuildSSEEvent,
+  type SubmitSSEEvent,
+} from '@Kosuke-Org/cli';
+import { logBuildEvent, logSubmitEvent } from '@/lib/logging';
+```
+
+### Event Parsing Pattern
+
+When parsing SSE streams, always use typed events:
+
+```typescript
+// ✅ CORRECT - Use typed constants and both checks
+if (eventData && eventType) {
+  const parsed = JSON.parse(eventData);
+  const event = { type: eventType, data: parsed } as BuildSSEEvent;
+
+  // Log with centralized formatter
+  logBuildEvent(event);
+
+  // Handle with typed constants
+  switch (event.type) {
+    case BUILD_EVENTS.STARTED:
+      // Handle started event
+      break;
+    case BUILD_EVENTS.TICKET_COMPLETED:
+      // Handle ticket completed
+      break;
+    case BUILD_EVENTS.DONE:
+      // Handle done
+      break;
+  }
+}
+```
+
+```typescript
+// ❌ WRONG - Hardcoded strings and non-null assertion
+if (eventData) {
+  const event = { type: eventType!, data: parsed }; // Bad: uses !
+
+  switch (event.type) {
+    case 'started': // Bad: hardcoded string
+    case 'ticket_completed': // Bad: hardcoded string
+    case 'done': // Bad: hardcoded string
+  }
+}
+```
+
+### Centralized Logging
+
+Use `src/lib/logging.ts` formatters for consistent worker output:
+
+```typescript
+import { logBuildEvent, logSubmitEvent } from '@/lib/logging';
+
+// In build worker
+for await (const event of buildStream) {
+  logBuildEvent(event); // Formats with [BUILD] prefix and emojis
+}
+
+// In submit worker
+for await (const event of submitStream) {
+  logSubmitEvent(event); // Formats with [SUBMIT] prefix and emojis
+}
+```
+
+### Rules
+
+- ❌ **NEVER** use hardcoded strings like `'started'`, `'done'`, `'ticket_completed'`
+- ✅ **ALWAYS** use typed constants: `BUILD_EVENTS.STARTED`, `BUILD_EVENTS.DONE`
+- ✅ **ALWAYS** check both `eventData && eventType` before parsing (avoids `!` assertions)
+- ✅ **ALWAYS** use centralized logging functions from `@/lib/logging`
+- ✅ **ALWAYS** cast parsed events to proper types: `as BuildSSEEvent`, `as SubmitSSEEvent`
+
 ## TypeScript and Type Safety Guidelines
 
 - Never use the `any` type - it defeats TypeScript's type checking

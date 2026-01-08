@@ -101,10 +101,10 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
           }
         }
 
-        if (eventData) {
+        if (eventData && eventType) {
           try {
             const parsed = JSON.parse(eventData);
-            const event = { type: eventType!, data: parsed } as SubmitSSEEvent;
+            const event = { type: eventType, data: parsed } as SubmitSSEEvent;
 
             // Log all events using centralized formatter
             logSubmitEvent(event);
