@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import { ORG_ROLES } from '@/lib/types/clerk';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,7 +99,7 @@ export default function OrganizationMembersPage() {
   }
 
   const isPersonal = organization.publicMetadata?.isPersonal === true;
-  const isAdmin = membership?.role === 'org:admin';
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
   const displayName = isPersonal ? 'Personal Workspace' : organization.name;
 
   // Get creator ID from organization metadata, fallback to checking if user is admin
@@ -324,12 +326,12 @@ export default function OrganizationMembersPage() {
                             </p>
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
-                                member.role === 'org:admin'
+                                member.role === ORG_ROLES.ADMIN
                                   ? 'bg-primary/10 text-primary font-medium'
                                   : 'bg-muted text-muted-foreground'
                               }`}
                             >
-                              {member.role === 'org:admin' ? 'Admin' : 'Member'}
+                              {member.role === ORG_ROLES.ADMIN ? 'Admin' : 'Member'}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground truncate">

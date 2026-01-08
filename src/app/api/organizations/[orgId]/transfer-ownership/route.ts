@@ -1,5 +1,6 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { ORG_ROLES } from '@/lib/types/clerk';
 import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
@@ -57,8 +58,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
     }
 
     // Update roles
-    await clerkService.updateMemberRole(orgId, newOwnerId, 'org:admin');
-    await clerkService.updateMemberRole(orgId, userId, 'org:member');
+    await clerkService.updateMemberRole(orgId, newOwnerId, ORG_ROLES.ADMIN);
+    await clerkService.updateMemberRole(orgId, userId, ORG_ROLES.MEMBER);
 
     // Track transfer in metadata
     await clerkService.updateOrganizationTransfer(orgId, { from: userId, to: newOwnerId });
