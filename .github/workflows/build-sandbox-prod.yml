@@ -1,13 +1,9 @@
-name: Build Sandbox Image
+name: Build Sandbox Image (Production)
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'sandbox/**'
-      - '.github/workflows/build-sandbox-image.yml'
-  workflow_dispatch:
+    tags:
+      - 'v*.*.*'
 
 env:
   REGISTRY: ghcr.io
@@ -15,7 +11,7 @@ env:
 
 jobs:
   build-sandbox:
-    name: Build Sandbox Image
+    name: Build Sandbox Image (Production)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,6 +30,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
       - name: Read kosuke-cli version
         id: cli-version
         run: echo "version=$(cat sandbox/.kosuke-cli-version)" >> $GITHUB_OUTPUT
@@ -45,6 +45,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.ORG_NAME }}/kosuke-sandbox
           tags: |
             type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.VERSION }}
             type=sha,prefix=
 
       - name: Build and push Sandbox image
@@ -68,9 +69,9 @@ jobs:
       - name: Notify Slack - Success
         if: success()
         run: |
-          curl -X POST --data '{"text":"✅ Kosuke Sandbox Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ github.sha }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data '{"text":"✅ Kosuke Sandbox Production Image Build Successful\nImage: ghcr.io/Kosuke-Org/kosuke-sandbox:${{ steps.version.outputs.VERSION }}\nCLI Version: ${{ steps.cli-version.outputs.version }}\nDetails: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
 
       - name: Notify Slack - Failure
         if: failure()
         run: |
-          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
+          curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Production Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
