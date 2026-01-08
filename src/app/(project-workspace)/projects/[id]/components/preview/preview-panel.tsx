@@ -154,6 +154,7 @@ export default function PreviewPanel({
 
         // Verify the message is from our preview iframe
         if (event.origin !== iframeOrigin) {
+          console.log('Message not from preview iframe:', event.origin, iframeOrigin);
           return;
         }
 
