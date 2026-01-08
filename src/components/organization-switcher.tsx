@@ -3,7 +3,7 @@
 import { useOrganization, useOrganizationList } from '@clerk/nextjs';
 import { Loader2, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { CreateOrganizationDialog } from '@/components/create-organization-dialog';
@@ -26,7 +26,18 @@ interface OrganizationSwitcherComponentProps {
 
 export function OrganizationSwitcherComponent({ onClose }: OrganizationSwitcherComponentProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { organization } = useOrganization();
+
+  // Get the current org settings tab to preserve when switching orgs
+  const getOrgSettingsPath = (orgSlug: string | null) => {
+    const orgSettingsMatch = pathname.match(/^\/organizations\/[^/]+(?:\/(.+))?$/);
+    if (orgSettingsMatch) {
+      const tab = orgSettingsMatch[1]; // 'members', 'usage', or undefined (general)
+      return `/organizations/${orgSlug}${tab ? `/${tab}` : ''}`;
+    }
+    return `/organizations/${orgSlug}`;
+  };
   const { createOrganization, isCreating } = useOrganizationSettings();
   const { invitations, acceptInvitation, acceptingInvitationId } = useOrganizationInvitations();
   const {
@@ -72,15 +83,14 @@ export function OrganizationSwitcherComponent({ onClose }: OrganizationSwitcherC
     }
   }, [isOrgLoaded, isListLoaded, organization, userMemberships, setActive, router, isSwitching]);
 
-  const handleSwitch = async (orgId: string) => {
+  const handleSwitch = async (orgId: string, redirectTo?: string) => {
     if (!setActive || isSwitching) return;
 
     setIsSwitching(true);
-    onClose?.(); // Close dropdown immediately
+    onClose?.();
     try {
       await setActive({ organization: orgId });
-      router.push('/projects');
-      router.refresh();
+      router.replace(redirectTo ?? '/projects');
     } catch (error) {
       console.error('Failed to switch organization:', error);
     } finally {
@@ -169,11 +179,14 @@ export function OrganizationSwitcherComponent({ onClose }: OrganizationSwitcherC
                   ? 'Personal Workspace'
                   : membership.organization.name;
                 return (
-                  <div key={membership.organization.id} className="relative">
+                  <div
+                    key={membership.organization.id}
+                    className="relative flex items-center px-2 py-1.5 rounded-sm hover:bg-accent transition-colors"
+                  >
                     <button
                       onClick={() => handleSwitch(membership.organization.id)}
                       disabled={isSwitching}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent transition-colors text-left"
+                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
                     >
                       <Avatar className="h-6 w-6">
                         <AvatarImage src={membership.organization.imageUrl} alt={displayName} />
@@ -184,6 +197,19 @@ export function OrganizationSwitcherComponent({ onClose }: OrganizationSwitcherC
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{displayName}</p>
                       </div>
+                    </button>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleSwitch(
+                          membership.organization.id,
+                          getOrgSettingsPath(membership.organization.slug)
+                        );
+                      }}
+                      disabled={isSwitching}
+                      className="p-1.5 -mr-1 rounded-sm hover:bg-accent-foreground/10 transition-colors"
+                    >
+                      <Settings className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
                     </button>
                   </div>
                 );

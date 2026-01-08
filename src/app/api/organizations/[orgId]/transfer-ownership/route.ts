@@ -1,5 +1,6 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -71,6 +72,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
       message: 'Ownership transferred successfully',
     });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to transfer ownership');
+    }
     console.error('Failed to transfer ownership:', error);
     return ApiErrorHandler.handle(error);
   }
