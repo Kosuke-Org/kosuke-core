@@ -181,8 +181,15 @@ async function callMaintenanceEndpoint(
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ cwd: '/app/project', jobType, githubToken, baseBranch }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        jobType,
+        githubToken,
+        baseBranch,
+        // Pipeline always creates PR, review is optional
+        review: true,
+      }),
     });
 
     if (!response.ok) {
@@ -190,11 +197,8 @@ async function callMaintenanceEndpoint(
       return { success: false, error: `CLI request failed: ${response.status} - ${text}` };
     }
 
-    if (!response.body) {
-      return { success: false, error: 'No response body from CLI endpoint' };
-    }
-
-    return await parseMaintenanceSSE(response.body);
+    const result = (await response.json()) as MaintenanceCliResult;
+    return result;
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   } finally {
@@ -206,57 +210,6 @@ async function callMaintenanceEndpoint(
       console.error(`[MAINTENANCE] ⚠️ Failed to destroy sandbox:`, cleanupError);
     }
   }
-}
-
-/**
- * Parse SSE stream from maintenance endpoint
- */
-async function parseMaintenanceSSE(
-  body: ReadableStream<Uint8Array>
-): Promise<MaintenanceCliResult> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: MaintenanceCliResult = { success: false };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const messages = buffer.split('\n\n');
-      buffer = messages.pop() || '';
-
-      for (const message of messages) {
-        if (!message.startsWith('data: ')) continue;
-
-        const data = message.slice(6).trim();
-        if (data === '[DONE]') break;
-
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.type === 'progress') {
-            console.log(`[MAINTENANCE] 📊 ${parsed.message}`);
-          } else if (parsed.type === 'done') {
-            result = {
-              success: parsed.success,
-              pullRequestUrl: parsed.pullRequestUrl,
-              pullRequestNumber: parsed.pullRequestNumber,
-              summary: parsed.summary,
-              error: parsed.error,
-            };
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  return result;
 }
 
 /**
