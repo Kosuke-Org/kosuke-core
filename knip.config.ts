@@ -47,6 +47,8 @@ const knipConfig: KnipConfig = {
         '@eslint/eslintrc',
         // Keep for future use
         '@testing-library/react',
+        // Used in workers (src/lib/queue/workers) for event constants and formatters
+        '@Kosuke-Org/cli',
       ],
       entry: ['src/app/**/page.tsx', 'src/app/**/layout.tsx', 'src/app/api/**/*.ts'],
     },

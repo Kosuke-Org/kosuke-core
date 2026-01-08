@@ -6,7 +6,9 @@
 
 import { db } from '@/lib/db/drizzle';
 import { buildJobs, chatSessions } from '@/lib/db/schema';
+import { logSubmitEvent } from '@/lib/logging';
 import { SandboxClient } from '@/lib/sandbox/client';
+import { SUBMIT_EVENTS, type SubmitSSEEvent } from '@Kosuke-Org/cli';
 import { eq } from 'drizzle-orm';
 import { createQueueEvents, createWorker } from '../client';
 import { QUEUE_NAMES } from '../config';
@@ -99,146 +101,51 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
           }
         }
 
-        if (eventData) {
-          if (eventData === '[DONE]') break;
-
+        if (eventData && eventType) {
           try {
             const parsed = JSON.parse(eventData);
-            const event = eventType ? { type: eventType, data: parsed } : parsed;
+            const event = { type: eventType, data: parsed } as SubmitSSEEvent;
 
+            // Log all events using centralized formatter
+            logSubmitEvent(event);
+
+            // Handle database updates based on event type
             switch (event.type) {
-              case 'started':
-                console.log(`[SUBMIT] 🏗️  Submit started in ${event.data.cwd}`);
-                break;
-
-              case 'review_started':
-                console.log('\n' + '-'.repeat(60));
-                console.log('[SUBMIT] 🔍 Phase: REVIEW (started)');
-                console.log('-'.repeat(60) + '\n');
+              case SUBMIT_EVENTS.REVIEW_STARTED:
                 await db
                   .update(buildJobs)
                   .set({ submitStatus: 'reviewing' })
                   .where(eq(buildJobs.id, buildJobId));
                 break;
 
-              case 'review_event':
-                if (event.data.subtype === 'tool_call') {
-                  const action = event.data.details?.action || 'unknown';
-                  const params = event.data.details?.params as Record<string, unknown> | undefined;
-                  const paramStr =
-                    params?.path || params?.command || params?.pattern || params?.query || '';
-                  console.log(`[SUBMIT] 🔧 Review: ${action}${paramStr ? ` ${paramStr}` : ''}`);
-                } else if (event.data.subtype === 'message') {
-                  const text = (event.data.details?.text as string)?.substring(0, 150);
-                  if (text) {
-                    console.log(`[SUBMIT] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
-                  }
-                } else if (event.data.subtype === 'git_diff_generated') {
-                  console.log(
-                    `[SUBMIT] 📝 Git diff size: ${event.data.details?.diffSize || 0} chars`
-                  );
-                }
-                break;
-
-              case 'review_completed':
-                console.log(
-                  `[SUBMIT] ✅ Review completed: ${event.data.issuesFound} issues found, ${event.data.fixesApplied} fixes applied`
-                );
-                break;
-
-              case 'commit_started':
-                console.log('\n' + '-'.repeat(60));
-                console.log('[SUBMIT] 💾 Phase: COMMIT (started)');
-                console.log('-'.repeat(60) + '\n');
+              case SUBMIT_EVENTS.COMMIT_STARTED:
                 await db
                   .update(buildJobs)
                   .set({ submitStatus: 'committing' })
                   .where(eq(buildJobs.id, buildJobId));
                 break;
 
-              case 'commit_event':
-                if (event.data.subtype === 'skipped') {
-                  console.log(
-                    `[SUBMIT] ℹ️  Commit skipped: ${event.data.details?.reason || 'no changes'} (verified: ${event.data.details?.verified ?? false})`
-                  );
-                } else if (event.data.subtype === 'progress') {
-                  const details = event.data.details as {
-                    phase?: string;
-                    attempt?: number;
-                    maxRetries?: number;
-                    commitCreated?: boolean;
-                    isClean?: boolean;
-                    success?: boolean;
-                  };
-                  if (details?.phase === 'retry') {
-                    console.log(
-                      `[SUBMIT] 🔄 Commit retry ${(details.attempt ?? 1) - 1}/${details.maxRetries ?? 3}: retrying...`
-                    );
-                  } else if (details?.phase === 'validation') {
-                    const statusIcon = details.success
-                      ? '✅'
-                      : details.commitCreated === false
-                        ? '⏳'
-                        : '❌';
-                    console.log(
-                      `[SUBMIT] ${statusIcon} Commit validation (attempt ${details.attempt}/${details.maxRetries}): created=${details.commitCreated ?? 'unknown'}, clean=${details.isClean ?? 'unknown'}`
-                    );
-                  } else {
-                    console.log(`[SUBMIT] ℹ️  Commit progress: ${details?.phase || 'unknown'}`);
-                  }
-                } else if (event.data.subtype === 'tool_call') {
-                  const action = event.data.details?.action || 'unknown';
-                  const params = event.data.details?.params as Record<string, unknown> | undefined;
-                  const paramStr =
-                    params?.path || params?.command || params?.pattern || params?.query || '';
-                  console.log(`[SUBMIT] 🔧 Commit: ${action}${paramStr ? ` ${paramStr}` : ''}`);
-                } else if (event.data.subtype === 'message') {
-                  const text = (event.data.details?.text as string)?.substring(0, 150);
-                  if (text) {
-                    console.log(`[SUBMIT] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
-                  }
-                }
-                break;
-
-              case 'commit_completed':
-                console.log(`[SUBMIT] ✅ Commit completed: ${event.data.commitSha || 'unknown'}`);
-                break;
-
-              case 'pr_started':
-                console.log('\n' + '-'.repeat(60));
-                console.log('[SUBMIT] 📋 Phase: CREATE PR (started)');
-                console.log('-'.repeat(60) + '\n');
+              case SUBMIT_EVENTS.PR_STARTED:
                 await db
                   .update(buildJobs)
                   .set({ submitStatus: 'creating_pr' })
                   .where(eq(buildJobs.id, buildJobId));
                 break;
 
-              case 'pr_completed':
+              case SUBMIT_EVENTS.PR_COMPLETED:
                 pullRequestUrl = event.data.pullRequestUrl;
-                console.log(`[SUBMIT] ✅ PR created: ${pullRequestUrl}`);
                 break;
 
-              case 'error':
-                console.error(`[SUBMIT] ❌ Error: ${event.data.message}`);
+              case SUBMIT_EVENTS.ERROR:
                 throw new Error(event.data.message);
 
-              case 'done':
+              case SUBMIT_EVENTS.DONE:
                 if (event.data.success) {
                   pullRequestUrl = event.data.pullRequestUrl || pullRequestUrl;
-                  console.log('\n' + '='.repeat(80));
-                  console.log(`[SUBMIT] 🎉 Submit completed successfully`);
-                  console.log(`[SUBMIT] 📋 PR: ${pullRequestUrl}`);
-                  console.log('='.repeat(80) + '\n');
                 } else {
                   throw new Error(event.data.error || 'Submit failed');
                 }
                 break;
-
-              default:
-                console.log(
-                  `[SUBMIT] ℹ️  ${event.type}: ${JSON.stringify(event.data).substring(0, 200)}`
-                );
             }
           } catch (error) {
             if (error instanceof SyntaxError) {

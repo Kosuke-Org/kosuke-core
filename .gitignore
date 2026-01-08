@@ -65,3 +65,4 @@ sandbox/agent/dist/
 
 # kosuke-cli - separate git repo (nested inside sandbox/)
 sandbox/kosuke-cli/
+.env.bck

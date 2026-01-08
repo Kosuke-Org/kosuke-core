@@ -27,7 +27,6 @@ export interface BuildJobResult {
   totalTasks: number;
   completedTasks: number;
   failedTasks: number;
-  totalCost: number;
   error?: string;
 }
 
