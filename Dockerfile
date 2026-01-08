@@ -6,11 +6,13 @@ FROM base AS deps
 
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json bun.lock ./
+# Copy package files and npmrc for GitHub Packages
+COPY package.json bun.lock .npmrc ./
 
-# Use mount cache for Bun
+# Use mount cache for Bun (GITHUB_TOKEN passed as secret)
 RUN --mount=type=cache,target=/root/.bun/install/cache \
+    --mount=type=secret,id=github_token \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
     bun install --frozen-lockfile
 
 # Rebuild the source code only when needed
