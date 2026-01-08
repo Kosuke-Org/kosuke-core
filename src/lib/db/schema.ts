@@ -6,7 +6,6 @@ import {
   jsonb,
   pgEnum,
   pgTable,
-  real,
   text,
   timestamp,
   unique,
@@ -337,9 +336,6 @@ export const buildJobs = pgTable(
     // Submit workflow status (review → commit → PR)
     submitStatus: submitStatusEnum('submit_status'),
 
-    // Cost
-    totalCost: real('total_cost').default(0),
-
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     startedAt: timestamp('started_at'),
@@ -373,9 +369,6 @@ export const tasks = pgTable(
 
     // Error details
     error: text('error'),
-
-    // Cost tracking
-    cost: real('cost').default(0),
 
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),

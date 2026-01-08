@@ -3,6 +3,7 @@ import { ApiResponseHandler } from '@/lib/api/responses';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
 import type { UpdateUserData } from '@/lib/types';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 
 export async function GET() {
   try {
@@ -47,6 +48,10 @@ export async function PUT(request: Request) {
 
     return ApiResponseHandler.success(updatedUser);
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to update profile');
+    }
     console.error('Error updating user profile:', error);
     return ApiErrorHandler.handle(error);
   }

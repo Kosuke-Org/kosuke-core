@@ -1,3 +1,4 @@
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -53,6 +54,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to create organization');
+    }
     console.error('Error creating organization:', error);
     return ApiErrorHandler.handle(error);
   }

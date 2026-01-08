@@ -1,9 +1,10 @@
-import type {
-  ClerkOrganization,
-  ClerkUser,
-  OrganizationInvitationStatus,
-  OrganizationMembershipRole,
-  UpdateUserData,
+import {
+  ORG_ROLES,
+  type ClerkOrganization,
+  type ClerkUser,
+  type OrganizationInvitationStatus,
+  type OrganizationMembershipRole,
+  type UpdateUserData,
 } from '@/lib/types/clerk';
 import { createClerkClient } from '@clerk/nextjs/server';
 
@@ -143,7 +144,7 @@ export class ClerkService {
   async isOrgAdmin(userId: string, orgId: string): Promise<boolean> {
     const memberships = await this.client.users.getOrganizationMembershipList({ userId });
     const membership = memberships.data.find(m => m.organization.id === orgId);
-    return membership?.role === 'org:admin';
+    return membership?.role === ORG_ROLES.ADMIN;
   }
 
   /**

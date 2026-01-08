@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UsageCard } from '@/components/usage-card';
 import { useOrganizationApiKeys } from '@/hooks/use-organization-api-keys';
+import { ORG_ROLES } from '@/lib/types/clerk';
 
 export default function OrganizationUsagePage() {
   const { organization, isLoaded, membership } = useOrganization();
@@ -29,7 +30,7 @@ export default function OrganizationUsagePage() {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
-  const isAdmin = membership?.role === 'org:admin';
+  const isAdmin = membership?.role === ORG_ROLES.ADMIN;
 
   const handleSaveApiKey = () => {
     if (!apiKeyInput.trim()) return;
