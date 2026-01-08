@@ -167,7 +167,7 @@ Sandbox containers automatically mount `sandbox/kosuke-cli/` at `/app/kosuke-cli
 
 ```bash
 # Terminal 1: Watch for changes
-just watch-agent
+just watch-cli
 
 # Terminal 2: Run the app (sandbox containers use mounted CLI)
 just run
