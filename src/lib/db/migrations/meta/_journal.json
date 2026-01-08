@@ -85,13 +85,6 @@
       "when": 1767788263610,
       "tag": "0011_futuristic_killraven",
       "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1767796977319,
-      "tag": "0012_heavy_nitro",
-      "breakpoints": true
     }
   ]
 }
