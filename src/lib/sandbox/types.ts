@@ -116,3 +116,18 @@ export interface EnvironmentCommitResponse {
   error?: string;
   message?: string;
 }
+
+// ============================================================
+// DEPLOY TYPES
+// ============================================================
+
+export interface DeployConfigCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
+}

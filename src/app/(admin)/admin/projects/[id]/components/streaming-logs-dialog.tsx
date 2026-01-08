@@ -1,7 +1,14 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle2, GitCommitHorizontal, Loader2, RotateCcw, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  Circle,
+  GitCommitHorizontal,
+  Loader2,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -145,7 +152,7 @@ export function StreamingLogsDialog({
       case 'service_deploying':
         return (
           <div key={index} className="py-1 text-sm flex items-center text-muted-foreground">
-            <Loader2 className="h-3 w-3 mr-2 animate-spin shrink-0" />
+            <Circle className="h-3 w-3 mr-2 shrink-0" />
             <span>
               Deploying {String(data.name)} ({String(data.type)})
             </span>

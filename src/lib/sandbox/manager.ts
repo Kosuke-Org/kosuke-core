@@ -243,6 +243,9 @@ export class SandboxManager {
       `KOSUKE_GIT_EMAIL=${KOSUKE_BOT_EMAIL}`,
       // Pass __KSK__* resolved values (same name as placeholder)
       `__KSK__PREVIEW_RESEND_API_KEY=${process.env.PREVIEW_RESEND_API_KEY || ''}`,
+      // Render deployment credentials
+      `RENDER_API_KEY=${process.env.RENDER_API_KEY || ''}`,
+      `RENDER_OWNER_ID=${process.env.RENDER_OWNER_ID || ''}`,
     ];
 
     // Container configuration

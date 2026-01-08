@@ -18,7 +18,7 @@ interface TriggerVamosBody {
 /**
  * POST /api/admin/projects/[id]/vamos/trigger
  * Trigger vamos workflow for a project
- * Requires super admin access and project status must be 'paid'
+ * Requires super admin access and project status must be 'in_development'
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,10 +37,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Verify project status is 'paid'
-    if (project.status !== 'paid') {
+    // Verify project status is 'in_development'
+    if (project.status !== 'in_development') {
       return NextResponse.json(
-        { error: `Project status must be 'paid' to run vamos. Current status: ${project.status}` },
+        {
+          error: `Project status must be 'in_development' to run vamos. Current status: ${project.status}`,
+        },
         { status: 400 }
       );
     }

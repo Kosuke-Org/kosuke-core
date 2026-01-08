@@ -1,7 +1,9 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Check, Copy, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useToast } from '@/hooks/use-toast';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,56 +23,83 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 
-// Service plan options for Render.com
+// Service plan options for Render.com (updated Jan 2025)
 const SERVICE_PLANS = [
-  { value: 'starter', label: 'Starter ($7/month)' },
-  { value: 'starter_plus', label: 'Starter Plus ($14/month)' },
-  { value: 'standard', label: 'Standard ($25/month)' },
-  { value: 'standard_plus', label: 'Standard Plus ($50/month)' },
-  { value: 'pro', label: 'Pro ($85/month)' },
-  { value: 'pro_plus', label: 'Pro Plus ($175/month)' },
-  { value: 'pro_max', label: 'Pro Max ($225/month)' },
-  { value: 'pro_ultra', label: 'Pro Ultra ($450/month)' },
+  { value: 'starter', label: 'Starter - 512MB / 0.5 CPU ($7/month)' },
+  { value: 'standard', label: 'Standard - 2GB / 1 CPU ($25/month)' },
+  { value: 'pro', label: 'Pro - 4GB / 2 CPU ($85/month)' },
+  { value: 'pro_plus', label: 'Pro Plus - 8GB / 4 CPU ($175/month)' },
+  { value: 'pro_max', label: 'Pro Max - 16GB / 4 CPU ($225/month)' },
+  { value: 'pro_ultra', label: 'Pro Ultra - 32GB / 8 CPU ($450/month)' },
 ];
 
-// Postgres plan options
+// Postgres plan options (updated Jan 2025)
 const POSTGRES_PLANS = [
-  { value: 'basic_256mb', label: 'Basic 256MB ($7/month)' },
-  { value: 'basic_1gb', label: 'Basic 1GB ($15/month)' },
-  { value: 'basic_4gb', label: 'Basic 4GB ($45/month)' },
-  { value: 'pro_4gb', label: 'Pro 4GB ($45/month)' },
-  { value: 'pro_8gb', label: 'Pro 8GB ($95/month)' },
-  { value: 'pro_16gb', label: 'Pro 16GB ($195/month)' },
-  { value: 'pro_32gb', label: 'Pro 32GB ($395/month)' },
+  { value: 'basic_256mb', label: 'Basic 256MB ($6/month)' },
+  { value: 'basic_1gb', label: 'Basic 1GB ($19/month)' },
+  { value: 'basic_4gb', label: 'Basic 4GB ($75/month)' },
+  { value: 'pro_4gb', label: 'Pro 4GB ($55/month)' },
+  { value: 'pro_8gb', label: 'Pro 8GB ($100/month)' },
+  { value: 'pro_16gb', label: 'Pro 16GB ($200/month)' },
+  { value: 'pro_32gb', label: 'Pro 32GB ($400/month)' },
 ];
 
-// Redis plan options
+// Redis (Key Value) plan options (updated Jan 2025)
 const REDIS_PLANS = [
-  { value: 'starter', label: 'Starter ($7/month)' },
-  { value: 'standard', label: 'Standard ($15/month)' },
-  { value: 'pro', label: 'Pro ($30/month)' },
+  { value: 'starter', label: 'Starter - 256MB ($10/month)' },
+  { value: 'standard', label: 'Standard - 1GB ($32/month)' },
+  { value: 'pro', label: 'Pro - 5GB ($135/month)' },
+  { value: 'pro_plus', label: 'Pro Plus - 10GB ($250/month)' },
+  { value: 'pro_max', label: 'Pro Max - 20GB ($550/month)' },
+  { value: 'pro_ultra', label: 'Pro Ultra - 40GB ($1,100/month)' },
 ];
 
-interface ServiceConfig {
-  plan: string;
-  envVars: Record<string, string>;
-}
-
-interface StorageConfig {
-  plan: string;
-}
+// Full service config that includes type, runtime, build_command, etc.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ServiceConfig = Record<string, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StorageConfig = Record<string, any>;
 
 interface ProductionConfig {
-  services: Record<string, ServiceConfig>;
-  storages: Record<string, StorageConfig>;
+  services: ServiceConfig;
+  storages: StorageConfig;
+  resources: Record<string, { plan: string }>;
+  environment: Record<string, string>;
 }
 
 interface PreviewConfig {
-  services?: Record<string, { name?: string }>;
+  services?: Record<string, { type?: string; name?: string }>;
   storages?: Record<string, { type?: string }>;
-  envVars?: Array<{ key: string; required?: boolean; description?: string }>;
+  environment?: Record<string, string>;
+}
+
+interface ProductionServiceConfig {
+  type?: 'web' | 'worker';
+  runtime?: string;
+  directory?: string;
+  build_command?: string;
+  start_command?: string;
+  is_entrypoint?: boolean;
+  external_connection_variable?: string;
+}
+
+interface ProductionStorageConfig {
+  type?: 'postgres' | 'keyvalue' | 's3';
+  connection_variable?: string;
+  maxmemory_policy?: string;
+  access_key_id_variable?: string;
+  secret_access_key_variable?: string;
+  bucket_variable?: string;
+  region_variable?: string;
+  endpoint_variable?: string;
+}
+
+interface FullProductionConfig {
+  services?: Record<string, ProductionServiceConfig>;
+  storages?: Record<string, ProductionStorageConfig>;
+  resources?: Record<string, { plan: string }>;
+  environment?: Record<string, string>;
 }
 
 interface DeployConfigModalProps {
@@ -88,96 +117,205 @@ export function DeployConfigModal({
   onSave,
   isSaving,
 }: DeployConfigModalProps) {
+  const { toast } = useToast();
+
   // Parse existing config - memoized to avoid recreating objects on each render
   const previewConfig = useMemo(
     () => (existingConfig?.preview || {}) as PreviewConfig,
     [existingConfig?.preview]
   );
   const existingProduction = useMemo(
-    () => existingConfig?.production as ProductionConfig | undefined,
+    () => existingConfig?.production as FullProductionConfig | undefined,
     [existingConfig?.production]
   );
 
-  // State for services
-  const [services, setServices] = useState<Record<string, ServiceConfig>>({});
+  // Merge services from preview and production configs
+  // Production config defines the actual services (web, worker), preview may only have nextjs
+  const allServices = useMemo(() => {
+    const services: Record<string, { type: string; fromProduction: boolean }> = {};
 
-  // State for storages
-  const [storages, setStorages] = useState<Record<string, StorageConfig>>({});
+    // Add services from production config (authoritative for service types)
+    if (existingProduction?.services) {
+      Object.entries(existingProduction.services).forEach(([key, config]) => {
+        services[key] = { type: config.type || 'web', fromProduction: true };
+      });
+    }
+
+    // Add services from preview config if not already present
+    if (previewConfig.services) {
+      Object.entries(previewConfig.services).forEach(([key, config]) => {
+        if (!services[key]) {
+          services[key] = { type: config.type || 'service', fromProduction: false };
+        }
+      });
+    }
+
+    return services;
+  }, [previewConfig.services, existingProduction?.services]);
+
+  // Helper to infer storage type from key name
+  const inferStorageType = (key: string): string => {
+    const lowerKey = key.toLowerCase();
+    if (lowerKey.includes('redis') || lowerKey === 'keyvalue') return 'keyvalue';
+    if (lowerKey.includes('s3') || lowerKey === 'storage' || lowerKey === 'spaces') return 's3';
+    return 'postgres';
+  };
+
+  // Merge storages from preview and production configs
+  // Priority: preview config type > production config type > infer from key name
+  const allStorages = useMemo(() => {
+    const storages: Record<string, { type: string }> = {};
+
+    // First, get all storage keys from both configs
+    const allKeys = new Set([
+      ...Object.keys(previewConfig.storages || {}),
+      ...Object.keys(existingProduction?.storages || {}),
+    ]);
+
+    allKeys.forEach(key => {
+      // Preview config is most reliable for type
+      const previewType = previewConfig.storages?.[key]?.type;
+      const productionType = existingProduction?.storages?.[key]?.type;
+
+      storages[key] = {
+        type: previewType || productionType || inferStorageType(key),
+      };
+    });
+
+    return storages;
+  }, [previewConfig.storages, existingProduction?.storages]);
+
+  // State for resource plans (services and storages)
+  const [resources, setResources] = useState<Record<string, { plan: string }>>({});
 
   // State for environment variables
   const [envVars, setEnvVars] = useState<Record<string, string>>({});
 
+  // State for tracking copied preview values
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Copy preview value to clipboard
+  const handleCopyValue = useCallback(
+    async (value: string, key: string) => {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      toast({ title: 'Copied', description: `${key} copied to clipboard` });
+      setTimeout(() => setCopiedKey(null), 2000);
+    },
+    [toast]
+  );
+
+  // Validate ALL production environment variables must be filled
+  const validationErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    Object.keys(previewConfig.environment || {}).forEach(key => {
+      if (!envVars[key]?.trim()) {
+        errors[key] = 'Required for production';
+      }
+    });
+    return errors;
+  }, [previewConfig.environment, envVars]);
+
+  const isValid = Object.keys(validationErrors).length === 0;
+
   // Initialize state from existing config
   useEffect(() => {
     if (existingProduction) {
-      setServices(existingProduction.services || {});
-      setStorages(existingProduction.storages || {});
-
-      // Extract env vars from services
-      const allEnvVars: Record<string, string> = {};
-      Object.values(existingProduction.services || {}).forEach(service => {
-        Object.assign(allEnvVars, service.envVars || {});
-      });
-      setEnvVars(allEnvVars);
+      // Load existing resource plans
+      setResources(existingProduction.resources || {});
+      // Load existing environment values
+      setEnvVars(existingProduction.environment || {});
     } else {
-      // Initialize from preview config with default plans
-      const initialServices: Record<string, ServiceConfig> = {};
-      Object.keys(previewConfig.services || {}).forEach(key => {
-        initialServices[key] = { plan: 'starter', envVars: {} };
-      });
-      setServices(initialServices);
+      // Initialize resources from merged services and storages
+      const initialResources: Record<string, { plan: string }> = {};
 
-      const initialStorages: Record<string, StorageConfig> = {};
-      Object.keys(previewConfig.storages || {}).forEach(key => {
-        const storageType = previewConfig.storages?.[key]?.type;
-        initialStorages[key] = {
+      // Initialize service plans
+      Object.keys(allServices).forEach(key => {
+        initialResources[key] = { plan: 'starter' };
+      });
+
+      // Initialize storage plans
+      Object.entries(allStorages).forEach(([key, storage]) => {
+        const storageType = storage.type;
+        initialResources[key] = {
           plan:
             storageType === 'postgres'
               ? 'basic_256mb'
-              : storageType === 'keyvalue'
+              : storageType === 'redis' || storageType === 'keyvalue'
                 ? 'starter'
                 : 'starter',
         };
       });
-      setStorages(initialStorages);
+      setResources(initialResources);
 
-      // Initialize empty env vars from preview config
+      // Initialize env vars from preview.environment (use empty strings for production)
       const initialEnvVars: Record<string, string> = {};
-      (previewConfig.envVars || []).forEach(env => {
-        initialEnvVars[env.key] = '';
+      Object.keys(previewConfig.environment || {}).forEach(key => {
+        initialEnvVars[key] = '';
       });
       setEnvVars(initialEnvVars);
     }
-  }, [previewConfig, existingProduction]);
+  }, [previewConfig, existingProduction, allServices, allStorages]);
 
   const handleSave = () => {
-    // Merge env vars into the first service (typically 'nextjs')
-    const servicesWithEnvVars = { ...services };
-    const firstServiceKey = Object.keys(servicesWithEnvVars)[0];
-    if (firstServiceKey) {
-      servicesWithEnvVars[firstServiceKey] = {
-        ...servicesWithEnvVars[firstServiceKey],
-        envVars,
-      };
+    // Preserve full service configs from existing production, only update resources (plans)
+    // The services/storages objects keep their full structure (type, runtime, build_command, etc.)
+    // Only the resources object holds the plan selections
+    const servicesConfig = existingProduction?.services || {};
+    const storagesConfig = existingProduction?.storages || {};
+
+    // Build services config - ensure type and runtime are ALWAYS set (fix for corrupted configs)
+    let finalServices: ServiceConfig;
+    if (Object.keys(servicesConfig).length > 0) {
+      // Use existing config but ensure each service has valid type and runtime
+      finalServices = Object.fromEntries(
+        Object.entries(servicesConfig).map(([key, config]) => [
+          key,
+          { ...config, type: config.type || 'web', runtime: config.runtime || 'node' },
+        ])
+      );
+    } else {
+      // Build from preview config
+      finalServices = Object.fromEntries(
+        Object.entries(previewConfig.services || {}).map(([key, config]) => [
+          key,
+          { ...config, type: (config.type as 'web' | 'worker') || 'web', runtime: 'node' },
+        ])
+      );
+    }
+
+    // Build storages config - ensure type is ALWAYS set
+    let finalStorages: StorageConfig;
+    if (Object.keys(storagesConfig).length > 0) {
+      // Use existing config but ensure each storage has a valid type
+      finalStorages = Object.fromEntries(
+        Object.entries(storagesConfig).map(([key, config]) => [
+          key,
+          { ...config, type: config.type || inferStorageType(key) },
+        ])
+      );
+    } else {
+      // Build from preview config
+      finalStorages = Object.fromEntries(
+        Object.entries(previewConfig.storages || {}).map(([key, config]) => [
+          key,
+          { ...config, type: config.type || inferStorageType(key) },
+        ])
+      );
     }
 
     onSave({
-      services: servicesWithEnvVars,
-      storages,
+      services: finalServices,
+      storages: finalStorages,
+      resources,
+      environment: envVars,
     });
   };
 
-  const updateServicePlan = (key: string, plan: string) => {
-    setServices(prev => ({
+  const updateResourcePlan = (key: string, plan: string) => {
+    setResources(prev => ({
       ...prev,
-      [key]: { ...prev[key], plan },
-    }));
-  };
-
-  const updateStoragePlan = (key: string, plan: string) => {
-    setStorages(prev => ({
-      ...prev,
-      [key]: { ...prev[key], plan },
+      [key]: { plan },
     }));
   };
 
@@ -188,29 +326,35 @@ export function DeployConfigModal({
     }));
   };
 
+  const hasServices = Object.keys(allServices).length > 0;
+  const hasStorages = Object.keys(allStorages).length > 0;
+  const hasEnvVars = Object.keys(previewConfig.environment || {}).length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[60vw] max-w-[60vw] sm:max-w-[60vw] md:max-w-[60vw] lg:max-w-[60vw] xl:max-w-[40vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configure Production Deployment</DialogTitle>
           <DialogDescription>
-            Set up the production configuration for deploying to Render.com. Environment variables
-            should be set for production - preview values are not copied.
+            Review and configure production settings before deploying to Render.com.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Service Plans */}
-          {Object.keys(services).length > 0 && (
+        <div className="space-y-8 py-4">
+          {/* Section 1: Service Plans */}
+          {(hasServices || hasStorages) && (
             <div className="space-y-4">
-              <h3 className="font-medium">Service Plans</h3>
-              <div className="grid gap-4">
-                {Object.keys(services).map(key => (
+              <h3 className="text-lg font-semibold">Service Plans</h3>
+              <div className="grid gap-3">
+                {/* Services */}
+                {Object.entries(allServices).map(([key, service]) => (
                   <div key={key} className="flex items-center gap-4">
-                    <Label className="w-32 capitalize">{key}</Label>
+                    <Label className="w-40 capitalize font-mono text-sm">
+                      {key} <span className="text-muted-foreground">({service.type})</span>
+                    </Label>
                     <Select
-                      value={services[key]?.plan || 'starter'}
-                      onValueChange={value => updateServicePlan(key, value)}
+                      value={resources[key]?.plan || 'starter'}
+                      onValueChange={value => updateResourcePlan(key, value)}
                     >
                       <SelectTrigger className="flex-1">
                         <SelectValue />
@@ -225,93 +369,128 @@ export function DeployConfigModal({
                     </Select>
                   </div>
                 ))}
+
+                {/* Storages */}
+                {Object.entries(allStorages).map(([key, storage]) => {
+                  const storageType = storage.type;
+
+                  // S3 doesn't have plans - it's a DigitalOcean Space
+                  if (storageType === 's3') {
+                    return (
+                      <div key={key} className="flex items-center gap-4">
+                        <Label className="w-40 capitalize font-mono text-sm">
+                          {key} <span className="text-muted-foreground">(s3)</span>
+                        </Label>
+                        <span className="flex-1 text-sm text-muted-foreground">
+                          DigitalOcean Space (no plan selection)
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  const plans =
+                    storageType === 'postgres'
+                      ? POSTGRES_PLANS
+                      : storageType === 'keyvalue'
+                        ? REDIS_PLANS
+                        : REDIS_PLANS; // Default to Redis plans for unknown types
+
+                  const defaultPlan = storageType === 'postgres' ? 'basic_256mb' : 'starter';
+
+                  return (
+                    <div key={key} className="flex items-center gap-4">
+                      <Label className="w-40 capitalize font-mono text-sm">
+                        {key} <span className="text-muted-foreground">({storageType})</span>
+                      </Label>
+                      <Select
+                        value={resources[key]?.plan || defaultPlan}
+                        onValueChange={value => updateResourcePlan(key, value)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {plans.map(plan => (
+                            <SelectItem key={plan.value} value={plan.value}>
+                              {plan.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Storage Plans */}
-          {Object.keys(storages).length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <h3 className="font-medium">Storage Plans</h3>
-                <div className="grid gap-4">
-                  {Object.entries(previewConfig.storages || {}).map(([key, storage]) => {
-                    const storageType = storage.type;
-                    const plans =
-                      storageType === 'postgres'
-                        ? POSTGRES_PLANS
-                        : storageType === 'keyvalue'
-                          ? REDIS_PLANS
-                          : SERVICE_PLANS;
-
-                    return (
-                      <div key={key} className="flex items-center gap-4">
-                        <Label className="w-32 capitalize">
-                          {key} ({storageType})
-                        </Label>
-                        <Select
-                          value={storages[key]?.plan || plans[0]?.value}
-                          onValueChange={value => updateStoragePlan(key, value)}
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {plans.map(plan => (
-                              <SelectItem key={plan.value} value={plan.value}>
-                                {plan.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* Section 2: Environment Preview */}
+          {hasEnvVars && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Environment Preview</h3>
+              <p className="text-sm text-muted-foreground">
+                Preview environment variables. Click copy to use in production.
+              </p>
+              <div className="grid gap-2 rounded-lg border p-4 bg-muted/20">
+                {Object.entries(previewConfig.environment || {}).map(([key, previewValue]) => (
+                  <div key={key} className="flex items-center gap-3 font-mono text-sm">
+                    <span className="w-48 truncate text-muted-foreground">{key}</span>
+                    <span className="flex-1 truncate">{previewValue || '(empty)'}</span>
+                    {previewValue && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={() => handleCopyValue(previewValue, key)}
+                      >
+                        {copiedKey === key ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
-            </>
+            </div>
           )}
 
-          {/* Environment Variables */}
-          {(previewConfig.envVars?.length ?? 0) > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <h3 className="font-medium">Environment Variables</h3>
-                <p className="text-sm text-muted-foreground">
-                  Enter production values for each environment variable. These will be set on the
-                  production deployment.
-                </p>
-                <div className="grid gap-4">
-                  {(previewConfig.envVars || []).map(env => (
-                    <div key={env.key} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Label className="font-mono text-sm">
-                          {env.key}
-                          {env.required && <span className="text-red-500 ml-1">*</span>}
-                        </Label>
-                      </div>
-                      {env.description && (
-                        <p className="text-xs text-muted-foreground">{env.description}</p>
-                      )}
+          {/* Section 3: Environment Production */}
+          {hasEnvVars && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Environment Production</h3>
+              <p className="text-sm text-muted-foreground">
+                All environment variables must be set for production deployment.
+              </p>
+              <div className="grid gap-3">
+                {Object.entries(previewConfig.environment || {}).map(([key]) => {
+                  const hasError = !!validationErrors[key];
+
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <Label className="w-48 font-mono text-sm truncate">
+                        {key}
+                        <span className="text-destructive ml-1">*</span>
+                      </Label>
                       <Input
-                        type={
-                          env.key.toLowerCase().includes('secret') ||
-                          env.key.toLowerCase().includes('key') ||
-                          env.key.toLowerCase().includes('password')
-                            ? 'password'
-                            : 'text'
-                        }
-                        placeholder={`Enter ${env.key}`}
-                        value={envVars[env.key] || ''}
-                        onChange={e => updateEnvVar(env.key, e.target.value)}
+                        type="text"
+                        placeholder="Required"
+                        value={envVars[key] || ''}
+                        onChange={e => updateEnvVar(key, e.target.value)}
+                        className={`flex-1 font-mono text-sm ${hasError ? 'border-destructive' : ''}`}
                       />
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            </>
+              {Object.keys(validationErrors).length > 0 && (
+                <p className="text-sm text-destructive">
+                  All environment variables must be filled before deployment.
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -319,14 +498,14 @@ export function DeployConfigModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving || !isValid}>
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
+                Deploying...
               </>
             ) : (
-              'Save Configuration'
+              'Deploy'
             )}
           </Button>
         </DialogFooter>

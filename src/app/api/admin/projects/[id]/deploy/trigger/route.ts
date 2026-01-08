@@ -12,7 +12,7 @@ import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 /**
  * POST /api/admin/projects/[id]/deploy/trigger
  * Trigger deploy workflow for a project
- * Requires super admin access and project status must be 'paid'
+ * Requires super admin access and project status must be 'active'
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,10 +28,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Verify project status is 'paid'
-    if (project.status !== 'paid') {
+    // Verify project status is 'active'
+    if (project.status !== 'active') {
       return NextResponse.json(
-        { error: `Project status must be 'paid' to deploy. Current status: ${project.status}` },
+        { error: `Project status must be 'active' to deploy. Current status: ${project.status}` },
         { status: 400 }
       );
     }
@@ -83,9 +83,20 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     // Verify that kosuke.config.json has production configuration
     const sandboxClient = new SandboxClient(defaultSession.id);
+    console.log(`[API /admin/deploy/trigger] Reading kosuke.config.json from sandbox...`);
+    console.log(`[API /admin/deploy/trigger] Sandbox base URL: ${sandboxClient.getBaseUrl()}`);
+
+    let rawContent: string | undefined;
     try {
-      const configContent = await sandboxClient.readFile('kosuke.config.json');
-      const config = JSON.parse(configContent);
+      rawContent = await sandboxClient.readFile('kosuke.config.json');
+      console.log(`[API /admin/deploy/trigger] Read config, length: ${rawContent.length} chars`);
+
+      const config = JSON.parse(rawContent);
+      console.log(
+        `[API /admin/deploy/trigger] Parsed config keys: ${Object.keys(config).join(', ')}`
+      );
+      console.log(`[API /admin/deploy/trigger] Has production config: ${!!config.production}`);
+
       if (!config.production) {
         return NextResponse.json(
           {
@@ -95,14 +106,42 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           { status: 400 }
         );
       }
+
+      console.log(
+        `[API /admin/deploy/trigger] Production config: ${JSON.stringify(config.production).substring(0, 300)}`
+      );
     } catch (error) {
       const isNotFound = error instanceof Error && error.message.includes('not found');
+
+      if (isNotFound) {
+        console.log(`[API /admin/deploy/trigger] Config file not found`);
+        return NextResponse.json(
+          {
+            error: 'kosuke.config.json not found. Please configure the project first.',
+          },
+          { status: 400 }
+        );
+      }
+
+      // Parse error - include detailed info
+      let errorDetails = 'Unknown error';
+      if (error instanceof SyntaxError) {
+        errorDetails = `JSON parse error: ${error.message}`;
+        console.error(`[API /admin/deploy/trigger] JSON parse error:`, error.message);
+        console.error(
+          `[API /admin/deploy/trigger] Raw content (first 500 chars):`,
+          rawContent?.substring(0, 500)
+        );
+      } else if (error instanceof Error) {
+        errorDetails = error.message;
+        console.error(`[API /admin/deploy/trigger] Error:`, error.message);
+      }
+
       return NextResponse.json(
         {
-          error: isNotFound
-            ? 'kosuke.config.json not found. Please configure the project first.'
-            : 'Failed to read kosuke.config.json',
+          error: `Failed to parse kosuke.config.json: ${errorDetails}`,
           details: error instanceof Error ? error.message : String(error),
+          rawContent: rawContent?.substring(0, 500), // Include for debugging
         },
         { status: 400 }
       );

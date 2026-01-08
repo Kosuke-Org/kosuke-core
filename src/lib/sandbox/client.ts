@@ -9,6 +9,7 @@ import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
 import type {
   AgentHealthResponse,
+  DeployConfigCommitResponse,
   EnvironmentCommitResponse,
   EnvironmentTriggerResponse,
   EnvironmentUpdateResponse,
@@ -525,6 +526,74 @@ export class SandboxClient {
         success: false,
         error: errorData.error || `HTTP ${response.status}`,
         message: errorData.message || 'Failed to commit environment configuration',
+      };
+    }
+
+    return response.json();
+  }
+
+  // --- Deploy Operations ---
+
+  /**
+   * Stream deploy command from kosuke serve (SSE)
+   * Deploys the project to production using kosuke.config.json settings
+   * Returns an async generator that yields SSE events
+   */
+  async *streamDeploy(cwd: string = '/app/project'): AsyncGenerator<Record<string, unknown>> {
+    console.log(`[SandboxClient] 🚀 Starting deploy stream`);
+    console.log(`[SandboxClient]    URL: ${this.baseUrl}/api/deploy`);
+    console.log(`[SandboxClient]    CWD: ${cwd}`);
+
+    const response = await fetch(`${this.baseUrl}/api/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({ cwd }),
+    });
+
+    console.log(`[SandboxClient] 📥 Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Unknown error');
+      console.error(`[SandboxClient] ❌ Deploy request failed: ${response.status} - ${error}`);
+      throw new Error(`Deploy request failed: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body from deploy endpoint');
+    }
+
+    console.log(`[SandboxClient] ✅ Connected to deploy API, streaming events...`);
+
+    yield* this.parseSSEStream(response.body);
+  }
+
+  /**
+   * Commit and push deploy configuration (kosuke.config.json) to git
+   * Commits only the kosuke.config.json file and pushes to remote
+   */
+  async commitDeployConfig(
+    githubToken: string,
+    commitMessage: string = 'chore: update production configuration'
+  ): Promise<DeployConfigCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/deploy/config/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit deploy configuration',
       };
     }
 

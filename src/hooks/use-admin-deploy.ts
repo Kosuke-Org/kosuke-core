@@ -27,22 +27,38 @@ interface DeployConfig {
   config: Record<string, unknown> | null;
   hasProductionConfig: boolean;
   error?: string;
+  rawContent?: string; // Included in error responses for debugging
+}
+
+// Full service config as expected by kosuke-cli
+interface ProductionServiceConfig {
+  type: 'web' | 'worker';
+  runtime: 'node' | 'python';
+  directory?: string;
+  build_command: string;
+  start_command: string;
+  is_entrypoint?: boolean;
+  external_connection_variable?: string;
+}
+
+// Full storage config as expected by kosuke-cli
+interface ProductionStorageConfig {
+  type: 'postgres' | 'keyvalue' | 's3';
+  connection_variable?: string;
+  maxmemory_policy?: string;
+  // S3-specific fields
+  access_key_id_variable?: string;
+  secret_access_key_variable?: string;
+  bucket_variable?: string;
+  region_variable?: string;
+  endpoint_variable?: string;
 }
 
 interface ProductionConfig {
-  services?: Record<
-    string,
-    {
-      plan?: string;
-      envVars?: Record<string, string>;
-    }
-  >;
-  storages?: Record<
-    string,
-    {
-      plan?: string;
-    }
-  >;
+  services: Record<string, ProductionServiceConfig>;
+  storages: Record<string, ProductionStorageConfig>;
+  resources: Record<string, { plan: string }>;
+  environment: Record<string, string>;
 }
 
 interface UpdateDeployConfigParams {
@@ -51,21 +67,34 @@ interface UpdateDeployConfigParams {
 }
 
 /**
- * Hook to get deploy configuration for a project
+ * Hook to fetch deploy configuration lazily (mutation-based)
+ * Use this when clicking the Deploy button to fetch config on demand
  */
-export function useDeployConfig(projectId: string, enabled: boolean = true) {
-  return useQuery({
-    queryKey: ['admin-deploy-config', projectId],
-    queryFn: async (): Promise<DeployConfig> => {
+export function useFetchDeployConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string): Promise<DeployConfig> => {
       const response = await fetch(`/api/admin/projects/${projectId}/deploy/config`);
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch deploy config');
+        // Include error details in the returned data
+        return {
+          hasConfig: false,
+          config: null,
+          hasProductionConfig: false,
+          error: data.error || 'Failed to fetch deploy config',
+          rawContent: data.rawContent,
+        };
       }
-      return response.json();
+
+      return data;
     },
-    enabled,
-    staleTime: 30000, // 30 seconds
+    onSuccess: (data, projectId) => {
+      // Update the query cache so useDeployConfig can access it
+      queryClient.setQueryData(['admin-deploy-config', projectId], data);
+    },
   });
 }
 

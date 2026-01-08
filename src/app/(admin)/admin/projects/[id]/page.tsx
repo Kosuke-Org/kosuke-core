@@ -2,10 +2,20 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { ChevronDown, Copy, ExternalLink, Loader2, Play, Rocket, Save } from 'lucide-react';
+import {
+  AlertCircle,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Play,
+  Rocket,
+  Save,
+} from 'lucide-react';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,13 +38,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  useDeployConfig,
   useDeployJob,
   useDeployLogs,
+  useFetchDeployConfig,
   useTriggerDeploy,
   useUpdateDeployConfig,
 } from '@/hooks/use-admin-deploy';
 import { useMarkProjectReady, useUpdatePaymentStatus } from '@/hooks/use-admin-projects';
+import { useStartSandbox } from '@/hooks/use-admin-sandbox';
 import { useTriggerVamos, useVamosJob, useVamosLogs } from '@/hooks/use-admin-vamos';
 import { useAgentHealth } from '@/hooks/use-agent-health';
 import { useToast } from '@/hooks/use-toast';
@@ -87,6 +98,9 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   const [deployLogsSheetOpen, setDeployLogsSheetOpen] = useState(false);
   const [deployConfigModalOpen, setDeployConfigModalOpen] = useState(false);
 
+  // Auto-start sandbox state
+  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(false);
+
   // Fetch single project
   const { data: projects, isLoading } = useQuery<AdminProject[]>({
     queryKey: ['admin-project', id],
@@ -113,17 +127,36 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   // Update payment status mutation
   const updatePaymentStatusMutation = useUpdatePaymentStatus();
 
-  // Vamos hooks
-  const { data: vamosJobData } = useVamosJob(id, !!project);
-  const triggerVamosMutation = useTriggerVamos();
-  const { data: vamosLogsData } = useVamosLogs(id, vamosJobData?.job?.id || null);
+  // Determine which mode we're in based on project status
+  // Vamos is only relevant during development, Deploy is only relevant when active
+  const isInDevelopment = project?.status === 'in_development';
+  const isActive = project?.status === 'active';
 
-  // Deploy hooks
-  const { data: deployConfig, isLoading: isLoadingDeployConfig } = useDeployConfig(id, !!project);
-  const { data: deployJobData } = useDeployJob(id, !!project);
+  // Vamos hooks - only fetch when project is in development
+  const { data: vamosJobData } = useVamosJob(id, !!project && isInDevelopment);
+  const triggerVamosMutation = useTriggerVamos();
+  const { data: vamosLogsData } = useVamosLogs(
+    id,
+    isInDevelopment ? vamosJobData?.job?.id || null : null
+  );
+
+  // Deploy hooks - only fetch when project is active
+  const { data: deployJobData } = useDeployJob(id, !!project && isActive);
+  const fetchDeployConfigMutation = useFetchDeployConfig();
   const triggerDeployMutation = useTriggerDeploy();
   const updateDeployConfigMutation = useUpdateDeployConfig();
-  const { data: deployLogsData } = useDeployLogs(id, deployJobData?.job?.id || null);
+  const { data: deployLogsData } = useDeployLogs(
+    id,
+    isActive ? deployJobData?.job?.id || null : null
+  );
+
+  // Store fetched deploy config in local state for modal
+  const [deployConfig, setDeployConfig] = useState<{
+    hasConfig: boolean;
+    config: Record<string, unknown> | null;
+    hasProductionConfig: boolean;
+    error?: string;
+  } | null>(null);
 
   // Agent health - poll when project is in_development or active (vamos/deploy available)
   const { data: agentHealth } = useAgentHealth({
@@ -132,11 +165,56 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     pollingInterval: 10000,
   });
 
+  // Auto-start sandbox when stopped for in_development or active projects
+  const {
+    mutate: startSandbox,
+    isPending: isStartingSandbox,
+    isError: startSandboxError,
+    error: startSandboxErrorMessage,
+    reset: resetStartSandbox,
+  } = useStartSandbox();
+
+  // Auto-start sandbox when it's not found
+  useEffect(() => {
+    const shouldAutoStart = project?.status === 'in_development' || project?.status === 'active';
+    const sandboxNotFound = agentHealth?.sandboxStatus === 'not_found';
+
+    if (
+      shouldAutoStart &&
+      sandboxNotFound &&
+      !isStartingSandbox &&
+      !hasAttemptedAutoStart &&
+      !startSandboxError
+    ) {
+      setHasAttemptedAutoStart(true);
+      startSandbox(id);
+    }
+  }, [
+    project?.status,
+    agentHealth?.sandboxStatus,
+    isStartingSandbox,
+    hasAttemptedAutoStart,
+    startSandboxError,
+    id,
+    startSandbox,
+  ]);
+
+  // Reset auto-start flag when sandbox starts running
+  useEffect(() => {
+    if (agentHealth?.sandboxStatus === 'running') {
+      setHasAttemptedAutoStart(false);
+    }
+  }, [agentHealth?.sandboxStatus]);
+
   // Agent is ready when running, alive, and explicitly ready
   const isAgentReady = Boolean(agentHealth?.running && agentHealth?.alive && agentHealth?.ready);
 
   // Helper to get agent status display
   const getAgentStatusDisplay = () => {
+    // Starting sandbox takes priority
+    if (isStartingSandbox) {
+      return { color: 'bg-orange-500', text: 'Starting sandbox...', pulse: true };
+    }
     if (!agentHealth) {
       return { color: 'bg-muted-foreground', text: 'Checking...', pulse: true };
     }
@@ -180,7 +258,7 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     );
   };
 
-  const handleDeploy = () => {
+  const handleDeploy = async () => {
     // If there's already a running deploy job OR agent is processing, open the logs sheet
     if (
       deployJobData?.job?.status === 'running' ||
@@ -194,27 +272,31 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     // Early return if agent not ready (can't trigger new job)
     if (!isAgentReady) return;
 
-    // If still loading deploy config, wait
-    if (isLoadingDeployConfig) {
-      toast({
-        title: 'Loading Configuration',
-        description: 'Please wait while we load the deploy configuration.',
-      });
-      return;
-    }
+    // Fetch config lazily on Deploy click
+    try {
+      const config = await fetchDeployConfigMutation.mutateAsync(id);
+      setDeployConfig(config);
 
-    // If no production config exists, open config modal first
-    if (!deployConfig?.hasProductionConfig) {
+      // If there's an error fetching/parsing config, show detailed error
+      if (config.error) {
+        toast({
+          title: 'Configuration Error',
+          description: config.error,
+          variant: 'destructive',
+        });
+        console.error('[Deploy] Config error:', config.error, config.rawContent);
+        return;
+      }
+
+      // Always open config modal to review/edit env vars before deploy
       setDeployConfigModalOpen(true);
-      return;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch config',
+        variant: 'destructive',
+      });
     }
-
-    // Trigger deploy
-    triggerDeployMutation.mutate(id, {
-      onSuccess: () => {
-        setDeployLogsSheetOpen(true);
-      },
-    });
   };
 
   const handleSaveDeployConfig = (
@@ -421,21 +503,49 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
                   !agentHealth?.processing &&
                   deployJobData?.job?.status !== 'running' &&
                   deployJobData?.job?.status !== 'pending') ||
+                fetchDeployConfigMutation.isPending ||
                 triggerDeployMutation.isPending
               }
             >
-              {triggerDeployMutation.isPending ? (
+              {fetchDeployConfigMutation.isPending || triggerDeployMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Rocket className="h-4 w-4 mr-2" />
               )}
-              {deployJobData?.job?.status === 'running' || agentHealth?.processing
-                ? 'View Deploy'
-                : 'Deploy'}
+              {fetchDeployConfigMutation.isPending
+                ? 'Loading...'
+                : deployJobData?.job?.status === 'running' || agentHealth?.processing
+                  ? 'View Deploy'
+                  : 'Deploy'}
             </Button>
           )}
         </div>
       </div>
+
+      {/* Sandbox Start Error Alert */}
+      {startSandboxError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Failed to start sandbox</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              {startSandboxErrorMessage instanceof Error
+                ? startSandboxErrorMessage.message
+                : 'Unknown error'}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                resetStartSandbox();
+                setHasAttemptedAutoStart(false);
+              }}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Project Overview Card */}
       <Card>

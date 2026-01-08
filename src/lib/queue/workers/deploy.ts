@@ -37,6 +37,15 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
   const logs: unknown[] = [];
   const serviceUrls: string[] = [];
 
+  // Helper to save logs incrementally to the database
+  // This allows the UI to show logs in real-time as events come in
+  const saveLogsToDb = async () => {
+    await db
+      .update(deployJobs)
+      .set({ logs: JSON.stringify(logs) })
+      .where(eq(deployJobs.id, deployJobId));
+  };
+
   // Wait for sandbox agent to be ready
   console.log(`[DEPLOY] ⏳ Waiting for sandbox agent to be ready...`);
 
@@ -54,184 +63,127 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
   console.log(`[DEPLOY] ✅ Sandbox agent is ready`);
 
   try {
-    // Call /api/deploy endpoint to execute deployment
-    const deployUrl = `${sandboxClient.getBaseUrl()}/api/deploy`;
-
     console.log(`[DEPLOY] 🔗 Connecting to sandbox deploy API...`);
-    console.log(`[DEPLOY]    URL: ${deployUrl}\n`);
 
-    const response = await fetch(deployUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
-      body: JSON.stringify({
-        cwd: cwd || '/app/project',
-      }),
-    });
+    // Stream deploy events from sandbox using SandboxClient
+    for await (const event of sandboxClient.streamDeploy(cwd || '/app/project')) {
+      const eventType = event.type as string;
+      const eventData = event.data as Record<string, unknown>;
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'No error details');
-      throw new Error(`Deploy request failed: ${response.status} - ${errorText}`);
-    }
+      console.log(
+        `[DEPLOY] 📦 Event: ${eventType} - ${JSON.stringify(eventData).substring(0, 300)}`
+      );
 
-    if (!response.body) {
-      throw new Error('No response body from deploy endpoint');
-    }
+      // Store log event
+      logs.push(event);
 
-    console.log(`[DEPLOY] ✅ Connected to deploy API, streaming events...\n`);
+      // Process events
+      switch (eventType) {
+        case 'deploy_started':
+          console.log('\n' + '='.repeat(80));
+          console.log(`[DEPLOY] 🏗️  Deploy started: ${eventData.projectName}`);
+          console.log('='.repeat(80) + '\n');
+          await saveLogsToDb();
+          break;
 
-    // Parse SSE stream
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+        case 'step_started':
+          console.log('\n' + '-'.repeat(60));
+          console.log(`[DEPLOY] 📋 Step: ${eventData.name}`);
+          console.log('-'.repeat(60) + '\n');
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+          // Update current step and save logs incrementally (matches vamos pattern)
+          await db
+            .update(deployJobs)
+            .set({
+              currentStep: String(eventData.name),
+              logs: JSON.stringify(logs),
+            })
+            .where(eq(deployJobs.id, deployJobId));
+          break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const messages = buffer.split('\n\n');
-      buffer = messages.pop() || '';
+        case 'step_completed':
+          console.log(`[DEPLOY] ✅ Step completed: ${eventData.step}\n`);
+          await saveLogsToDb();
+          break;
 
-      for (const message of messages) {
-        const lines = message.split('\n');
-        let eventType: string | null = null;
-        let eventData: string | null = null;
+        case 'storage_deploying':
+          console.log(`[DEPLOY] 🗄️  Deploying storage: ${eventData.name} (${eventData.type})`);
+          break;
 
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            eventData = line.slice(6).trim();
+        case 'storage_deployed':
+          console.log(`[DEPLOY] ✅ Storage deployed: ${eventData.key} (ID: ${eventData.id})`);
+          await saveLogsToDb();
+          break;
+
+        case 'storage_exists':
+          console.log(`[DEPLOY] ℹ️  Storage exists: ${eventData.key} (ID: ${eventData.id})`);
+          await saveLogsToDb();
+          break;
+
+        case 'service_deploying':
+          console.log(`[DEPLOY] 🚀 Deploying service: ${eventData.name} (${eventData.type})`);
+          break;
+
+        case 'service_deployed':
+          console.log(`[DEPLOY] ✅ Service deployed: ${eventData.key} (ID: ${eventData.id})`);
+          if (eventData.url) {
+            serviceUrls.push(String(eventData.url));
+            console.log(`[DEPLOY]    URL: ${eventData.url}`);
           }
-        }
+          await saveLogsToDb();
+          break;
 
-        if (eventData) {
-          if (eventData === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(eventData);
-            const event = eventType ? { type: eventType, data: parsed } : parsed;
-
-            // Store log event
-            logs.push(event);
-
-            // Log events for visibility
-            switch (event.type) {
-              case 'deploy_started':
-                console.log('\n' + '='.repeat(80));
-                console.log(`[DEPLOY] 🏗️  Deploy started: ${event.data.projectName}`);
-                console.log('='.repeat(80) + '\n');
-                break;
-
-              case 'step_started':
-                console.log('\n' + '-'.repeat(60));
-                console.log(`[DEPLOY] 📋 Step: ${event.data.name}`);
-                console.log('-'.repeat(60) + '\n');
-
-                // Update current step in database
-                await db
-                  .update(deployJobs)
-                  .set({ currentStep: event.data.name })
-                  .where(eq(deployJobs.id, deployJobId));
-                break;
-
-              case 'step_completed':
-                console.log(`[DEPLOY] ✅ Step completed: ${event.data.step}\n`);
-                break;
-
-              case 'storage_deploying':
-                console.log(
-                  `[DEPLOY] 🗄️  Deploying storage: ${event.data.name} (${event.data.type})`
-                );
-                break;
-
-              case 'storage_deployed':
-                console.log(
-                  `[DEPLOY] ✅ Storage deployed: ${event.data.key} (ID: ${event.data.id})`
-                );
-                break;
-
-              case 'storage_exists':
-                console.log(
-                  `[DEPLOY] ℹ️  Storage exists: ${event.data.key} (ID: ${event.data.id})`
-                );
-                break;
-
-              case 'service_deploying':
-                console.log(
-                  `[DEPLOY] 🚀 Deploying service: ${event.data.name} (${event.data.type})`
-                );
-                break;
-
-              case 'service_deployed':
-                console.log(
-                  `[DEPLOY] ✅ Service deployed: ${event.data.key} (ID: ${event.data.id})`
-                );
-                if (event.data.url) {
-                  serviceUrls.push(event.data.url);
-                  console.log(`[DEPLOY]    URL: ${event.data.url}`);
-                }
-                break;
-
-              case 'service_exists':
-                console.log(
-                  `[DEPLOY] ℹ️  Service exists: ${event.data.key} (ID: ${event.data.id})`
-                );
-                if (event.data.url) {
-                  serviceUrls.push(event.data.url);
-                }
-                break;
-
-              case 'waiting_for_deployment':
-                console.log(`[DEPLOY] ⏳ Waiting for deployment: ${event.data.serviceId}`);
-                break;
-
-              case 'deployment_ready':
-                console.log(`[DEPLOY] ✅ Deployment ready: ${event.data.serviceId}`);
-                break;
-
-              case 'message':
-                if (event.data.text && event.data.text.length > 0) {
-                  const text = event.data.text.substring(0, 150);
-                  console.log(`[DEPLOY] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
-                }
-                break;
-
-              case 'error':
-                console.error(`[DEPLOY] ❌ Error: ${event.data.message}`);
-                break;
-
-              case 'done':
-                console.log('\n' + '='.repeat(80));
-                console.log(
-                  `[DEPLOY] 🏁 Deploy Complete: ${event.data.success ? 'SUCCESS' : 'FAILED'}`
-                );
-                if (event.data.error) {
-                  console.log(`[DEPLOY] ⚠️  Error: ${event.data.error}`);
-                }
-                console.log('='.repeat(80) + '\n');
-
-                if (!event.data.success) {
-                  throw new Error(event.data.error || 'Deployment failed');
-                }
-                break;
-
-              default:
-                console.log(
-                  `[DEPLOY] ℹ️  ${event.type}: ${JSON.stringify(event.data).substring(0, 200)}`
-                );
-            }
-          } catch (parseError) {
-            if (parseError instanceof Error && parseError.message.includes('Deployment failed')) {
-              throw parseError;
-            }
-            console.warn('\n[DEPLOY] ⚠️  Failed to parse SSE event');
-            console.warn('[DEPLOY]    Data:', eventData?.substring(0, 200));
+        case 'service_exists':
+          console.log(`[DEPLOY] ℹ️  Service exists: ${eventData.key} (ID: ${eventData.id})`);
+          if (eventData.url) {
+            serviceUrls.push(String(eventData.url));
           }
-        }
+          await saveLogsToDb();
+          break;
+
+        case 'waiting_for_deployment':
+          console.log(`[DEPLOY] ⏳ Waiting for deployment: ${eventData.serviceId}`);
+          await saveLogsToDb();
+          break;
+
+        case 'deployment_ready':
+          console.log(`[DEPLOY] ✅ Deployment ready: ${eventData.serviceId}`);
+          await saveLogsToDb();
+          break;
+
+        case 'message':
+          if (eventData.text && String(eventData.text).length > 0) {
+            const text = String(eventData.text).substring(0, 150);
+            console.log(`[DEPLOY] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
+          }
+          break;
+
+        case 'error':
+          console.error(`[DEPLOY] ❌ Error event received`);
+          console.error(`[DEPLOY] ❌ Error data: ${JSON.stringify(eventData).substring(0, 500)}`);
+          await saveLogsToDb();
+          break;
+
+        case 'done':
+          console.log('\n' + '='.repeat(80));
+          console.log(`[DEPLOY] 🏁 Deploy Complete: ${eventData.success ? 'SUCCESS' : 'FAILED'}`);
+          console.log(
+            `[DEPLOY] 📊 Done event data: ${JSON.stringify(eventData).substring(0, 500)}`
+          );
+          if (eventData.error) {
+            console.log(`[DEPLOY] ⚠️  Error: ${eventData.error}`);
+          }
+          console.log('='.repeat(80) + '\n');
+
+          if (!eventData.success) {
+            const errorMsg = eventData.error || 'Deployment failed';
+            console.log(`[DEPLOY] ❌ Throwing error from done event: ${errorMsg}`);
+            throw new Error(String(errorMsg));
+          }
+          break;
+
+        default:
+          console.log(`[DEPLOY] ℹ️  ${eventType}: ${JSON.stringify(eventData).substring(0, 200)}`);
       }
     }
 
@@ -262,11 +214,17 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
     };
   } catch (error) {
     console.error('\n' + '='.repeat(80));
-    console.error(`[DEPLOY] ❌ Deploy job ${deployJobId} failed`);
-    console.error(`[DEPLOY] Error: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`[DEPLOY] ❌ Deploy job ${deployJobId} CAUGHT ERROR`);
+    console.error(`[DEPLOY] Error type: ${error?.constructor?.name}`);
+    console.error(
+      `[DEPLOY] Error message: ${error instanceof Error ? error.message : String(error)}`
+    );
+    console.error(`[DEPLOY] Error stack: ${error instanceof Error ? error.stack : 'N/A'}`);
+    console.error(`[DEPLOY] Logs collected so far: ${logs.length}`);
     console.error('='.repeat(80) + '\n');
 
     // Update deploy job to failed
+    console.log(`[DEPLOY] 📝 Updating job ${deployJobId} to status=failed`);
     await db
       .update(deployJobs)
       .set({
@@ -276,6 +234,7 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
         logs: JSON.stringify(logs),
       })
       .where(eq(deployJobs.id, deployJobId));
+    console.log(`[DEPLOY] ✅ Job ${deployJobId} updated to failed`);
 
     throw error;
   }
