@@ -95,6 +95,8 @@ set +a
 echo "   Bun directory: ${KOSUKE_BUN_DIR:-none}"
 echo "   Python directory: ${KOSUKE_PYTHON_DIR:-none}"
 echo "   Has Redis: ${KOSUKE_HAS_REDIS}"
+echo "   Bun DB Migrate: ${KOSUKE_BUN_DB_MIGRATE_CMD:-db:migrate (default)}"
+echo "   Bun DB Seed: ${KOSUKE_BUN_DB_SEED_CMD:-db:seed (default)}"
 
 # ============================================================
 # STEP 3: START REDIS (if configured)
