@@ -1,8 +1,8 @@
 import { count, eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { ApiErrorHandler } from '@/lib/api/errors';
 import { isSuperAdminByUserId } from '@/lib/admin/permissions';
+import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
 import { clerkService } from '@/lib/clerk';
 import { db } from '@/lib/db/drizzle';
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse query parameters
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const search = searchParams.get('search') || '';
     const type = searchParams.get('type'); // 'personal' | 'team'
     const page = Math.max(parseInt(searchParams.get('page') || '1'), 1);
@@ -36,19 +36,14 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
 
     // Fetch all organizations from Clerk
-    const { data: clerkOrgs } = await clerkService.listOrganizations({
-      limit: 1000, // Fetch all for now, we'll filter client-side
-      offset: 0,
+    const { data: clerkOrgs, totalCount } = await clerkService.listOrganizations({
+      limit,
+      offset: (page - 1) * limit,
+      query: search,
     });
 
     // Filter by search and type
     let filteredOrgs = clerkOrgs;
-
-    if (search) {
-      filteredOrgs = filteredOrgs.filter(org =>
-        org.name.toLowerCase().includes(search.toLowerCase())
-      );
-    }
 
     if (type === 'personal') {
       filteredOrgs = filteredOrgs.filter(org => org.isPersonal);
@@ -121,7 +116,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: {
         organizations: paginatedOrgs,
-        total: sortedOrgs.length,
+        total: totalCount,
         page,
         limit,
         totalPages: Math.ceil(sortedOrgs.length / limit),

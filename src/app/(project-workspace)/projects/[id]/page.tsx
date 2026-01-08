@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
-import { use, useEffect, useRef, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
@@ -115,8 +115,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
   const { data: sessions = [] } = useChatSessions(projectId);
 
-  // Chat session state management - declare activeChatSessionId first
-  const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(null);
+  const mainSession = useMemo(() => sessions.find(session => session.isDefault), [sessions]);
+  const activeChatSessionId = useMemo(() => {
+    if (!sessions.length) return null;
+    // If URL has session param and it exists, use it
+    if (sessionFromUrl) {
+      const urlSession = sessions.find(session => session.id === sessionFromUrl);
+      if (urlSession) return urlSession.id;
+    }
+    // Fall back to default session or first session
+    return mainSession?.id || sessions[0]?.id || null;
+  }, [sessions, sessionFromUrl, mainSession?.id]);
 
   // Build status for submit and chat input
   const { data: latestBuildData } = useLatestBuild(projectId, activeChatSessionId);
@@ -137,45 +146,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
   const [showSidebar, setShowSidebar] = useState(!sessionFromUrl);
 
-  // Auto-select session based on URL or default session when sessions are loaded
+  // When URL changes to include a session, hide sidebar to show chat interface
   useEffect(() => {
-    if (sessions.length > 0 && activeChatSessionId === null) {
-      let sessionToSelect = null;
-
-      if (sessionFromUrl) {
-        // Try to find session from URL
-        sessionToSelect = sessions.find(session => session.id === sessionFromUrl);
-        if (sessionToSelect) {
-          setShowSidebar(false); // Show chat interface when coming from URL
-        }
-      }
-
-      if (!sessionToSelect) {
-        // Fall back to default session or first session
-        sessionToSelect = sessions.find(session => session.isDefault) || sessions[0];
-      }
-
-      if (sessionToSelect) {
-        setActiveChatSessionId(sessionToSelect.id);
-      }
+    if (sessionFromUrl && showSidebar) {
+      setShowSidebar(false);
     }
-  }, [sessions, activeChatSessionId, sessionFromUrl]);
+  }, [sessionFromUrl, showSidebar]);
 
-  // Handle session selection and URL updates
+  // Handle session selection - URL is the source of truth
   const handleSessionSelect = (sessionId: string) => {
-    setActiveChatSessionId(sessionId);
     setShowSidebar(false); // Switch to chat interface
-    // Update URL to reflect selected session using query params
+    // Update URL - this will trigger re-derivation of activeChatSessionId
     router.push(`/projects/${projectId}?session=${sessionId}`, { scroll: false });
   };
 
-  // Get current session information
+  // Get current session information (derived from activeChatSessionId)
   const currentSession = sessions.find(session => session.id === activeChatSessionId);
-  const mainSession = sessions.find(session => session.isDefault);
   const currentBranch = currentSession?.branchName;
   const sessionId = currentSession?.id;
 
-  // Preview uses current session when in chat view, or main session when in sidebar view
+  // Preview session: use main session (sidebar view) or current session (chat view)
+  // No race condition because activeChatSessionId is derived, not synced via useEffect
   const previewSessionId = showSidebar ? mainSession?.id : sessionId;
   const previewBranch = showSidebar ? mainSession?.branchName : currentBranch;
 
