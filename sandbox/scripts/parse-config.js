@@ -49,6 +49,8 @@ function main() {
     // ─────────────────────────────────────────────────────────────────────────
     let bunDir = '';
     let pythonDir = '';
+    let bunDbMigrateCmd = '';
+    let bunDbSeedCmd = '';
     let entrypointService = null;
 
     for (const [name, svc] of Object.entries(services)) {
@@ -57,10 +59,13 @@ function main() {
         entrypointService = { name, ...svc };
       }
 
-      // Extract service directories
+      // Extract service directories and database commands
       if (svc.type === 'bun') {
         if (!bunDir) {
           bunDir = svc.directory;
+          // Extract custom db commands
+          bunDbMigrateCmd = svc.dbMigrateCommand || '';
+          bunDbSeedCmd = svc.dbSeedCommand || '';
         }
       } else if (svc.type === 'python') {
         if (!pythonDir) {
@@ -134,6 +139,8 @@ function main() {
     envLines.push(`KOSUKE_BUN_DIR=${escapeEnvValue(bunDir)}`);
     envLines.push(`KOSUKE_PYTHON_DIR=${escapeEnvValue(pythonDir)}`);
     envLines.push(`KOSUKE_HAS_REDIS=${hasRedis ? 'true' : 'false'}`);
+    envLines.push(`KOSUKE_BUN_DB_MIGRATE_CMD=${escapeEnvValue(bunDbMigrateCmd)}`);
+    envLines.push(`KOSUKE_BUN_DB_SEED_CMD=${escapeEnvValue(bunDbSeedCmd)}`);
 
     // All other environment variables
     for (const [key, value] of Object.entries(finalEnv)) {
