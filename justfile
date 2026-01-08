@@ -76,3 +76,15 @@ unlink-cli:
     @echo "🔗 Unlinking kosuke-cli..."
     @bun install --frozen-lockfile
     @echo "✅ kosuke-cli unlinked. Reinstalled published version."
+
+# Run a background job programmatically (bypasses queue, runs directly)
+run-job job *args:
+    @docker exec kosuke_nextjs npm run run-job -- {{job}} {{args}}
+
+# List available jobs
+list-jobs:
+    @docker exec kosuke_nextjs npm run run-job -- --list
+
+# Preview cleanup - clean inactive sandbox sessions
+cleanup-previews *args:
+    @docker exec kosuke_nextjs npm run run-job -- preview-cleanup {{args}}
