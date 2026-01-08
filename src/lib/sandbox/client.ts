@@ -10,12 +10,9 @@ import { getSandboxManager } from './manager';
 import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
 
 export class SandboxClient {
-  private sessionId: string;
   private baseUrl: string;
 
   constructor(sessionId: string) {
-    this.sessionId = sessionId;
-
     const manager = getSandboxManager();
     this.baseUrl = manager.getSandboxAgentUrl(sessionId);
   }

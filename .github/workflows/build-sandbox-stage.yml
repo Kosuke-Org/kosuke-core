@@ -73,4 +73,3 @@ jobs:
         if: failure()
         run: |
           curl -X POST --data "{\"text\":\"❌ Kosuke Sandbox Staging Image Build Failed\nAction: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" ${{ secrets.SLACK_DEV_CHANNEL_WEBHOOK_URL }}
-
