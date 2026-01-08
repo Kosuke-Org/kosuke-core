@@ -170,6 +170,13 @@ export default function OrganizationMembersPage() {
   const totalMembersPages = Math.ceil((memberships?.count ?? 0) / ITEMS_PER_PAGE);
   const totalInvitationsPages = Math.ceil((invitations?.count ?? 0) / ITEMS_PER_PAGE);
 
+  // Check if a member has any pending operation
+  const isMemberBusy = (memberId: string | undefined) =>
+    memberId &&
+    (removingMemberId === memberId ||
+      transferringUserId === memberId ||
+      updatingRoleUserId === memberId);
+
   return (
     <div className="space-y-6">
       {/* Transfer Ownership Confirmation Dialog */}
@@ -341,15 +348,11 @@ export default function OrganizationMembersPage() {
                                 size="icon"
                                 className="shrink-0"
                                 disabled={
-                                  removingMemberId === member.publicUserData?.userId ||
-                                  transferringUserId === member.publicUserData?.userId ||
-                                  updatingRoleUserId === member.publicUserData?.userId ||
+                                  isMemberBusy(member.publicUserData?.userId) ||
                                   isTransferringOwnership
                                 }
                               >
-                                {removingMemberId === member.publicUserData?.userId ||
-                                transferringUserId === member.publicUserData?.userId ||
-                                updatingRoleUserId === member.publicUserData?.userId ? (
+                                {isMemberBusy(member.publicUserData?.userId) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <MoreVertical className="h-4 w-4 text-muted-foreground" />
