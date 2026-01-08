@@ -4,7 +4,7 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "@Kosuke-Org/cli": "0.0.92",
+        "@Kosuke-Org/cli": "0.0.93",
         "@aws-sdk/client-s3": "^3.958.0",
         "@clerk/nextjs": "^6.36.5",
         "@docker/node-sdk": "^0.0.17",
@@ -112,7 +112,7 @@
     },
   },
   "packages": {
-    "@Kosuke-Org/cli": ["@Kosuke-Org/cli@0.0.92", "https://npm.pkg.github.com/download/@Kosuke-Org/cli/0.0.92/0f931b0e5bad075f0caaae62284bf5d855b912b0", { "dependencies": { "@anthropic-ai/claude-agent-sdk": "^0.1.76", "@anthropic-ai/sdk": "^0.71.2", "@aws-sdk/client-s3": "^3.962.0", "@google/generative-ai": "^0.24.1", "@langfuse/otel": "^4.5.1", "@langfuse/tracing": "^4.5.1", "@modelcontextprotocol/sdk": "^1.25.1", "@octokit/rest": "^22.0.1", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-node": "^0.208.0", "dotenv": "^17.2.3", "fastify": "^5.6.2", "glob": "^13.0.0", "ignore": "^7.0.5", "simple-git": "^3.22.0", "zod": "^3.25.76" }, "bin": { "kosuke": "dist/index.js" } }, "sha512-PJmCBjne2ab1PEnjO687oMc7Kjy49oKYqUur92dkcHOiXaRP3oz8Oi/T6zedi3OjwuBoPoKJIB2+nbgOugafWg=="],
+    "@Kosuke-Org/cli": ["@Kosuke-Org/cli@0.0.93", "https://npm.pkg.github.com/download/@Kosuke-Org/cli/0.0.93/7efda0bd1709b1040e6f2ca7e1bd0df24c47df40", { "dependencies": { "@anthropic-ai/claude-agent-sdk": "^0.1.76", "@anthropic-ai/sdk": "^0.71.2", "@aws-sdk/client-s3": "^3.962.0", "@google/generative-ai": "^0.24.1", "@langfuse/otel": "^4.5.1", "@langfuse/tracing": "^4.5.1", "@modelcontextprotocol/sdk": "^1.25.1", "@octokit/rest": "^22.0.1", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-node": "^0.208.0", "dotenv": "^17.2.3", "fastify": "^5.6.2", "glob": "^13.0.0", "ignore": "^7.0.5", "simple-git": "^3.22.0", "zod": "^3.25.76" }, "bin": { "kosuke": "dist/index.js" } }, "sha512-0vhX9Dsu0YkIAIZTXQKofSNIwgC7AE5LG+wi1UwjMOkJa2fl83egu4SR/q5DpImQsNUhUjm9RGebrztiiXFi8Q=="],
 
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 
