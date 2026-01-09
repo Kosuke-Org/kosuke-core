@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, RefreshCcw } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -33,13 +33,9 @@ export default function ChatInterface({
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // User data
-  const { user: clerkUser, isLoaded } = useUser();
-  const [user, setUser] = useState<{
-    name?: string;
-    email?: string;
-    imageUrl?: string;
-  } | null>(null);
+  // User data - get current user's Clerk ID for identifying "You" vs other users
+  const { user: clerkUser } = useUser();
+  const currentUserId = clerkUser?.id;
 
   // Always call hooks at the top level, even if sessionId is not available yet
   const sendMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
@@ -76,19 +72,6 @@ export default function ChatInterface({
     getErrorMessage,
     clearError,
   } = chatState;
-
-  // Set user data when Clerk user is loaded
-  useEffect(() => {
-    if (isLoaded && clerkUser) {
-      setUser({
-        name: clerkUser.fullName || undefined,
-        email: clerkUser.emailAddresses[0]?.emailAddress || '',
-        imageUrl: clerkUser.imageUrl || undefined,
-      });
-    } else if (isLoaded && !clerkUser) {
-      setUser(null);
-    }
-  }, [isLoaded, clerkUser]);
 
   // Handle send errors
   useEffect(() => {
@@ -214,15 +197,8 @@ export default function ChatInterface({
                   role={message.role}
                   timestamp={message.timestamp}
                   isLoading={(message as { isLoading?: boolean }).isLoading || false}
-                  user={
-                    user
-                      ? {
-                          name: user.name || undefined,
-                          email: user.email,
-                          imageUrl: user.imageUrl || undefined,
-                        }
-                      : undefined
-                  }
+                  author={message.author}
+                  currentUserId={currentUserId}
                   showAvatar={message.showAvatar}
                   hasError={message.hasError}
                   errorType={message.errorType}

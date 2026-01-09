@@ -13,6 +13,14 @@ export type AssistantBlock =
       status: 'running' | 'completed' | 'error';
     };
 
+// Message Author Type
+export interface MessageAuthor {
+  userId: string;
+  name?: string | null;
+  email?: string;
+  imageUrl?: string;
+}
+
 // Core Chat Types
 export interface ChatMessage {
   id: string;
@@ -27,6 +35,7 @@ export interface ChatMessage {
   hasError?: boolean;
   errorType?: ErrorType;
   attachments?: Attachment[];
+  author?: MessageAuthor; // Author info for displaying user names
   metadata?: {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
@@ -68,11 +77,8 @@ export interface ChatMessageProps {
   timestamp: Date;
   isLoading?: boolean;
   className?: string;
-  user?: {
-    name?: string;
-    email?: string;
-    imageUrl?: string;
-  };
+  author?: MessageAuthor; // Author info for the message
+  currentUserId?: string; // Current user's Clerk ID for comparison
   showAvatar?: boolean;
   hasError?: boolean;
   errorType?: ErrorType;
