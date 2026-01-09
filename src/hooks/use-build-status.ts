@@ -11,7 +11,7 @@ interface UseBuildStatusOptions {
 const TERMINAL_STATES = ['completed', 'failed', 'cancelled'] as const;
 
 function isTerminalState(status: string | undefined): boolean {
-  return TERMINAL_STATES.includes(status as (typeof TERMINAL_STATES)[number]);
+  return TERMINAL_STATES.some(t => t === status);
 }
 
 /**
