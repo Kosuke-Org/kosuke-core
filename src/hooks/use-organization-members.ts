@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 interface InviteMemberParams {
   email: string;
   organizationId: string;
+  role?: 'org:admin' | 'org:member';
 }
 
 interface RemoveMemberParams {
@@ -24,6 +25,12 @@ interface TransferOwnershipParams {
   organizationId: string;
 }
 
+interface UpdateMemberRoleParams {
+  userId: string;
+  organizationId: string;
+  role: 'org:admin' | 'org:member';
+}
+
 interface UseOrganizationMembersReturn {
   inviteMember: (params: InviteMemberParams) => Promise<void>;
   isInvitingMember: boolean;
@@ -33,6 +40,8 @@ interface UseOrganizationMembersReturn {
   revokingInvitationId: string | null;
   transferOwnership: (params: TransferOwnershipParams) => Promise<void>;
   isTransferringOwnership: boolean;
+  updateMemberRole: (params: UpdateMemberRoleParams) => Promise<void>;
+  updatingRoleUserId: string | null;
 }
 
 /**
@@ -55,8 +64,13 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [revokingInvitationId, setRevokingInvitationId] = useState<string | null>(null);
   const [isTransferringOwnership, setIsTransferringOwnership] = useState(false);
+  const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
 
-  const inviteMember = async ({ email, organizationId }: InviteMemberParams) => {
+  const inviteMember = async ({
+    email,
+    organizationId,
+    role = 'org:member',
+  }: InviteMemberParams) => {
     if (!email.trim()) {
       toast({
         title: 'Error',
@@ -71,7 +85,7 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
       const response = await fetch(`/api/organizations/${organizationId}/invitations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, role }),
       });
 
       if (!response.ok) {
@@ -92,7 +106,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to invite member',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setIsInvitingMember(false);
     }
@@ -132,7 +145,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to remove member',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setRemovingMemberId(null);
     }
@@ -163,7 +175,6 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to revoke invitation',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setRevokingInvitationId(null);
     }
@@ -208,9 +219,52 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
         description: error instanceof Error ? error.message : 'Failed to transfer ownership',
         variant: 'destructive',
       });
-      throw error;
     } finally {
       setIsTransferringOwnership(false);
+    }
+  };
+
+  const updateMemberRole = async ({ userId, organizationId, role }: UpdateMemberRoleParams) => {
+    if (!userId) {
+      toast({
+        title: 'Error',
+        description: 'User ID is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUpdatingRoleUserId(userId);
+    try {
+      const response = await fetch(`/api/organizations/${organizationId}/members/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update member role');
+      }
+
+      toast({
+        title: 'Success',
+        description: `Member role updated to ${role === 'org:admin' ? 'Admin' : 'Member'}`,
+      });
+
+      // Revalidate memberships to reflect role changes
+      await userMemberships.revalidate?.();
+
+      // Refresh the page to update UI
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update member role',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingRoleUserId(null);
     }
   };
 
@@ -223,5 +277,7 @@ export function useOrganizationMembers(): UseOrganizationMembersReturn {
     revokingInvitationId,
     transferOwnership,
     isTransferringOwnership,
+    updateMemberRole,
+    updatingRoleUserId,
   };
 }

@@ -5,7 +5,9 @@
         "type": "bun",
         "directory": ".",
         "is_entrypoint": true,
-        "external_connection_variable": "NEXT_PUBLIC_APP_URL"
+        "external_connection_variable": "NEXT_PUBLIC_APP_URL",
+        "dbMigrateCommand": "db:migrate",
+        "dbSeedCommand": "db:seed"
       },
       "engine": {
         "type": "python",

@@ -1,12 +1,14 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { ORG_ROLES } from '@/lib/types/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const inviteMemberSchema = z.object({
   email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Invalid email address'),
-  role: z.enum(['org:admin', 'org:member']).optional().default('org:member'),
+  role: z.enum([ORG_ROLES.ADMIN, ORG_ROLES.MEMBER]).optional().default(ORG_ROLES.MEMBER),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ orgId: string }> }) {
@@ -67,6 +69,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
 
     return NextResponse.json({ data: invitation });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to send invitation');
+    }
     console.error('Failed to create invitation:', error);
     return ApiErrorHandler.handle(error);
   }

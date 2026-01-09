@@ -175,7 +175,10 @@ RUN --mount=type=secret,id=npm_token \
         npm install -g @Kosuke-Org/cli@${KOSUKE_CLI_VERSION} && \
         which kosuke && echo "✅ kosuke-cli@${KOSUKE_CLI_VERSION} installed"; \
     else \
-        echo "💡 Local mode: kosuke-cli will be mounted at runtime"; \
+        echo "💡 Local mode: kosuke-cli will be mounted at runtime" && \
+        echo "📦 Installing nodemon for hot-reload..." && \
+        npm install -g nodemon && \
+        echo "✅ nodemon installed"; \
     fi
 
 # ============================================================

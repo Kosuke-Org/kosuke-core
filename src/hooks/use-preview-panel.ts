@@ -214,6 +214,16 @@ export function usePreviewPanel({
 
     // Normal flow: fetch and poll
     fetchPreviewUrlRef.current?.();
+
+    // Cleanup: stop polling when sessionId changes (prevents stale health checks)
+    return () => {
+      console.log(`[Preview Panel] Cleaning up preview for ${sessionText}`);
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+      requestInFlightRef.current = false;
+    };
   }, [projectId, sessionId, enabled, isNewProject, startPreview]);
 
   // Function to refresh the preview

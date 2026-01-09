@@ -48,8 +48,8 @@ interface OrganizationsDataTableProps {
 export function OrganizationsDataTable({
   organizations,
   total,
-  page: _page,
-  pageSize: _pageSize,
+  page,
+  pageSize,
   totalPages,
   isLoading,
   searchQuery,
@@ -74,6 +74,10 @@ export function OrganizationsDataTable({
       sorting,
       columnFilters,
       columnVisibility,
+      pagination: {
+        pageIndex: page - 1, // Convert 1-based to 0-based index
+        pageSize,
+      },
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,

@@ -1,5 +1,10 @@
-// Organization role types
-export type OrganizationMembershipRole = 'org:admin' | 'org:member';
+// Organization role constants and types
+export const ORG_ROLES = {
+  ADMIN: 'org:admin',
+  MEMBER: 'org:member',
+} as const;
+
+export type OrganizationMembershipRole = (typeof ORG_ROLES)[keyof typeof ORG_ROLES];
 
 // Organization invitation status types
 export type OrganizationInvitationStatus = 'pending' | 'accepted' | 'revoked';

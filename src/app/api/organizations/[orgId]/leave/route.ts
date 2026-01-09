@@ -1,5 +1,6 @@
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { clerkService } from '@/lib/clerk';
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
@@ -31,6 +32,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ or
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to leave organization');
+    }
     console.error('Failed to leave organization:', error);
     return ApiErrorHandler.handle(error);
   }

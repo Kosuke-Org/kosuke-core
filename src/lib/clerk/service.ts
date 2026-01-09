@@ -1,9 +1,10 @@
-import type {
-  ClerkOrganization,
-  ClerkUser,
-  OrganizationInvitationStatus,
-  OrganizationMembershipRole,
-  UpdateUserData,
+import {
+  ORG_ROLES,
+  type ClerkOrganization,
+  type ClerkUser,
+  type OrganizationInvitationStatus,
+  type OrganizationMembershipRole,
+  type UpdateUserData,
 } from '@/lib/types/clerk';
 import { createClerkClient } from '@clerk/nextjs/server';
 
@@ -143,7 +144,7 @@ export class ClerkService {
   async isOrgAdmin(userId: string, orgId: string): Promise<boolean> {
     const memberships = await this.client.users.getOrganizationMembershipList({ userId });
     const membership = memberships.data.find(m => m.organization.id === orgId);
-    return membership?.role === 'org:admin';
+    return membership?.role === ORG_ROLES.ADMIN;
   }
 
   /**
@@ -325,10 +326,12 @@ export class ClerkService {
   async listOrganizations(params?: {
     limit?: number;
     offset?: number;
+    query?: string;
   }): Promise<{ data: ClerkOrganization[]; totalCount: number }> {
     const response = await this.client.organizations.getOrganizationList({
-      limit: params?.limit || 100,
-      offset: params?.offset || 0,
+      limit: params?.limit,
+      offset: params?.offset,
+      query: params?.query,
     });
 
     const organizations = response.data.map(org => {
