@@ -31,7 +31,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ orgI
     const usageData = await getOrgUsage(orgId);
 
     // Include Langfuse URL for super admins
-    const langfuseProjectId = process.env.LANGFUSE_PROJECT_ID;
+    const langfuseProjectId = process.env.NEXT_PUBLIC_LANGFUSE_PROJECT_ID;
     const langfuseUrl =
       isSuperAdmin && langfuseProjectId
         ? `https://cloud.langfuse.com/project/${langfuseProjectId}/users/${orgId}?dateRange=30d`
