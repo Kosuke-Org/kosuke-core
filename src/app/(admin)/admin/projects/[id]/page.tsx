@@ -2,20 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import {
-  AlertCircle,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Loader2,
-  Play,
-  Rocket,
-  Save,
-} from 'lucide-react';
+import { ChevronDown, Copy, ExternalLink, Loader2, Play, Rocket, Save } from 'lucide-react';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,21 +29,16 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useDeployJob,
-  useDeployLogs,
   useFetchDeployConfig,
   useTriggerDeploy,
   useUpdateDeployConfig,
 } from '@/hooks/use-admin-deploy';
 import { useMarkProjectReady, useUpdatePaymentStatus } from '@/hooks/use-admin-projects';
-import { useStartSandbox } from '@/hooks/use-admin-sandbox';
-import { useTriggerVamos, useVamosJob, useVamosLogs } from '@/hooks/use-admin-vamos';
-import { useAgentHealth } from '@/hooks/use-agent-health';
+import { useTriggerVamos, useVamosJob } from '@/hooks/use-admin-vamos';
 import { useToast } from '@/hooks/use-toast';
 import type { ProjectStatus } from '@/lib/db/schema';
-import { cn } from '@/lib/utils';
 
 import { DeployConfigModal } from './components/deploy-config-modal';
-import { StreamingLogsDialog } from './components/streaming-logs-dialog';
 
 interface AdminProject {
   id: string;
@@ -93,13 +78,8 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     null
   );
 
-  // Vamos & Deploy UI state
-  const [vamosLogsSheetOpen, setVamosLogsSheetOpen] = useState(false);
-  const [deployLogsSheetOpen, setDeployLogsSheetOpen] = useState(false);
+  // Deploy UI state
   const [deployConfigModalOpen, setDeployConfigModalOpen] = useState(false);
-
-  // Auto-start sandbox state
-  const [hasAttemptedAutoStart, setHasAttemptedAutoStart] = useState(false);
 
   // Fetch single project
   const { data: projects, isLoading } = useQuery<AdminProject[]>({
@@ -135,20 +115,12 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
   // Vamos hooks - only fetch when project is in development
   const { data: vamosJobData } = useVamosJob(id, !!project && isInDevelopment);
   const triggerVamosMutation = useTriggerVamos();
-  const { data: vamosLogsData } = useVamosLogs(
-    id,
-    isInDevelopment ? vamosJobData?.job?.id || null : null
-  );
 
   // Deploy hooks - only fetch when project is active
   const { data: deployJobData } = useDeployJob(id, !!project && isActive);
   const fetchDeployConfigMutation = useFetchDeployConfig();
   const triggerDeployMutation = useTriggerDeploy();
   const updateDeployConfigMutation = useUpdateDeployConfig();
-  const { data: deployLogsData } = useDeployLogs(
-    id,
-    isActive ? deployJobData?.job?.id || null : null
-  );
 
   // Store fetched deploy config in local state for modal
   const [deployConfig, setDeployConfig] = useState<{
@@ -158,119 +130,21 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     error?: string;
   } | null>(null);
 
-  // Agent health - poll when project is in_development or active (vamos/deploy available)
-  const { data: agentHealth } = useAgentHealth({
-    projectId: id,
-    enabled: Boolean(id) && (project?.status === 'in_development' || project?.status === 'active'),
-    pollingInterval: 10000,
-  });
-
-  // Auto-start sandbox when stopped for in_development or active projects
-  const {
-    mutate: startSandbox,
-    isPending: isStartingSandbox,
-    isError: startSandboxError,
-    error: startSandboxErrorMessage,
-    reset: resetStartSandbox,
-  } = useStartSandbox();
-
-  // Auto-start sandbox when it's not found
-  useEffect(() => {
-    const shouldAutoStart = project?.status === 'in_development' || project?.status === 'active';
-    const sandboxNotFound = agentHealth?.sandboxStatus === 'not_found';
-
-    if (
-      shouldAutoStart &&
-      sandboxNotFound &&
-      !isStartingSandbox &&
-      !hasAttemptedAutoStart &&
-      !startSandboxError
-    ) {
-      setHasAttemptedAutoStart(true);
-      startSandbox(id);
-    }
-  }, [
-    project?.status,
-    agentHealth?.sandboxStatus,
-    isStartingSandbox,
-    hasAttemptedAutoStart,
-    startSandboxError,
-    id,
-    startSandbox,
-  ]);
-
-  // Reset auto-start flag when sandbox starts running
-  useEffect(() => {
-    if (agentHealth?.sandboxStatus === 'running') {
-      setHasAttemptedAutoStart(false);
-    }
-  }, [agentHealth?.sandboxStatus]);
-
-  // Agent is ready when running, alive, and explicitly ready
-  const isAgentReady = Boolean(agentHealth?.running && agentHealth?.alive && agentHealth?.ready);
-
-  // Helper to get agent status display
-  const getAgentStatusDisplay = () => {
-    // Starting sandbox takes priority
-    if (isStartingSandbox) {
-      return { color: 'bg-orange-500', text: 'Starting sandbox...', pulse: true };
-    }
-    if (!agentHealth) {
-      return { color: 'bg-muted-foreground', text: 'Checking...', pulse: true };
-    }
-    if (!agentHealth.running) {
-      return { color: 'bg-muted-foreground', text: 'Sandbox stopped', pulse: false };
-    }
-    if (!agentHealth.alive) {
-      return { color: 'bg-yellow-500', text: 'Agent starting...', pulse: true };
-    }
-    if (agentHealth.processing) {
-      return { color: 'bg-blue-500', text: 'Processing', pulse: true };
-    }
-    if (agentHealth.ready) {
-      return { color: 'bg-green-500', text: 'Ready', pulse: false };
-    }
-    return { color: 'bg-yellow-500', text: 'Busy', pulse: true };
-  };
-
   const handleVamos = () => {
-    // If there's already a running job OR agent is processing, open the logs sheet
-    if (
-      vamosJobData?.job?.status === 'running' ||
-      vamosJobData?.job?.status === 'pending' ||
-      agentHealth?.processing
-    ) {
-      setVamosLogsSheetOpen(true);
+    // If there's already a running job, don't trigger again
+    if (vamosJobData?.job?.status === 'running' || vamosJobData?.job?.status === 'pending') {
       return;
     }
 
-    // Early return if agent not ready (can't trigger new job)
-    if (!isAgentReady) return;
-
     // Trigger a new vamos job
-    triggerVamosMutation.mutate(
-      { projectId: id, withTests: true, isolated: false },
-      {
-        onSuccess: () => {
-          setVamosLogsSheetOpen(true);
-        },
-      }
-    );
+    triggerVamosMutation.mutate({ projectId: id, withTests: true, isolated: false });
   };
 
   const handleDeploy = async () => {
-    // If there's already a running deploy job OR agent is processing, open the logs sheet
-    if (
-      deployJobData?.job?.status === 'running' ||
-      deployJobData?.job?.status === 'pending' ||
-      agentHealth?.processing
-    ) {
-      setDeployLogsSheetOpen(true);
+    // If there's already a running deploy job, don't trigger again
+    if (deployJobData?.job?.status === 'running' || deployJobData?.job?.status === 'pending') {
       return;
     }
-
-    // Early return if agent not ready (can't trigger new job)
-    if (!isAgentReady) return;
 
     // Fetch config lazily on Deploy click
     try {
@@ -308,11 +182,7 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
         onSuccess: () => {
           setDeployConfigModalOpen(false);
           // After saving config, trigger deploy
-          triggerDeployMutation.mutate(id, {
-            onSuccess: () => {
-              setDeployLogsSheetOpen(true);
-            },
-          });
+          triggerDeployMutation.mutate(id);
         },
       }
     );
@@ -415,31 +285,7 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
       {/* Page Header - Title, Description, Status, and Action buttons */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1 flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-            {/* Agent status badge - show when project is in_development or active */}
-            {(project.status === 'in_development' || project.status === 'active') &&
-              (() => {
-                const agentStatus = getAgentStatusDisplay();
-                return (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-muted-foreground">Agent:</span>
-                    <div className="relative">
-                      <div className={cn('h-2 w-2 rounded-full', agentStatus.color)} />
-                      {agentStatus.pulse && (
-                        <div
-                          className={cn(
-                            'absolute inset-0 h-2 w-2 rounded-full animate-ping opacity-75',
-                            agentStatus.color
-                          )}
-                        />
-                      )}
-                    </div>
-                    <span className="font-medium">{agentStatus.text}</span>
-                  </div>
-                );
-              })()}
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
           {project.description && <p className="text-muted-foreground">{project.description}</p>}
         </div>
         <div className="flex items-center gap-3">
@@ -478,20 +324,20 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
               onClick={handleVamos}
               variant="outline"
               disabled={
-                (!isAgentReady &&
-                  !agentHealth?.processing &&
-                  vamosJobData?.job?.status !== 'running' &&
-                  vamosJobData?.job?.status !== 'pending') ||
-                triggerVamosMutation.isPending
+                triggerVamosMutation.isPending ||
+                vamosJobData?.job?.status === 'running' ||
+                vamosJobData?.job?.status === 'pending'
               }
             >
-              {triggerVamosMutation.isPending ? (
+              {triggerVamosMutation.isPending ||
+              vamosJobData?.job?.status === 'running' ||
+              vamosJobData?.job?.status === 'pending' ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Play className="h-4 w-4 mr-2" />
               )}
-              {vamosJobData?.job?.status === 'running' || agentHealth?.processing
-                ? 'View Vamos'
+              {vamosJobData?.job?.status === 'running' || vamosJobData?.job?.status === 'pending'
+                ? 'Vamos Running...'
                 : 'Vamos'}
             </Button>
           )}
@@ -499,53 +345,30 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
             <Button
               onClick={handleDeploy}
               disabled={
-                (!isAgentReady &&
-                  !agentHealth?.processing &&
-                  deployJobData?.job?.status !== 'running' &&
-                  deployJobData?.job?.status !== 'pending') ||
                 fetchDeployConfigMutation.isPending ||
-                triggerDeployMutation.isPending
+                triggerDeployMutation.isPending ||
+                deployJobData?.job?.status === 'running' ||
+                deployJobData?.job?.status === 'pending'
               }
             >
-              {fetchDeployConfigMutation.isPending || triggerDeployMutation.isPending ? (
+              {fetchDeployConfigMutation.isPending ||
+              triggerDeployMutation.isPending ||
+              deployJobData?.job?.status === 'running' ||
+              deployJobData?.job?.status === 'pending' ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Rocket className="h-4 w-4 mr-2" />
               )}
               {fetchDeployConfigMutation.isPending
                 ? 'Loading...'
-                : deployJobData?.job?.status === 'running' || agentHealth?.processing
-                  ? 'View Deploy'
+                : deployJobData?.job?.status === 'running' ||
+                    deployJobData?.job?.status === 'pending'
+                  ? 'Deploy Running...'
                   : 'Deploy'}
             </Button>
           )}
         </div>
       </div>
-
-      {/* Sandbox Start Error Alert */}
-      {startSandboxError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Failed to start sandbox</AlertTitle>
-          <AlertDescription className="flex items-center justify-between">
-            <span>
-              {startSandboxErrorMessage instanceof Error
-                ? startSandboxErrorMessage.message
-                : 'Unknown error'}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetStartSandbox();
-                setHasAttemptedAutoStart(false);
-              }}
-            >
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Project Overview Card */}
       <Card>
@@ -710,54 +533,6 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Vamos Streaming Logs Dialog */}
-      <StreamingLogsDialog
-        open={vamosLogsSheetOpen}
-        onOpenChange={setVamosLogsSheetOpen}
-        title={`Running vamos for ${project.name}`}
-        job={
-          vamosLogsData?.job || vamosJobData?.job
-            ? {
-                id: (vamosLogsData?.job || vamosJobData?.job)!.id,
-                status: (vamosLogsData?.job || vamosJobData?.job)!.status,
-                phase: (vamosLogsData?.job || vamosJobData?.job)!.phase,
-                totalPhases: (vamosLogsData?.job || vamosJobData?.job)!.totalPhases,
-                completedPhases: (vamosLogsData?.job || vamosJobData?.job)!.completedPhases,
-                error: (vamosLogsData?.job || vamosJobData?.job)!.error,
-                createdAt: (vamosLogsData?.job || vamosJobData?.job)!.createdAt,
-                startedAt: (vamosLogsData?.job || vamosJobData?.job)!.startedAt,
-                completedAt: (vamosLogsData?.job || vamosJobData?.job)!.completedAt,
-              }
-            : null
-        }
-        logs={vamosLogsData?.logs || []}
-        onRestart={() =>
-          triggerVamosMutation.mutate({ projectId: id, withTests: true, isolated: false })
-        }
-        isRestarting={triggerVamosMutation.isPending}
-      />
-
-      {/* Deploy Streaming Logs Dialog */}
-      <StreamingLogsDialog
-        open={deployLogsSheetOpen}
-        onOpenChange={setDeployLogsSheetOpen}
-        title={`Deploying ${project.name}`}
-        job={
-          deployLogsData?.job || deployJobData?.job
-            ? {
-                id: (deployLogsData?.job || deployJobData?.job)!.id,
-                status: (deployLogsData?.job || deployJobData?.job)!.status,
-                currentStep: (deployLogsData?.job || deployJobData?.job)!.currentStep,
-                error: (deployLogsData?.job || deployJobData?.job)!.error,
-                createdAt: (deployLogsData?.job || deployJobData?.job)!.createdAt,
-                startedAt: (deployLogsData?.job || deployJobData?.job)!.startedAt,
-                completedAt: (deployLogsData?.job || deployJobData?.job)!.completedAt,
-              }
-            : null
-        }
-        logs={deployLogsData?.logs || []}
-      />
 
       {/* Deploy Config Modal */}
       <DeployConfigModal

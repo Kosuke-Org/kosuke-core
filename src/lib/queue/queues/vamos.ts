@@ -3,17 +3,25 @@ import { QUEUE_NAMES } from '../config';
 
 /**
  * Type-safe vamos job data
+ * Contains all info needed to run vamos in a command container
  */
 export interface VamosJobData {
   vamosJobId: string;
   projectId: string;
-  sessionId: string; // For sandbox URL
-  cwd?: string; // Working directory in sandbox (default: /app/project)
-  dbUrl: string;
-  url?: string; // Test URL
+
+  // Vamos options
   withTests: boolean;
   isolated: boolean;
-  githubToken: string; // For pushing commits to remote
+
+  // Environment variables for the container
+  env: {
+    repoUrl: string;
+    branch: string;
+    githubToken: string;
+    dbUrl: string;
+    orgId?: string;
+    anthropicApiKey: string;
+  };
 }
 
 /**
@@ -21,10 +29,7 @@ export interface VamosJobData {
  */
 export interface VamosJobResult {
   success: boolean;
-  stepsCompleted: number;
-  ticketsProcessed?: number;
-  testsProcessed?: number;
-  totalCost: number;
+  exitCode: number;
   error?: string;
 }
 

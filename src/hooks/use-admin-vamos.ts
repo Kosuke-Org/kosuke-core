@@ -18,11 +18,6 @@ interface VamosStatusResponse {
   job: VamosJob | null;
 }
 
-interface VamosLogsResponse {
-  job: VamosJob;
-  logs: unknown[];
-}
-
 interface TriggerVamosParams {
   projectId: string;
   withTests?: boolean;
@@ -96,32 +91,5 @@ export function useTriggerVamos() {
         variant: 'destructive',
       });
     },
-  });
-}
-
-/**
- * Hook to fetch logs for a specific vamos job
- */
-export function useVamosLogs(projectId: string, jobId: string | null) {
-  return useQuery({
-    queryKey: ['admin-vamos-logs', projectId, jobId],
-    queryFn: async (): Promise<VamosLogsResponse> => {
-      const response = await fetch(`/api/admin/projects/${projectId}/vamos/logs/${jobId}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch vamos logs');
-      }
-      return response.json();
-    },
-    enabled: !!jobId,
-    refetchInterval: query => {
-      // Poll every 5 seconds while job is running
-      const data = query.state.data;
-      if (data?.job?.status === 'running' || data?.job?.status === 'pending') {
-        return 5000;
-      }
-      return false;
-    },
-    staleTime: 2000,
   });
 }

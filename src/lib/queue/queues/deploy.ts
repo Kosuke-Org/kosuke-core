@@ -3,12 +3,22 @@ import { QUEUE_NAMES } from '../config';
 
 /**
  * Type-safe deploy job data
+ * Contains all info needed to run deploy in a command container
  */
 export interface DeployJobData {
   deployJobId: string;
   projectId: string;
-  sessionId: string; // For sandbox URL
-  cwd?: string; // Working directory in sandbox (default: /app/project)
+
+  // Environment variables for the container
+  env: {
+    repoUrl: string;
+    branch: string;
+    githubToken: string;
+    orgId?: string;
+    anthropicApiKey: string;
+    renderApiKey: string;
+    renderOwnerId: string;
+  };
 }
 
 /**
@@ -16,8 +26,7 @@ export interface DeployJobData {
  */
 export interface DeployJobResult {
   success: boolean;
-  serviceUrls: string[];
-  totalCost: number;
+  exitCode: number;
   error?: string;
 }
 

@@ -55,6 +55,7 @@ build-sandbox kosuke-cli-mode="local" install-chromium="false" npm-token="":
         --build-arg KOSUKE_CLI_MODE={{kosuke-cli-mode}} \
         --build-arg INSTALL_CHROMIUM={{install-chromium}} \
         --secret id=npm_token,env=NPM_TOKEN \
+        --no-cache \
         sandbox
     @echo "✅ Sandbox build complete! Update SANDBOX_IMAGE=kosuke-sandbox-local:latest in .env"
     @echo "💡 kosuke-cli will be mounted from sandbox/kosuke-cli/ at runtime"

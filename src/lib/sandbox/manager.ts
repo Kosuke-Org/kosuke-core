@@ -22,7 +22,7 @@ import type { SandboxCreateOptions, SandboxInfo } from './types';
  * Returns the org's custom key if set, otherwise returns system default
  * Note: ANTHROPIC_API_KEY is validated in instrumentation.ts at startup
  */
-async function getAnthropicApiKey(orgId?: string): Promise<string> {
+export async function getAnthropicApiKey(orgId?: string): Promise<string> {
   const systemDefault = process.env.ANTHROPIC_API_KEY!;
 
   if (!orgId) {
@@ -115,66 +115,86 @@ export class SandboxManager {
 
   /**
    * Create and start a sandbox container
+   * Supports three modes:
+   * - 'full': Agent + Bun + Python services (interactive development)
+   * - 'agent-only': Only agent service (for API operations)
+   * - 'command': Ephemeral command execution (runs command and exits)
    */
   async createSandbox(options: SandboxCreateOptions): Promise<SandboxInfo> {
     const client = await this.ensureClient();
     const containerName = generateSandboxName(options.sessionId);
+    const isCommandMode = options.servicesMode === 'command';
 
     console.log(`🚀 Creating sandbox: ${containerName}`);
     console.log(`   Session: ${options.sessionId}`);
     console.log(`   Mode: ${options.mode}`);
+    console.log(`   Services mode: ${options.servicesMode}`);
     console.log(`   Repo: ${options.repoUrl}`);
     console.log(`   Branch: ${options.branchName}`);
+    if (isCommandMode && options.command) {
+      console.log(`   Command: ${options.command.join(' ')}`);
+    }
 
-    // Check if container already exists
-    try {
-      const existing = await client.containerInspect(containerName);
-      if (existing.State?.Running) {
-        console.log(`✅ Sandbox ${containerName} already running`);
-        return this.getSandboxInfo(containerName);
-      }
-
-      // Container exists but stopped
-      const existingMode = existing.Config?.Labels?.['kosuke.mode'];
-
-      if (existingMode === 'production') {
-        // Production mode: always destroy and recreate to ensure fresh build
-        console.log(`🔄 Production sandbox stopped, destroying and recreating...`);
+    // For command mode, always delete existing container first
+    // For other modes, try to reuse existing container
+    if (isCommandMode) {
+      try {
         await client.containerDelete(containerName, { force: true, volumes: true });
-        // Continue to create new container below
-      } else {
-        // Development mode: restart and pull latest code
-        console.log(`🔄 Restarting stopped sandbox ${containerName}`);
-        try {
-          await client.containerStart(existing.Id!);
-          console.log(`✅ Sandbox ${containerName} restarted`);
-
-          // Pull latest code with fresh token
-          console.log(`📥 Pulling latest code for branch ${options.branchName}...`);
-          const agentReady = await this.waitForAgent(options.sessionId);
-
-          if (agentReady && options.branchName && options.githubToken) {
-            const sandboxClient = new SandboxClient(options.sessionId);
-            const pullResult = await sandboxClient.pull(options.branchName, options.githubToken);
-
-            if (pullResult.success) {
-              console.log(
-                `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
-              );
-            } else {
-              console.warn(`⚠️ Pull failed: ${pullResult.error}`);
-            }
-          }
-
-          return this.getSandboxInfo(containerName);
-        } catch (startError) {
-          // If restart fails, remove and recreate
-          console.log(`⚠️ Restart failed, recreating sandbox: ${startError}`);
-          await client.containerDelete(containerName, { force: true, volumes: true });
-        }
+        console.log(`🗑️ Removed existing container ${containerName}`);
+      } catch {
+        // Container doesn't exist, continue
       }
-    } catch {
-      // Container doesn't exist, continue to create
+    } else {
+      // Check if container already exists (non-command modes)
+      try {
+        const existing = await client.containerInspect(containerName);
+        if (existing.State?.Running) {
+          console.log(`✅ Sandbox ${containerName} already running`);
+          return this.getSandboxInfo(containerName);
+        }
+
+        // Container exists but stopped
+        const existingMode = existing.Config?.Labels?.['kosuke.mode'];
+
+        if (existingMode === 'production') {
+          // Production mode: always destroy and recreate to ensure fresh build
+          console.log(`🔄 Production sandbox stopped, destroying and recreating...`);
+          await client.containerDelete(containerName, { force: true, volumes: true });
+          // Continue to create new container below
+        } else {
+          // Development mode: restart and pull latest code
+          console.log(`🔄 Restarting stopped sandbox ${containerName}`);
+          try {
+            await client.containerStart(existing.Id!);
+            console.log(`✅ Sandbox ${containerName} restarted`);
+
+            // Pull latest code with fresh token
+            console.log(`📥 Pulling latest code for branch ${options.branchName}...`);
+            const agentReady = await this.waitForAgent(options.sessionId);
+
+            if (agentReady && options.branchName && options.githubToken) {
+              const sandboxClient = new SandboxClient(options.sessionId);
+              const pullResult = await sandboxClient.pull(options.branchName, options.githubToken);
+
+              if (pullResult.success) {
+                console.log(
+                  `✅ Code updated: ${pullResult.changed ? 'changes pulled' : 'already up to date'}`
+                );
+              } else {
+                console.warn(`⚠️ Pull failed: ${pullResult.error}`);
+              }
+            }
+
+            return this.getSandboxInfo(containerName);
+          } catch (startError) {
+            // If restart fails, remove and recreate
+            console.log(`⚠️ Restart failed, recreating sandbox: ${startError}`);
+            await client.containerDelete(containerName, { force: true, volumes: true });
+          }
+        }
+      } catch {
+        // Container doesn't exist, continue to create
+      }
     }
 
     // Pull latest image
@@ -202,20 +222,21 @@ export class SandboxManager {
     }
 
     const labels: Record<string, string> = {
-      'kosuke.type': 'sandbox',
+      'kosuke.type': isCommandMode ? 'command' : 'sandbox',
       'kosuke.project_id': options.projectId,
       'kosuke.session_id': options.sessionId,
       'kosuke.mode': options.mode,
       'kosuke.services_mode': options.servicesMode,
       ...(options.branchName && { 'kosuke.branch': options.branchName }),
       ...(options.orgId && { 'kosuke.org_id': options.orgId }),
+      ...(isCommandMode && options.command && { 'kosuke.command': options.command.join(' ') }),
       ...routingLabels,
     };
 
     // Get Anthropic API key (org custom key or system default)
     const anthropicApiKey = await getAnthropicApiKey(options.orgId);
 
-    // Build environment variables
+    // Build base environment variables
     const envVars: string[] = [
       `KOSUKE_REPO_URL=${options.repoUrl}`,
       `KOSUKE_BRANCH=${options.branchName}`,
@@ -248,12 +269,21 @@ export class SandboxManager {
       `RENDER_OWNER_ID=${process.env.RENDER_OWNER_ID || ''}`,
     ];
 
+    // Add command-specific env vars
+    if (isCommandMode && options.commandEnv) {
+      for (const [key, value] of Object.entries(options.commandEnv)) {
+        envVars.push(`${key}=${value}`);
+      }
+    }
+
     // Container configuration
     // Note: Agent port is only accessed via Docker network, not exposed to host
     const containerConfig: ContainerCreateRequest = {
       Image: this.config.sandboxImage,
+      Cmd: isCommandMode && options.command ? options.command : undefined,
       Env: envVars,
       Labels: labels,
+      WorkingDir: isCommandMode ? '/app/project' : undefined,
       ExposedPorts: hostPort
         ? {
             [`${this.config.bunPort}/tcp`]: {},
@@ -294,7 +324,130 @@ export class SandboxManager {
       console.log(`   Preview URL: ${externalUrl}`);
     }
 
+    // For command mode: wait for completion and return exit code
+    if (isCommandMode) {
+      return this.waitForCommandCompletion(
+        client,
+        createResult.Id,
+        containerName,
+        options.sessionId,
+        options.mode,
+        options.branchName,
+        options.commandTimeout ?? 60 * 60 * 1000 // Default: 1 hour
+      );
+    }
+
     return this.getSandboxInfo(containerName);
+  }
+
+  /**
+   * Wait for a command container to complete
+   * Streams logs in real-time and returns SandboxInfo with exitCode
+   */
+  private async waitForCommandCompletion(
+    client: DockerClient,
+    containerId: string,
+    containerName: string,
+    sessionId: string,
+    mode: 'development' | 'production',
+    branch: string,
+    timeout: number
+  ): Promise<SandboxInfo> {
+    // Stream logs in real-time
+    console.log(`📋 Container logs:`);
+    console.log('-'.repeat(60));
+
+    // Create writable streams for stdout and stderr
+    const { Writable } = await import('node:stream');
+
+    const createLogStream = () =>
+      new Writable({
+        write(chunk, _encoding, callback) {
+          const text = chunk.toString();
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (line.trim()) {
+              console.log(`   ${line}`);
+            }
+          }
+          callback();
+        },
+      });
+
+    const stdout = createLogStream();
+    const stderr = createLogStream();
+
+    // Start log streaming in background
+    const logPromise = client
+      .containerLogs(containerId, stdout, stderr, {
+        follow: true,
+        timestamps: false,
+      })
+      .catch(() => {
+        // Stream ended or container stopped
+      });
+
+    // Wait for container to finish (with timeout)
+    const startTime = Date.now();
+    let exitCode = -1;
+
+    while (true) {
+      // Check if timeout exceeded
+      if (Date.now() - startTime > timeout) {
+        console.log('-'.repeat(60));
+        console.error(`❌ Command timed out after ${timeout / 1000}s`);
+        try {
+          await client.containerStop(containerId, { timeout: 5 });
+        } catch {
+          // Ignore stop errors
+        }
+        await client.containerDelete(containerId, { force: true });
+        // Also drop the database
+        await dropSandboxDatabase(sessionId);
+        throw new Error(`Command timed out after ${timeout / 1000}s`);
+      }
+
+      // Check container status
+      const inspect = await client.containerInspect(containerId);
+      const state = inspect.State;
+
+      if (!state?.Running) {
+        exitCode = state?.ExitCode ?? -1;
+        // Wait for log stream to finish
+        await logPromise;
+        console.log('-'.repeat(60));
+        console.log(`✅ Container exited with code: ${exitCode}`);
+        break;
+      }
+
+      // Wait before next check
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Clean up container and database only on success
+    if (exitCode === 0) {
+      console.log(`🗑️ Removing container ${containerName}...`);
+      await client.containerDelete(containerId, { force: true });
+      await dropSandboxDatabase(sessionId);
+    } else {
+      console.log(`⚠️ Keeping container ${containerName} for debugging (exit code: ${exitCode})`);
+      console.log(`   Debug: docker exec -it ${containerName} bash`);
+      console.log(`   Logs:  docker logs ${containerName}`);
+      console.log(`   Remove: docker rm -f ${containerName}`);
+    }
+
+    console.log(`✅ Command container completed: exit code ${exitCode}`);
+
+    return {
+      containerId,
+      name: containerName,
+      sessionId,
+      status: exitCode === 0 ? 'completed' : 'error',
+      url: null,
+      mode,
+      branch,
+      exitCode,
+    };
   }
 
   /**

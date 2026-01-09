@@ -1,14 +1,14 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
-import { chatSessions, projects, vamosJobs } from '@/lib/db/schema';
+import { projects, vamosJobs } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
 import { vamosQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
-import { getSandboxManager } from '@/lib/sandbox';
-import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
+import { getAnthropicApiKey } from '@/lib/sandbox';
+import { createSandboxDatabase } from '@/lib/sandbox/database';
 
 interface TriggerVamosBody {
   withTests?: boolean;
@@ -17,7 +17,7 @@ interface TriggerVamosBody {
 
 /**
  * POST /api/admin/projects/[id]/vamos/trigger
- * Trigger vamos workflow for a project
+ * Trigger vamos workflow for a project using command-mode container
  * Requires super admin access and project status must be 'in_development'
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -47,50 +47,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    // Get the default chat session for this project
-    const defaultSession = await db.query.chatSessions.findFirst({
-      where: and(eq(chatSessions.projectId, projectId), eq(chatSessions.isDefault, true)),
-    });
-
-    if (!defaultSession) {
-      return NextResponse.json(
-        { error: 'No default chat session found for this project' },
-        { status: 400 }
-      );
+    // Get GitHub token for pushing commits
+    const githubToken = await getProjectGitHubToken(project);
+    if (!githubToken) {
+      return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
     }
 
-    // Check if sandbox exists and is running, auto-start if not
-    const sandboxManager = getSandboxManager();
-    let sandbox = await sandboxManager.getSandbox(defaultSession.id);
+    // Get Anthropic API key (org custom key or system default)
+    const anthropicApiKey = await getAnthropicApiKey(project.orgId ?? undefined);
 
-    if (!sandbox || sandbox.status !== 'running') {
-      console.log(
-        `[API /admin/vamos/trigger] Sandbox not running for session ${defaultSession.id}, starting agent-only sandbox...`
-      );
+    // Create a database for the vamos job
+    // Use a unique session ID based on timestamp
+    const sessionId = `vamos-${projectId}-${Date.now()}`;
+    const dbUrl = await createSandboxDatabase(sessionId);
 
-      const githubToken = await getProjectGitHubToken(project);
-      if (!githubToken) {
-        return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
-      }
-      const repoUrl =
-        project.githubRepoUrl ||
-        `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
-
-      sandbox = await sandboxManager.createSandbox({
-        projectId,
-        sessionId: defaultSession.id,
-        branchName: defaultSession.branchName,
-        repoUrl,
-        githubToken,
-        mode: 'production',
-        servicesMode: 'agent-only',
-        orgId: project.orgId ?? undefined,
-      });
-
-      console.log(
-        `[API /admin/vamos/trigger] Agent-only sandbox started for session ${defaultSession.id}`
-      );
-    }
+    // Build repo URL
+    const repoUrl =
+      project.githubRepoUrl ||
+      `https://github.com/${project.githubOwner}/${project.githubRepoName}`;
 
     // Create vamos job in database
     const [vamosJob] = await db
@@ -103,26 +77,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .returning();
 
-    // Get sandbox database URL from proper configuration
-    const dbUrl = getSandboxDatabaseUrl(defaultSession.id);
-
-    // Get GitHub token for pushing commits
-    const githubToken = await getProjectGitHubToken(project);
-    if (!githubToken) {
-      return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
-    }
-
-    // Add job to queue
+    // Add job to queue with all required env vars
     await vamosQueue.add(JOB_NAMES.PROCESS_VAMOS, {
       vamosJobId: vamosJob.id,
       projectId,
-      sessionId: defaultSession.id,
-      cwd: '/app/project',
-      dbUrl,
-      url: sandbox.url || undefined,
       withTests,
       isolated,
-      githubToken,
+      env: {
+        repoUrl,
+        branch: project.defaultBranch || 'main',
+        githubToken,
+        dbUrl,
+        orgId: project.orgId ?? undefined,
+        anthropicApiKey,
+      },
     });
 
     console.log(
@@ -138,7 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         status: 'pending',
         withTests,
         isolated,
-        message: 'Vamos workflow triggered successfully',
+        message: 'Vamos workflow triggered successfully (command mode)',
       },
     });
   } catch (error) {

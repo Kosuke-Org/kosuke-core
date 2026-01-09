@@ -17,11 +17,6 @@ interface DeployStatusResponse {
   job: DeployJob | null;
 }
 
-interface DeployLogsResponse {
-  job: DeployJob;
-  logs: unknown[];
-}
-
 interface DeployConfig {
   hasConfig: boolean;
   config: Record<string, unknown> | null;
@@ -206,32 +201,5 @@ export function useTriggerDeploy() {
         variant: 'destructive',
       });
     },
-  });
-}
-
-/**
- * Hook to fetch logs for a specific deploy job
- */
-export function useDeployLogs(projectId: string, jobId: string | null) {
-  return useQuery({
-    queryKey: ['admin-deploy-logs', projectId, jobId],
-    queryFn: async (): Promise<DeployLogsResponse> => {
-      const response = await fetch(`/api/admin/projects/${projectId}/deploy/logs/${jobId}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch deploy logs');
-      }
-      return response.json();
-    },
-    enabled: !!jobId,
-    refetchInterval: query => {
-      // Poll every 2 seconds while job is running
-      const data = query.state.data;
-      if (data?.job?.status === 'running' || data?.job?.status === 'pending') {
-        return 2000;
-      }
-      return false;
-    },
-    staleTime: 1000,
   });
 }

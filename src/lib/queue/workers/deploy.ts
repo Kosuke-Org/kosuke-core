@@ -1,27 +1,61 @@
 /**
  * Deploy Worker
- * Processes deploy jobs from BullMQ queue
- * Calls kosuke-cli deploy command via HTTP
+ * Processes deploy jobs by running kosuke-cli in an ephemeral container
  */
+
+import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db/drizzle';
 import { deployJobs } from '@/lib/db/schema';
-import { SandboxClient } from '@/lib/sandbox/client';
-import { eq } from 'drizzle-orm';
+import { KOSUKE_BOT_EMAIL, KOSUKE_BOT_NAME } from '@/lib/github/installations';
+import { getSandboxManager } from '@/lib/sandbox';
+
 import { createQueueEvents, createWorker } from '../client';
 import { QUEUE_NAMES } from '../config';
 import type { DeployJobData, DeployJobResult } from '../queues/deploy';
 
 /**
- * Process a deploy job by calling kosuke-cli deploy command
+ * Build environment variables for deploy command container
+ */
+function buildEnvVars(data: DeployJobData): Record<string, string> {
+  const { env } = data;
+
+  return {
+    // Repository info
+    KOSUKE_REPO_URL: env.repoUrl,
+    KOSUKE_BRANCH: env.branch,
+    KOSUKE_GITHUB_TOKEN: env.githubToken,
+
+    // Organization
+    ...(env.orgId && { KOSUKE_ORG_ID: env.orgId }),
+
+    // AI credentials (may be needed for deploy)
+    ANTHROPIC_API_KEY: env.anthropicApiKey,
+
+    // Render deployment credentials
+    RENDER_API_KEY: env.renderApiKey,
+    RENDER_OWNER_ID: env.renderOwnerId,
+
+    // Langfuse tracing
+    LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY || '',
+    LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY || '',
+    LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL || '',
+
+    // Git identity
+    KOSUKE_GIT_NAME: KOSUKE_BOT_NAME,
+    KOSUKE_GIT_EMAIL: KOSUKE_BOT_EMAIL,
+  };
+}
+
+/**
+ * Process a deploy job by running kosuke-cli in a command sandbox
  */
 async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJobResult> {
-  const { deployJobId, projectId, sessionId, cwd } = job.data;
+  const { deployJobId, projectId, env } = job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[DEPLOY] 🚀 Starting deploy job ${deployJobId}`);
   console.log(`[DEPLOY] 📁 Project: ${projectId}`);
-  console.log(`[DEPLOY] 🔗 Session: ${sessionId}`);
   console.log('='.repeat(80) + '\n');
 
   // Update deploy job status to running
@@ -30,211 +64,75 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
     .set({
       status: 'running',
       startedAt: new Date(),
+      currentStep: 'Starting container',
     })
     .where(eq(deployJobs.id, deployJobId));
 
-  const sandboxClient = new SandboxClient(sessionId);
-  const logs: unknown[] = [];
-  const serviceUrls: string[] = [];
-
-  // Helper to save logs incrementally to the database
-  // This allows the UI to show logs in real-time as events come in
-  const saveLogsToDb = async () => {
-    await db
-      .update(deployJobs)
-      .set({ logs: JSON.stringify(logs) })
-      .where(eq(deployJobs.id, deployJobId));
-  };
-
-  // Wait for sandbox agent to be ready
-  console.log(`[DEPLOY] ⏳ Waiting for sandbox agent to be ready...`);
-
-  await db
-    .update(deployJobs)
-    .set({ currentStep: 'Waiting for agent' })
-    .where(eq(deployJobs.id, deployJobId));
-
-  const isReady = await sandboxClient.waitForReady(30); // 30 seconds timeout
-
-  if (!isReady) {
-    throw new Error('Sandbox agent not ready after 30 seconds');
-  }
-
-  console.log(`[DEPLOY] ✅ Sandbox agent is ready`);
-
   try {
-    console.log(`[DEPLOY] 🔗 Connecting to sandbox deploy API...`);
+    // Run kosuke deploy command using createSandbox with command mode
+    const manager = getSandboxManager();
+    const commandEnv = buildEnvVars(job.data);
 
-    // Stream deploy events from sandbox using SandboxClient
-    for await (const event of sandboxClient.streamDeploy(cwd || '/app/project')) {
-      const eventType = event.type as string;
-      const eventData = event.data as Record<string, unknown>;
+    console.log(`[DEPLOY] 📦 Running command: kosuke deploy`);
 
-      console.log(
-        `[DEPLOY] 📦 Event: ${eventType} - ${JSON.stringify(eventData).substring(0, 300)}`
-      );
+    const result = await manager.createSandbox({
+      projectId,
+      sessionId: deployJobId, // Use job ID as session ID for predictable container naming
+      branchName: env.branch,
+      repoUrl: env.repoUrl,
+      githubToken: env.githubToken,
+      mode: 'development',
+      servicesMode: 'command',
+      orgId: env.orgId,
+      command: ['kosuke', 'deploy'],
+      commandEnv,
+      commandTimeout: 30 * 60 * 1000, // 30 minutes
+    });
 
-      // Store log event
-      logs.push(event);
+    const exitCode = result.exitCode ?? -1;
 
-      // Process events
-      switch (eventType) {
-        case 'deploy_started':
-          console.log('\n' + '='.repeat(80));
-          console.log(`[DEPLOY] 🏗️  Deploy started: ${eventData.projectName}`);
-          console.log('='.repeat(80) + '\n');
-          await saveLogsToDb();
-          break;
+    // Update job status based on exit code
+    const success = exitCode === 0;
+    const status = success ? 'completed' : 'failed';
 
-        case 'step_started':
-          console.log('\n' + '-'.repeat(60));
-          console.log(`[DEPLOY] 📋 Step: ${eventData.name}`);
-          console.log('-'.repeat(60) + '\n');
-
-          // Update current step and save logs incrementally (matches vamos pattern)
-          await db
-            .update(deployJobs)
-            .set({
-              currentStep: String(eventData.name),
-              logs: JSON.stringify(logs),
-            })
-            .where(eq(deployJobs.id, deployJobId));
-          break;
-
-        case 'step_completed':
-          console.log(`[DEPLOY] ✅ Step completed: ${eventData.step}\n`);
-          await saveLogsToDb();
-          break;
-
-        case 'storage_deploying':
-          console.log(`[DEPLOY] 🗄️  Deploying storage: ${eventData.name} (${eventData.type})`);
-          break;
-
-        case 'storage_deployed':
-          console.log(`[DEPLOY] ✅ Storage deployed: ${eventData.key} (ID: ${eventData.id})`);
-          await saveLogsToDb();
-          break;
-
-        case 'storage_exists':
-          console.log(`[DEPLOY] ℹ️  Storage exists: ${eventData.key} (ID: ${eventData.id})`);
-          await saveLogsToDb();
-          break;
-
-        case 'service_deploying':
-          console.log(`[DEPLOY] 🚀 Deploying service: ${eventData.name} (${eventData.type})`);
-          break;
-
-        case 'service_deployed':
-          console.log(`[DEPLOY] ✅ Service deployed: ${eventData.key} (ID: ${eventData.id})`);
-          if (eventData.url) {
-            serviceUrls.push(String(eventData.url));
-            console.log(`[DEPLOY]    URL: ${eventData.url}`);
-          }
-          await saveLogsToDb();
-          break;
-
-        case 'service_exists':
-          console.log(`[DEPLOY] ℹ️  Service exists: ${eventData.key} (ID: ${eventData.id})`);
-          if (eventData.url) {
-            serviceUrls.push(String(eventData.url));
-          }
-          await saveLogsToDb();
-          break;
-
-        case 'waiting_for_deployment':
-          console.log(`[DEPLOY] ⏳ Waiting for deployment: ${eventData.serviceId}`);
-          await saveLogsToDb();
-          break;
-
-        case 'deployment_ready':
-          console.log(`[DEPLOY] ✅ Deployment ready: ${eventData.serviceId}`);
-          await saveLogsToDb();
-          break;
-
-        case 'message':
-          if (eventData.text && String(eventData.text).length > 0) {
-            const text = String(eventData.text).substring(0, 150);
-            console.log(`[DEPLOY] 💭 ${text}${text.length >= 150 ? '...' : ''}`);
-          }
-          break;
-
-        case 'error':
-          console.error(`[DEPLOY] ❌ Error event received`);
-          console.error(`[DEPLOY] ❌ Error data: ${JSON.stringify(eventData).substring(0, 500)}`);
-          await saveLogsToDb();
-          break;
-
-        case 'done':
-          console.log('\n' + '='.repeat(80));
-          console.log(`[DEPLOY] 🏁 Deploy Complete: ${eventData.success ? 'SUCCESS' : 'FAILED'}`);
-          console.log(
-            `[DEPLOY] 📊 Done event data: ${JSON.stringify(eventData).substring(0, 500)}`
-          );
-          if (eventData.error) {
-            console.log(`[DEPLOY] ⚠️  Error: ${eventData.error}`);
-          }
-          console.log('='.repeat(80) + '\n');
-
-          if (!eventData.success) {
-            const errorMsg = eventData.error || 'Deployment failed';
-            console.log(`[DEPLOY] ❌ Throwing error from done event: ${errorMsg}`);
-            throw new Error(String(errorMsg));
-          }
-          break;
-
-        default:
-          console.log(`[DEPLOY] ℹ️  ${eventType}: ${JSON.stringify(eventData).substring(0, 200)}`);
-      }
-    }
-
-    // Update deploy job to completed
     await db
       .update(deployJobs)
       .set({
-        status: 'completed',
+        status,
         completedAt: new Date(),
-        deployedServices: JSON.stringify(serviceUrls),
-        logs: JSON.stringify(logs),
+        currentStep: success ? 'Completed' : 'Failed',
+        error: success ? null : `Command exited with code ${exitCode}`,
       })
       .where(eq(deployJobs.id, deployJobId));
 
     console.log('\n' + '='.repeat(80));
-    console.log(`[DEPLOY] ✅ Deploy job ${deployJobId} completed successfully`);
-    console.log(`[DEPLOY] 📊 Final Summary:`);
-    console.log(`[DEPLOY]    Service URLs: ${serviceUrls.length}`);
-    serviceUrls.forEach((url, i) => {
-      console.log(`[DEPLOY]    ${i + 1}. ${url}`);
-    });
+    console.log(`[DEPLOY] ${success ? '✅' : '❌'} Deploy job ${deployJobId} ${status}`);
+    console.log(`[DEPLOY] Exit code: ${exitCode}`);
     console.log('='.repeat(80) + '\n');
 
     return {
-      success: true,
-      serviceUrls,
-      totalCost: 0, // Deploy doesn't track cost
+      success,
+      exitCode,
+      error: success ? undefined : `Command exited with code ${exitCode}`,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     console.error('\n' + '='.repeat(80));
-    console.error(`[DEPLOY] ❌ Deploy job ${deployJobId} CAUGHT ERROR`);
-    console.error(`[DEPLOY] Error type: ${error?.constructor?.name}`);
-    console.error(
-      `[DEPLOY] Error message: ${error instanceof Error ? error.message : String(error)}`
-    );
-    console.error(`[DEPLOY] Error stack: ${error instanceof Error ? error.stack : 'N/A'}`);
-    console.error(`[DEPLOY] Logs collected so far: ${logs.length}`);
+    console.error(`[DEPLOY] ❌ Deploy job ${deployJobId} failed`);
+    console.error(`[DEPLOY] Error: ${errorMessage}`);
     console.error('='.repeat(80) + '\n');
 
     // Update deploy job to failed
-    console.log(`[DEPLOY] 📝 Updating job ${deployJobId} to status=failed`);
     await db
       .update(deployJobs)
       .set({
         status: 'failed',
         completedAt: new Date(),
-        error: error instanceof Error ? error.message : String(error),
-        logs: JSON.stringify(logs),
+        currentStep: 'Failed',
+        error: errorMessage,
       })
       .where(eq(deployJobs.id, deployJobId));
-    console.log(`[DEPLOY] ✅ Job ${deployJobId} updated to failed`);
 
     throw error;
   }
@@ -257,7 +155,7 @@ export function createDeployWorker() {
     if (returnvalue) {
       const result = returnvalue as unknown as DeployJobResult;
       console.log(`[WORKER]    Success: ${result.success}`);
-      console.log(`[WORKER]    Service URLs: ${result.serviceUrls.length}`);
+      console.log(`[WORKER]    Exit code: ${result.exitCode}`);
     }
     console.log('='.repeat(80) + '\n');
   });
@@ -270,7 +168,7 @@ export function createDeployWorker() {
   });
 
   console.log('='.repeat(80));
-  console.log('[WORKER] 🚀 Deploy Worker Initialized');
+  console.log('[WORKER] 🚀 Deploy Worker Initialized (Command Mode)');
   console.log('[WORKER]    Queue: ' + QUEUE_NAMES.DEPLOY);
   console.log('[WORKER]    Concurrency: 1');
   console.log('[WORKER]    Ready to process deploy jobs');

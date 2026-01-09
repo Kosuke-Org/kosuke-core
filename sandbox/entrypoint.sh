@@ -4,11 +4,16 @@ set -e
 # ============================================================
 # KOSUKE SANDBOX ENTRYPOINT
 # Orchestrates the startup sequence for the sandbox container
+#
+# KOSUKE_SERVICES_MODE:
+#   - full: Full sandbox with config, redis, supervisor (default)
+#   - agent-only: Skip config/redis, run supervisor for agent only
+#   - command: Clone repo, then exec the passed command (for vamos, deploy, etc.)
 # ============================================================
 
 echo "🚀 Starting Kosuke Sandbox..."
 echo "   Mode: ${KOSUKE_MODE}"
-echo "   Services: ${KOSUKE_SERVICES_MODE}"
+echo "   Services: ${KOSUKE_SERVICES_MODE:-full}"
 echo "   Repo: ${KOSUKE_REPO_URL}"
 echo "   Branch: ${KOSUKE_BRANCH}"
 
@@ -73,7 +78,29 @@ git config user.email "${KOSUKE_GIT_EMAIL:-bot@kosuke.dev}"
 git remote set-url origin "$KOSUKE_REPO_URL"
 
 # ============================================================
-# STEP 2: READ AND PARSE KOSUKE CONFIG (skip for agent-only)
+# STEP 2: COMMAND MODE
+# For running CLI commands like vamos, deploy, etc.
+# ============================================================
+
+if [ "$KOSUKE_SERVICES_MODE" = "command" ]; then
+    echo "🔧 Command mode: $@"
+    echo "   Working directory: /app/project"
+
+    # Link kosuke CLI if mounted (local development)
+    if [ -d "/app/kosuke-cli" ]; then
+        if ! command -v kosuke &> /dev/null; then
+            echo "🔗 Linking kosuke CLI..."
+            cd /app/kosuke-cli
+            npm link --force
+        fi
+    fi
+
+    cd /app/project
+    exec "$@"
+fi
+
+# ============================================================
+# STEP 3: READ AND PARSE KOSUKE CONFIG (full sandbox mode)
 # ============================================================
 
 if [ "$KOSUKE_SERVICES_MODE" = "agent-only" ]; then
@@ -82,6 +109,8 @@ if [ "$KOSUKE_SERVICES_MODE" = "agent-only" ]; then
     export KOSUKE_BUN_DIR=""
     export KOSUKE_PYTHON_DIR=""
     export KOSUKE_HAS_REDIS="false"
+    export KOSUKE_BUN_DB_MIGRATE_CMD="db:migrate"
+    export KOSUKE_BUN_DB_SEED_CMD="db:seed"
 else
     CONFIG_FILE="/app/project/kosuke.config.json"
 
@@ -107,7 +136,7 @@ else
     echo "   Bun DB Seed: ${KOSUKE_BUN_DB_SEED_CMD:-db:seed (default)}"
 
     # ============================================================
-    # STEP 3: START REDIS (if configured)
+    # STEP 4: START REDIS (if configured)
     # ============================================================
 
     if [ "$KOSUKE_HAS_REDIS" = "true" ]; then
@@ -132,7 +161,7 @@ else
 fi
 
 # ============================================================
-# STEP 4: DETECT CHROMIUM PATH (for Playwright MCP)
+# STEP 5: DETECT CHROMIUM PATH (for Playwright MCP)
 # ============================================================
 
 if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
@@ -143,7 +172,7 @@ if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
 fi
 
 # ============================================================
-# STEP 5: START SERVICES VIA SUPERVISOR
+# STEP 6: START SERVICES VIA SUPERVISOR
 # ============================================================
 
 echo "🚀 Starting services via supervisor..."

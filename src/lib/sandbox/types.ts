@@ -14,18 +14,24 @@ export interface SandboxCreateOptions {
   repoUrl: string;
   githubToken: string;
   mode: 'development' | 'production';
-  servicesMode: 'agent-only' | 'full'; // agent-only: only agent, full: agent + bun + python
+  servicesMode: 'agent-only' | 'full' | 'command'; // agent-only: only agent, full: agent + bun + python, command: ephemeral command execution
   orgId?: string; // Optional - uses system default API key if not provided
+  // Command mode options (only used when servicesMode === 'command')
+  command?: string[]; // Command to run (e.g., ['kosuke', 'vamos'])
+  commandEnv?: Record<string, string>; // Additional env vars for command
+  commandTimeout?: number; // Timeout in ms (default: 1 hour)
 }
 
 export interface SandboxInfo {
   containerId: string;
   name: string;
   sessionId: string;
-  status: 'running' | 'stopped' | 'error';
-  url: string | null; // null when servicesMode is 'agent-only' (no bun service)
+  status: 'running' | 'stopped' | 'error' | 'completed';
+  url: string | null; // null when servicesMode is 'agent-only' or 'command' (no bun service)
   mode: 'development' | 'production';
   branch: string;
+  // Command mode result (only when servicesMode was 'command')
+  exitCode?: number;
 }
 
 // ============================================================
