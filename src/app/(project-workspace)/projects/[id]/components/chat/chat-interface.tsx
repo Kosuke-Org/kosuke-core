@@ -33,7 +33,6 @@ export default function ChatInterface({
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesStartRef = useRef<HTMLDivElement>(null);
 
   // User data
   const { user: clerkUser, isLoaded } = useUser();
@@ -99,32 +98,17 @@ export default function ChatInterface({
     }
   }, [sendError, handleMutationError]);
 
-  // Scroll to top when user sends a message
+  // Scroll to bottom when messages load, streaming updates, or user sends a message
   useEffect(() => {
-    if (isSending && messagesStartRef.current) {
-      const scrollTimeout = setTimeout(() => {
-        messagesStartRef.current?.scrollIntoView({
+    const scrollTimeout = setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({
           behavior: 'smooth',
-          block: 'start',
+          block: 'end',
         });
-      }, 100);
-      return () => clearTimeout(scrollTimeout);
-    }
-  }, [isSending]);
-
-  // Scroll to bottom when messages load or streaming updates (not on send)
-  useEffect(() => {
-    if (!isSending) {
-      const scrollTimeout = setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'end',
-          });
-        }
-      }, 100);
-      return () => clearTimeout(scrollTimeout);
-    }
+      }
+    }, 100);
+    return () => clearTimeout(scrollTimeout);
   }, [messages, isLoadingMessages, streamingContentBlocks, isSending]);
 
   // Derive a flag instead of early return to keep hook order stable
@@ -223,7 +207,6 @@ export default function ChatInterface({
             </div>
           ) : (
             <>
-              <div ref={messagesStartRef} />
               {enhancedMessages.map(message => (
                 <ChatMessage
                   key={message.id}
