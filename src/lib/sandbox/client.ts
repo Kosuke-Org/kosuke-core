@@ -10,8 +10,8 @@ import { getSandboxManager } from './manager';
 import type {
   AgentHealthResponse,
   DeployConfigCommitResponse,
+  EnvironmentAnalyzeResponse,
   EnvironmentCommitResponse,
-  EnvironmentTriggerResponse,
   EnvironmentUpdateResponse,
   EnvironmentValuesResponse,
   FileInfo,
@@ -402,58 +402,28 @@ export class SandboxClient {
   // --- Environment Operations ---
 
   /**
-   * Trigger environment analysis command (SSE stream)
-   * Analyzes docs.md and updates kosuke.config.json with required env vars
-   * Returns an async generator that yields SSE events
+   * Analyze and sync environment variables
+   * Calls the sandbox's /api/environment endpoint to analyze docs.md and update kosuke.config.json
+   * This is a synchronous REST call that waits for the analysis to complete
    */
-  async *streamEnvironment(cwd: string = '/app/project'): AsyncGenerator<Record<string, unknown>> {
+  async analyzeEnvironment(cwd: string = '/app/project'): Promise<EnvironmentAnalyzeResponse> {
     const response = await fetch(`${this.baseUrl}/api/environment`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cwd }),
+      // Long timeout for AI analysis (5 minutes)
+      signal: AbortSignal.timeout(5 * 60 * 1000),
     });
 
     if (!response.ok) {
-      const error = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Environment analysis failed: ${response.status} - ${error}`);
-    }
-
-    if (!response.body) {
-      throw new Error('No response body from environment endpoint');
-    }
-
-    yield* this.parseSSEStream(response.body);
-  }
-
-  /**
-   * Trigger environment analysis and wait for completion
-   * Returns the result when the analysis completes
-   */
-  async triggerEnvironment(cwd: string = '/app/project'): Promise<EnvironmentTriggerResponse> {
-    try {
-      let variableCount = 0;
-
-      for await (const event of this.streamEnvironment(cwd)) {
-        // Look for the done event to get the variable count
-        if (event.type === 'done' && event.data) {
-          const data = event.data as { variableCount?: number };
-          variableCount = data.variableCount || 0;
-        }
-      }
-
-      return {
-        success: true,
-        variableCount,
-      };
-    } catch (error) {
+      const errorData = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorData.error || errorData.message || `HTTP ${response.status}`,
       };
     }
+
+    return response.json();
   }
 
   /**

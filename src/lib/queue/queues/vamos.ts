@@ -4,24 +4,21 @@ import { QUEUE_NAMES } from '../config';
 /**
  * Type-safe vamos job data
  * Contains all info needed to run vamos in a command container
+ * Note: AI credentials, Langfuse, Git identity are handled by SandboxManager
  */
 export interface VamosJobData {
   vamosJobId: string;
   projectId: string;
 
-  // Vamos options
+  // Vamos-specific options
   withTests: boolean;
   isolated: boolean;
 
-  // Environment variables for the container
-  env: {
-    repoUrl: string;
-    branch: string;
-    githubToken: string;
-    dbUrl: string;
-    orgId?: string;
-    anthropicApiKey: string;
-  };
+  // Sandbox options (passed to createSandbox)
+  repoUrl: string;
+  branch: string;
+  githubToken: string;
+  orgId?: string;
 }
 
 /**

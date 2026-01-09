@@ -4,21 +4,17 @@ import { QUEUE_NAMES } from '../config';
 /**
  * Type-safe deploy job data
  * Contains all info needed to run deploy in a command container
+ * Note: AI credentials, Render credentials, Langfuse, Git identity are handled by SandboxManager
  */
 export interface DeployJobData {
   deployJobId: string;
   projectId: string;
 
-  // Environment variables for the container
-  env: {
-    repoUrl: string;
-    branch: string;
-    githubToken: string;
-    orgId?: string;
-    anthropicApiKey: string;
-    renderApiKey: string;
-    renderOwnerId: string;
-  };
+  // Sandbox options (passed to createSandbox)
+  repoUrl: string;
+  branch: string;
+  githubToken: string;
+  orgId?: string;
 }
 
 /**

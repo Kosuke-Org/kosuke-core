@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +16,6 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useEnvironmentJob } from '@/hooks/use-environment-job';
 import { useEnvironmentValues } from '@/hooks/use-environment-values';
 import { useRetriggerEnvironment } from '@/hooks/use-retrigger-environment';
 import { useUpdateEnvironment } from '@/hooks/use-update-environment';
@@ -68,25 +67,6 @@ function AnalyzingState() {
   );
 }
 
-// Error state component
-function AnalysisErrorState({ error, onRetry }: { error: string | null; onRetry: () => void }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
-      <Alert variant="destructive" className="max-w-md">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Analysis Failed</AlertTitle>
-        <AlertDescription className="mt-2">
-          {error || 'Failed to analyze environment variables. Please try again.'}
-        </AlertDescription>
-      </Alert>
-      <Button variant="outline" onClick={onRetry} className="mt-4">
-        <RefreshCw className="mr-2 h-4 w-4" />
-        Retry Analysis
-      </Button>
-    </div>
-  );
-}
-
 /**
  * Preview component for environments status
  * Shows environment variable inputs for users to fill in
@@ -106,19 +86,10 @@ export default function EnvironmentsPreview({
   const [localValues, setLocalValues] = useState<Record<string, string>>({});
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
-  // Poll environment job status
-  const {
-    job,
-    isPolling,
-    isCompleted,
-    isFailed,
-    refetch: refetchJob,
-  } = useEnvironmentJob(projectId);
-
-  // Only fetch environment values when job is completed
+  // Fetch environment values directly (analysis is synchronous now)
   const { data: environment, isLoading } = useEnvironmentValues(projectId, {
     projectStatus: 'requirements_ready',
-    enabled: isCompleted, // Only fetch after job is done
+    enabled: true,
   });
 
   const updateMutation = useUpdateEnvironment(projectId);
@@ -158,8 +129,8 @@ export default function EnvironmentsPreview({
     return secretPatterns.some(pattern => key.toUpperCase().includes(pattern));
   };
 
-  // Show analyzing state while job is pending/running
-  if (isPolling || (job && job.status === 'pending') || (job && job.status === 'running')) {
+  // Show analyzing state while re-analyzing (retrigger mutation is pending)
+  if (retriggerMutation.isPending) {
     return (
       <div className={cn('flex h-full flex-col', className)}>
         <div className="flex h-12 items-center justify-between border-b px-4">
@@ -187,38 +158,6 @@ export default function EnvironmentsPreview({
           </div>
         </div>
         <AnalyzingState />
-      </div>
-    );
-  }
-
-  // Show error state if job failed
-  if (isFailed) {
-    return (
-      <div className={cn('flex h-full flex-col', className)}>
-        <div className="flex h-12 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-2">
-            {onToggleSidebar && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggleSidebar}
-                className="h-8 w-8"
-                aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {isSidebarCollapsed ? (
-                  <PanelLeftOpen className="h-5 w-5" />
-                ) : (
-                  <PanelLeftClose className="h-5 w-5" />
-                )}
-              </Button>
-            )}
-            <h3 className="text-sm font-medium text-muted-foreground">Environment Setup</h3>
-            <Badge variant="destructive" className="text-xs">
-              Failed
-            </Badge>
-          </div>
-        </div>
-        <AnalysisErrorState error={job?.error ?? null} onRetry={() => refetchJob()} />
       </div>
     );
   }

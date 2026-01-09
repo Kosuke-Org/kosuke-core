@@ -3,9 +3,8 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { environmentJobs, projectAuditLogs, projects } from '@/lib/db/schema';
+import { projectAuditLogs, projects } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
-import { environmentQueue, JOB_NAMES } from '@/lib/queue';
 import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { sendRequirementsReadySlack } from '@/lib/slack/send-requirements-ready';
 
@@ -13,7 +12,7 @@ import { sendRequirementsReadySlack } from '@/lib/slack/send-requirements-ready'
  * POST /api/projects/[id]/requirements/confirm
  * Confirm that requirements gathering is complete
  * Transitions project from 'requirements' to 'requirements_ready'
- * Sends Slack notification to dev channel
+ * Triggers synchronous environment analysis and sends Slack notification
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -109,37 +108,24 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .where(eq(projects.id, projectId));
 
     // ============================================================
-    // ENQUEUE ENVIRONMENT ANALYSIS JOB
+    // RUN ENVIRONMENT ANALYSIS (SYNCHRONOUS)
     // ============================================================
 
-    // Create environment job record in database
-    const [environmentJob] = await db
-      .insert(environmentJobs)
-      .values({
-        projectId,
-        status: 'pending',
-      })
-      .returning();
-
-    // Enqueue job to BullMQ for async processing
-    await environmentQueue.add(
-      JOB_NAMES.ANALYZE_ENVIRONMENT,
-      {
-        environmentJobId: environmentJob.id,
-        projectId,
-        sessionId: runningSandbox.sessionId,
-        cwd: '/app/project',
-      },
-      {
-        jobId: `env-${environmentJob.id}`,
-        removeOnComplete: 100,
-        removeOnFail: 50,
-      }
-    );
-
     console.log(
-      `[API /requirements/confirm] Environment job ${environmentJob.id} enqueued for project ${projectId}`
+      `[API /requirements/confirm] Starting environment analysis for project ${projectId}`
     );
+
+    const envResult = await client.analyzeEnvironment('/app/project');
+
+    if (!envResult.success) {
+      console.error(`[API /requirements/confirm] Environment analysis failed:`, envResult.error);
+      // Don't fail the request - environment can be re-analyzed later
+      // Just log the error and continue
+    } else {
+      console.log(
+        `[API /requirements/confirm] Environment analysis complete: ${envResult.data?.summary}`
+      );
+    }
 
     // Create audit log with commit info
     await db.insert(projectAuditLogs).values({
@@ -152,6 +138,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         confirmedAt: new Date().toISOString(),
         commitSha: commitResult.data?.sha || null,
         commitBranch: commitResult.data?.branch || null,
+        environmentAnalysis: envResult.success
+          ? { success: true, summary: envResult.data?.summary }
+          : { success: false, error: envResult.error },
       },
     });
 
@@ -160,12 +149,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     let orgName: string | undefined;
 
     try {
-      const client = await clerkClient();
-      const user = await client.users.getUser(userId);
+      const clerkClientInstance = await clerkClient();
+      const user = await clerkClientInstance.users.getUser(userId);
       userName = user.fullName || user.firstName || user.emailAddresses[0]?.emailAddress;
 
       if (orgId) {
-        const org = await client.organizations.getOrganization({ organizationId: orgId });
+        const org = await clerkClientInstance.organizations.getOrganization({
+          organizationId: orgId,
+        });
         orgName = org.name;
       }
     } catch (error) {
@@ -188,8 +179,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         projectId: project.id,
         projectName: project.name,
         status: 'requirements_ready',
-        environmentJobId: environmentJob.id,
-        message: 'Requirements confirmed, environment analysis started',
+        environmentAnalysis: envResult.success
+          ? { success: true, changes: envResult.data?.changes, summary: envResult.data?.summary }
+          : { success: false, error: envResult.error },
+        message: 'Requirements confirmed, environment analysis complete',
       },
     });
   } catch (error) {

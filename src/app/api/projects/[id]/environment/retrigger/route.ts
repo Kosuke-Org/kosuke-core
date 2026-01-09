@@ -3,14 +3,14 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
-import { environmentJobs, projects } from '@/lib/db/schema';
-import { environmentQueue, JOB_NAMES } from '@/lib/queue';
-import { getSandboxManager } from '@/lib/sandbox';
+import { projects } from '@/lib/db/schema';
+import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 
 /**
  * POST /api/projects/[id]/environment/retrigger
  * Re-trigger environment analysis for a project
- * Creates a new environment job and enqueues it
+ * Only allowed during requirements_ready phase
+ * Calls the sandbox's environment analysis endpoint synchronously
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -47,54 +47,60 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const allSandboxes = await manager.listProjectSandboxes(projectId);
     const runningSandbox = allSandboxes.find(s => s.status === 'running');
 
+    console.log(`[API /environment/retrigger] Project: ${projectId}`);
+    console.log(
+      `[API /environment/retrigger] Running sandbox: ${runningSandbox?.sessionId || 'none'}`
+    );
+
     if (!runningSandbox) {
       return NextResponse.json(
-        { error: 'No running sandbox found for this project' },
+        { error: 'No running sandbox found for this project. Please start a sandbox first.' },
         { status: 400 }
       );
     }
 
-    // Create new environment job record in database
-    const [environmentJob] = await db
-      .insert(environmentJobs)
-      .values({
-        projectId,
-        status: 'pending',
-      })
-      .returning();
+    // Call the sandbox's environment analysis endpoint synchronously
+    const client = new SandboxClient(runningSandbox.sessionId);
+    const result = await client.analyzeEnvironment('/app/project');
 
-    // Enqueue job to BullMQ for async processing
-    await environmentQueue.add(
-      JOB_NAMES.ANALYZE_ENVIRONMENT,
-      {
-        environmentJobId: environmentJob.id,
-        projectId,
-        sessionId: runningSandbox.sessionId,
-        cwd: '/app/project',
-      },
-      {
-        jobId: `env-${environmentJob.id}`,
-        removeOnComplete: 100,
-        removeOnFail: 50,
-      }
-    );
+    if (!result.success) {
+      console.error(`[API /environment/retrigger] Analysis failed:`, result.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Environment analysis failed',
+        },
+        { status: 400 }
+      );
+    }
 
-    console.log(
-      `[API /environment/retrigger] Environment job ${environmentJob.id} enqueued for project ${projectId}`
-    );
+    console.log(`[API /environment/retrigger] ✅ Analysis complete: ${result.data?.summary}`);
 
     return NextResponse.json({
       success: true,
       data: {
-        environmentJobId: environmentJob.id,
-        message: 'Environment analysis re-triggered',
+        changes: result.data?.changes || [],
+        summary: result.data?.summary || 'Environment analysis complete',
       },
     });
   } catch (error) {
     console.error('[API /environment/retrigger] Error:', error);
 
+    // Handle timeout errors specifically
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Environment analysis timed out',
+          details: 'The analysis took too long. Please try again.',
+        },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       {
+        success: false,
         error: 'Failed to re-trigger environment analysis',
         details: error instanceof Error ? error.message : String(error),
       },

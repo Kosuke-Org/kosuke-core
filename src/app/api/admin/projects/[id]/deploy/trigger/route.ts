@@ -7,7 +7,6 @@ import { deployJobs, projects } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
 import { deployQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
-import { getAnthropicApiKey } from '@/lib/sandbox';
 
 /**
  * POST /api/admin/projects/[id]/deploy/trigger
@@ -42,14 +41,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
     }
 
-    // Get Anthropic API key (org custom key or system default)
-    const anthropicApiKey = await getAnthropicApiKey(project.orgId ?? undefined);
-
-    // Get Render credentials from environment
-    const renderApiKey = process.env.RENDER_API_KEY;
-    const renderOwnerId = process.env.RENDER_OWNER_ID;
-
-    if (!renderApiKey || !renderOwnerId) {
+    // Verify Render credentials are configured (SandboxManager will use them)
+    if (!process.env.RENDER_API_KEY || !process.env.RENDER_OWNER_ID) {
       return NextResponse.json(
         { error: 'Render deployment credentials not configured' },
         { status: 500 }
@@ -70,19 +63,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       })
       .returning();
 
-    // Add job to queue with all required env vars
+    // Add job to queue
+    // Note: SandboxManager handles API keys, Render credentials, and other env vars
     await deployQueue.add(JOB_NAMES.PROCESS_DEPLOY, {
       deployJobId: deployJob.id,
       projectId,
-      env: {
-        repoUrl,
-        branch: project.defaultBranch || 'main',
-        githubToken,
-        orgId: project.orgId ?? undefined,
-        anthropicApiKey,
-        renderApiKey,
-        renderOwnerId,
-      },
+      repoUrl,
+      branch: project.defaultBranch || 'main',
+      githubToken,
+      orgId: project.orgId ?? undefined,
     });
 
     console.log(

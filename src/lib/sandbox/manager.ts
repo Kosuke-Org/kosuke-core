@@ -22,7 +22,7 @@ import type { SandboxCreateOptions, SandboxInfo } from './types';
  * Returns the org's custom key if set, otherwise returns system default
  * Note: ANTHROPIC_API_KEY is validated in instrumentation.ts at startup
  */
-export async function getAnthropicApiKey(orgId?: string): Promise<string> {
+async function getAnthropicApiKey(orgId?: string): Promise<string> {
   const systemDefault = process.env.ANTHROPIC_API_KEY!;
 
   if (!orgId) {
@@ -401,9 +401,10 @@ export class SandboxManager {
         } catch {
           // Ignore stop errors
         }
-        await client.containerDelete(containerId, { force: true });
-        // Also drop the database
-        await dropSandboxDatabase(sessionId);
+        // Keep container for manual cleanup/debugging
+        console.log(`   Debug: docker exec -it ${containerName} bash`);
+        console.log(`   Logs:  docker logs ${containerName}`);
+        console.log(`   Remove: docker rm -f ${containerName}`);
         throw new Error(`Command timed out after ${timeout / 1000}s`);
       }
 
@@ -424,19 +425,11 @@ export class SandboxManager {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // Clean up container and database only on success
-    if (exitCode === 0) {
-      console.log(`🗑️ Removing container ${containerName}...`);
-      await client.containerDelete(containerId, { force: true });
-      await dropSandboxDatabase(sessionId);
-    } else {
-      console.log(`⚠️ Keeping container ${containerName} for debugging (exit code: ${exitCode})`);
-      console.log(`   Debug: docker exec -it ${containerName} bash`);
-      console.log(`   Logs:  docker logs ${containerName}`);
-      console.log(`   Remove: docker rm -f ${containerName}`);
-    }
-
+    // Keep container for manual cleanup (same as other modes)
     console.log(`✅ Command container completed: exit code ${exitCode}`);
+    console.log(`   Debug: docker exec -it ${containerName} bash`);
+    console.log(`   Logs:  docker logs ${containerName}`);
+    console.log(`   Remove: docker rm -f ${containerName}`);
 
     return {
       containerId,

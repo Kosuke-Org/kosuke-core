@@ -7,7 +7,6 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db/drizzle';
 import { vamosJobs } from '@/lib/db/schema';
-import { KOSUKE_BOT_EMAIL, KOSUKE_BOT_NAME } from '@/lib/github/installations';
 import { getSandboxManager } from '@/lib/sandbox';
 
 import { createQueueEvents, createWorker } from '../client';
@@ -16,39 +15,12 @@ import type { VamosJobData, VamosJobResult } from '../queues/vamos';
 
 /**
  * Build environment variables for vamos command container
+ * Only includes vamos-specific vars - base env vars are handled by SandboxManager
  */
 function buildEnvVars(data: VamosJobData): Record<string, string> {
-  const { env, withTests, isolated } = data;
+  const { withTests, isolated } = data;
 
   return {
-    // Repository info
-    KOSUKE_REPO_URL: env.repoUrl,
-    KOSUKE_BRANCH: env.branch,
-    KOSUKE_GITHUB_TOKEN: env.githubToken,
-
-    // Database
-    KOSUKE_POSTGRES_URL: env.dbUrl,
-
-    // Organization
-    ...(env.orgId && { KOSUKE_ORG_ID: env.orgId }),
-
-    // AI credentials
-    ANTHROPIC_API_KEY: env.anthropicApiKey,
-    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || '',
-    ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || '',
-    GOOGLE_MODEL: process.env.GOOGLE_MODEL || '',
-    AGENT_MAX_TURNS: process.env.AGENT_MAX_TURNS || '25',
-
-    // Langfuse tracing
-    LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY || '',
-    LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY || '',
-    LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL || '',
-
-    // Git identity
-    KOSUKE_GIT_NAME: KOSUKE_BOT_NAME,
-    KOSUKE_GIT_EMAIL: KOSUKE_BOT_EMAIL,
-
-    // Vamos options as env vars for CLI
     VAMOS_WITH_TESTS: withTests ? 'true' : 'false',
     VAMOS_ISOLATED: isolated ? 'true' : 'false',
   };
@@ -58,7 +30,8 @@ function buildEnvVars(data: VamosJobData): Record<string, string> {
  * Process a vamos job by running kosuke-cli in a command sandbox
  */
 async function processVamosJob(job: { data: VamosJobData }): Promise<VamosJobResult> {
-  const { vamosJobId, projectId, withTests, isolated, env } = job.data;
+  const { vamosJobId, projectId, withTests, isolated, repoUrl, branch, githubToken, orgId } =
+    job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[VAMOS] 🚀 Starting vamos job ${vamosJobId}`);
@@ -87,12 +60,12 @@ async function processVamosJob(job: { data: VamosJobData }): Promise<VamosJobRes
     const result = await manager.createSandbox({
       projectId,
       sessionId: vamosJobId, // Use job ID as session ID for predictable container naming
-      branchName: env.branch,
-      repoUrl: env.repoUrl,
-      githubToken: env.githubToken,
+      branchName: branch,
+      repoUrl,
+      githubToken,
       mode: 'development',
       servicesMode: 'command',
-      orgId: env.orgId,
+      orgId,
       command: ['kosuke', 'vamos'],
       commandEnv,
       commandTimeout: 60 * 60 * 1000, // 1 hour

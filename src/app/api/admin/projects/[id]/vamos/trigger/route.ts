@@ -7,8 +7,6 @@ import { projects, vamosJobs } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
 import { vamosQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
-import { getAnthropicApiKey } from '@/lib/sandbox';
-import { createSandboxDatabase } from '@/lib/sandbox/database';
 
 interface TriggerVamosBody {
   withTests?: boolean;
@@ -53,14 +51,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'GitHub token not available' }, { status: 500 });
     }
 
-    // Get Anthropic API key (org custom key or system default)
-    const anthropicApiKey = await getAnthropicApiKey(project.orgId ?? undefined);
-
-    // Create a database for the vamos job
-    // Use a unique session ID based on timestamp
-    const sessionId = `vamos-${projectId}-${Date.now()}`;
-    const dbUrl = await createSandboxDatabase(sessionId);
-
     // Build repo URL
     const repoUrl =
       project.githubRepoUrl ||
@@ -77,20 +67,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .returning();
 
-    // Add job to queue with all required env vars
+    // Add job to queue
+    // Note: SandboxManager handles database creation, API keys, and other env vars
     await vamosQueue.add(JOB_NAMES.PROCESS_VAMOS, {
       vamosJobId: vamosJob.id,
       projectId,
       withTests,
       isolated,
-      env: {
-        repoUrl,
-        branch: project.defaultBranch || 'main',
-        githubToken,
-        dbUrl,
-        orgId: project.orgId ?? undefined,
-        anthropicApiKey,
-      },
+      repoUrl,
+      branch: project.defaultBranch || 'main',
+      githubToken,
+      orgId: project.orgId ?? undefined,
     });
 
     console.log(

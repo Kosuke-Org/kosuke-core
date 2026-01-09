@@ -137,16 +137,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 /**
  * Convert DB messages to Anthropic message format for session continuity
+ * Uses content block format (array) as required by the sandbox validation
  */
 function convertToAnthropicMessages(
   messages: Array<{ role: string; content: string | null }>
-): Array<{ role: 'user' | 'assistant'; content: string }> {
+): Array<{ role: 'user' | 'assistant'; content: Array<{ type: 'text'; text: string }> }> {
   return messages
     .filter(msg => msg.role === 'user' || msg.role === 'assistant')
     .filter(msg => msg.content !== null)
     .map(msg => ({
       role: msg.role as 'user' | 'assistant',
-      content: msg.content!,
+      content: [{ type: 'text' as const, text: msg.content! }],
     }));
 }
 

@@ -91,6 +91,21 @@ export interface AgentHealthResponse {
 // ENVIRONMENT TYPES
 // ============================================================
 
+export interface EnvironmentChange {
+  name: string;
+  action: 'added' | 'removed';
+  reason: string;
+}
+
+export interface EnvironmentAnalyzeResponse {
+  success: boolean;
+  data?: {
+    changes: EnvironmentChange[];
+    summary: string;
+  };
+  error?: string;
+}
+
 export interface EnvironmentValuesResponse {
   success: boolean;
   data?: {
@@ -103,12 +118,6 @@ export interface EnvironmentValuesResponse {
 
 export interface EnvironmentUpdateResponse {
   success: boolean;
-  error?: string;
-}
-
-export interface EnvironmentTriggerResponse {
-  success: boolean;
-  variableCount?: number;
   error?: string;
 }
 

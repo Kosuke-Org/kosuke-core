@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
+import { NextResponse } from 'next/server';
 
 import { db } from '@/lib/db/drizzle';
 import { projectAuditLogs, projects } from '@/lib/db/schema';
@@ -7,18 +8,15 @@ import { getSandboxManager, SandboxClient } from '@/lib/sandbox';
 
 /**
  * POST /api/projects/[id]/environment/trigger
- * Trigger environment analysis on the sandbox (SSE proxy)
- * This runs the environment command which analyzes docs.md and updates kosuke.config.json
+ * Trigger environment analysis for a project
+ * Calls the sandbox's environment analysis endpoint synchronously
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId, orgId } = await auth();
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id: projectId } = await params;
@@ -27,18 +25,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
 
     if (!project) {
-      return new Response(JSON.stringify({ error: 'Project not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     // Verify user has access to this project's org
     if (project.orgId && project.orgId !== orgId) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Find a running sandbox for this project
@@ -52,10 +44,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     );
 
     if (!runningSandbox) {
-      return new Response(JSON.stringify({ error: 'No running sandbox found' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json(
+        { error: 'No running sandbox found for this project. Please start a sandbox first.' },
+        { status: 400 }
+      );
     }
 
     // Create audit log for environment trigger
@@ -66,47 +58,52 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       metadata: { triggeredAt: new Date().toISOString() },
     });
 
-    // Proxy SSE to sandbox
+    // Call the sandbox's environment analysis endpoint synchronously
     const client = new SandboxClient(runningSandbox.sessionId);
-    const response = await fetch(`${client.getBaseUrl()}/api/environment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
-      body: JSON.stringify({ cwd: '/app/project' }),
-    });
+    const result = await client.analyzeEnvironment('/app/project');
 
-    if (!response.ok) {
-      const errorData = await response.text().catch(() => 'Unknown error');
-      console.error(`[API /environment/trigger] Sandbox error:`, errorData);
-      return new Response(JSON.stringify({ error: 'Failed to trigger environment command' }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!result.success) {
+      console.error(`[API /environment/trigger] Analysis failed:`, result.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Environment analysis failed',
+        },
+        { status: 400 }
+      );
     }
 
-    console.log(`[API /environment/trigger] Proxying SSE stream from sandbox`);
+    console.log(`[API /environment/trigger] ✅ Analysis complete: ${result.data?.summary}`);
 
-    // Return the SSE stream directly
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
+    return NextResponse.json({
+      success: true,
+      data: {
+        changes: result.data?.changes || [],
+        summary: result.data?.summary || 'Environment analysis complete',
       },
     });
   } catch (error) {
     console.error('[API /environment/trigger] Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Failed to trigger environment command',
-        details: error instanceof Error ? error.message : String(error),
-      }),
+
+    // Handle timeout errors specifically
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Environment analysis timed out',
+          details: 'The analysis took too long. Please try again.',
+        },
+        { status: 504 }
+      );
+    }
+
+    return NextResponse.json(
       {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+        success: false,
+        error: 'Failed to trigger environment analysis',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
     );
   }
 }

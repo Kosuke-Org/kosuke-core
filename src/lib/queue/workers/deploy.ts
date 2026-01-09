@@ -7,7 +7,6 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/lib/db/drizzle';
 import { deployJobs } from '@/lib/db/schema';
-import { KOSUKE_BOT_EMAIL, KOSUKE_BOT_NAME } from '@/lib/github/installations';
 import { getSandboxManager } from '@/lib/sandbox';
 
 import { createQueueEvents, createWorker } from '../client';
@@ -15,43 +14,10 @@ import { QUEUE_NAMES } from '../config';
 import type { DeployJobData, DeployJobResult } from '../queues/deploy';
 
 /**
- * Build environment variables for deploy command container
- */
-function buildEnvVars(data: DeployJobData): Record<string, string> {
-  const { env } = data;
-
-  return {
-    // Repository info
-    KOSUKE_REPO_URL: env.repoUrl,
-    KOSUKE_BRANCH: env.branch,
-    KOSUKE_GITHUB_TOKEN: env.githubToken,
-
-    // Organization
-    ...(env.orgId && { KOSUKE_ORG_ID: env.orgId }),
-
-    // AI credentials (may be needed for deploy)
-    ANTHROPIC_API_KEY: env.anthropicApiKey,
-
-    // Render deployment credentials
-    RENDER_API_KEY: env.renderApiKey,
-    RENDER_OWNER_ID: env.renderOwnerId,
-
-    // Langfuse tracing
-    LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY || '',
-    LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY || '',
-    LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL || '',
-
-    // Git identity
-    KOSUKE_GIT_NAME: KOSUKE_BOT_NAME,
-    KOSUKE_GIT_EMAIL: KOSUKE_BOT_EMAIL,
-  };
-}
-
-/**
  * Process a deploy job by running kosuke-cli in a command sandbox
  */
 async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJobResult> {
-  const { deployJobId, projectId, env } = job.data;
+  const { deployJobId, projectId, repoUrl, branch, githubToken, orgId } = job.data;
 
   console.log('\n' + '='.repeat(80));
   console.log(`[DEPLOY] 🚀 Starting deploy job ${deployJobId}`);
@@ -70,22 +36,21 @@ async function processDeployJob(job: { data: DeployJobData }): Promise<DeployJob
 
   try {
     // Run kosuke deploy command using createSandbox with command mode
+    // All env vars (Anthropic, Render, Langfuse, Git identity) are handled by SandboxManager
     const manager = getSandboxManager();
-    const commandEnv = buildEnvVars(job.data);
 
     console.log(`[DEPLOY] 📦 Running command: kosuke deploy`);
 
     const result = await manager.createSandbox({
       projectId,
       sessionId: deployJobId, // Use job ID as session ID for predictable container naming
-      branchName: env.branch,
-      repoUrl: env.repoUrl,
-      githubToken: env.githubToken,
+      branchName: branch,
+      repoUrl,
+      githubToken,
       mode: 'development',
       servicesMode: 'command',
-      orgId: env.orgId,
+      orgId,
       command: ['kosuke', 'deploy'],
-      commandEnv,
       commandTimeout: 30 * 60 * 1000, // 30 minutes
     });
 

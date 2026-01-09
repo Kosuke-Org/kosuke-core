@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import type { EnvironmentChange } from '@/lib/sandbox/types';
+
 interface RetriggerResponse {
   success: boolean;
   data?: {
-    environmentJobId: string;
-    message: string;
+    changes: EnvironmentChange[];
+    summary: string;
   };
   error?: string;
 }
@@ -24,7 +26,7 @@ async function retriggerEnvironment(projectId: string): Promise<RetriggerRespons
 
 /**
  * Hook to re-trigger environment analysis for a project
- * Creates a new environment job and invalidates the job status query
+ * Runs synchronously and invalidates environment values on success
  */
 export function useRetriggerEnvironment(projectId: string) {
   const queryClient = useQueryClient();
@@ -32,9 +34,7 @@ export function useRetriggerEnvironment(projectId: string) {
   return useMutation({
     mutationFn: () => retriggerEnvironment(projectId),
     onSuccess: () => {
-      // Invalidate environment job status to trigger polling
-      queryClient.invalidateQueries({ queryKey: ['environment-job', projectId] });
-      // Invalidate environment values since they may change
+      // Invalidate environment values since they may have changed
       queryClient.invalidateQueries({ queryKey: ['environment-values', projectId] });
     },
   });
