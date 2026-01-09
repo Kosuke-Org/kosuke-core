@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useRouter, useSearchParams } from 'next/navigation';
-import { use, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useMemo, useRef, useState } from 'react';
 
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
@@ -163,19 +163,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const toggleChatCollapsed = () => setIsChatCollapsed(prev => !prev);
-  const [showSidebar, setShowSidebar] = useState(!sessionFromUrl);
 
-  // When URL changes to include a session, hide sidebar to show chat interface
-  useEffect(() => {
-    if (sessionFromUrl && showSidebar) {
-      setShowSidebar(false);
-    }
-  }, [sessionFromUrl, showSidebar]);
+  // Derive showSidebar from URL - no separate state to avoid race conditions
+  const showSidebar = !sessionFromUrl;
 
   // Handle session selection - URL is the source of truth
   const handleSessionSelect = (sessionId: string) => {
-    setShowSidebar(false); // Switch to chat interface
-    // Update URL - this will trigger re-derivation of activeChatSessionId
     router.push(`/projects/${projectId}?session=${sessionId}`, { scroll: false });
   };
 
@@ -215,11 +208,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   }
 
   const toggleSidebar = () => {
-    if (!showSidebar) {
-      // Going back to sidebar - update URL to main project page
-      router.push(`/projects/${projectId}`, { scroll: false });
-    }
-    setShowSidebar(!showSidebar);
+    // Going back to sidebar - remove session param from URL
+    router.push(`/projects/${projectId}`, { scroll: false });
   };
 
   // Handle project settings modal via URL query params
@@ -352,27 +342,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {/* Chat Content */}
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
-                {showSidebar ? (
-                  <div className="w-full h-full">
-                    <ChatSidebar
-                      projectId={projectId}
-                      activeChatSessionId={activeChatSessionId}
-                      onChatSessionChange={handleSessionSelect}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex flex-col">
-                    <ChatInterface
-                      projectId={projectId}
-                      activeChatSessionId={activeChatSessionId}
-                      sessionId={sessionId}
-                      model={project?.model}
-                      isBuildInProgress={isBuildInProgress}
-                      isBuildFailed={isBuildFailed}
-                      hasPullRequest={Boolean(latestBuildData?.prUrl)}
-                    />
-                  </div>
-                )}
+                {/* Sidebar - shown when showSidebar is true */}
+                <div className={cn('w-full h-full', !showSidebar && 'hidden')}>
+                  <ChatSidebar
+                    projectId={projectId}
+                    activeChatSessionId={activeChatSessionId}
+                    onChatSessionChange={handleSessionSelect}
+                  />
+                </div>
+                {/* Chat - always mounted to preserve stream, hidden when showing sidebar */}
+                <div className={cn('w-full h-full flex flex-col', showSidebar && 'hidden')}>
+                  <ChatInterface
+                    projectId={projectId}
+                    activeChatSessionId={activeChatSessionId}
+                    sessionId={sessionId}
+                    model={project?.model}
+                    isBuildInProgress={isBuildInProgress}
+                    isBuildFailed={isBuildFailed}
+                    hasPullRequest={Boolean(latestBuildData?.prUrl)}
+                  />
+                </div>
               </div>
             </div>
           </div>

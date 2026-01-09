@@ -1,7 +1,7 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { CircleIcon, RefreshCcw } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import Image from 'next/image';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -37,7 +37,7 @@ export default function ChatMessage({
   const isUser = role === 'user';
   const isSystem = role === 'system';
   const isRevertMessage = isSystem && metadata?.revertInfo;
-  const { imageUrl, displayName, initials } = useUser();
+  const { imageUrl, initials, displayName } = useUser();
 
   // Get appropriate error message based on error type
   const getErrorMessage = (type: ErrorType): string => {
@@ -164,56 +164,49 @@ export default function ChatMessage({
   return (
     <div
       className={cn(
-        'flex w-full max-w-[95%] mx-auto gap-3 p-4',
-        isUser ? 'bg-background' : 'bg-background',
+        'w-full max-w-[95%] mx-auto p-4',
         !showAvatar && 'pt-1', // Reduce top padding for consecutive messages
         isLoading && 'opacity-50',
         hasError && !isUser && 'border-l-2 border-l-destructive/40', // Red left border for error messages
+        isUser && 'flex justify-end', // Align user messages to the right
         className
       )}
       role="listitem"
       data-message-id={id}
     >
-      {showAvatar ? (
-        <Avatar className="h-8 w-8">
-          {isUser ? (
-            <>
-              {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {initials}
-              </AvatarFallback>
-            </>
-          ) : (
-            <div className="relative flex items-center justify-center h-full w-full">
-              <AvatarFallback className="bg-muted border-primary">
-                <CircleIcon className="h-6 w-6 text-primary" />
-              </AvatarFallback>
+      <div className={cn('group space-y-1', isUser && 'max-w-[85%]')}>
+        {showAvatar &&
+          // Hide avatar for thinking messages (they show logo inline)
+          (isUser || hasBlocks || content || Boolean(metadata?.buildJobId)) && (
+            <div className={cn('flex', isUser && 'justify-end')}>
+              {!isUser && (
+                <>
+                  <Image
+                    src="/logo.svg"
+                    alt="Kosuke"
+                    width={20}
+                    height={20}
+                    className="hidden dark:block"
+                  />
+                  <Image
+                    src="/logo-dark.svg"
+                    alt="Kosuke"
+                    width={20}
+                    height={20}
+                    className="block dark:hidden"
+                  />
+                </>
+              )}
+              {isUser && (
+                <Avatar className="h-6 w-6">
+                  {imageUrl && <AvatarImage src={imageUrl} alt="You" />}
+                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px]">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              )}
             </div>
           )}
-        </Avatar>
-      ) : (
-        <div className="w-8" />
-      )}
-
-      <div className="flex-1 space-y-2">
-        {showAvatar && ( // Only show header for first message in a sequence
-          <div className="flex items-center justify-between group">
-            <h4>{isUser ? 'You' : 'AI Assistant'}</h4>
-            <div className="flex items-center gap-2">
-              {/* Add revert button for assistant messages with commit SHA */}
-              {!isUser && id && projectId && sessionId && commitSha && (
-                <MessageRevertButton
-                  message={{ id, role, timestamp, commitSha, content }}
-                  projectId={projectId}
-                  sessionId={sessionId}
-                />
-              )}
-              <time className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(timestamp), { addSuffix: true })}
-              </time>
-            </div>
-          </div>
-        )}
 
         {/* Render assistant response content blocks if available */}
         {hasBlocks && contentBlocks ? (
@@ -226,6 +219,27 @@ export default function ChatMessage({
             }}
           />
         ) : null}
+
+        {/* Show thinking indicator for assistant messages with null/empty content */}
+        {!isUser && !isSystem && !hasBlocks && !content && !metadata?.buildJobId && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Image
+              src="/logo.svg"
+              alt="Kosuke"
+              width={20}
+              height={20}
+              className="hidden dark:block animate-pulse"
+            />
+            <Image
+              src="/logo-dark.svg"
+              alt="Kosuke"
+              width={20}
+              height={20}
+              className="block dark:hidden animate-pulse"
+            />
+            <span className="animate-pulse">Thinking...</span>
+          </div>
+        )}
 
         {/* Render build message if metadata contains buildJobId */}
         {metadata?.buildJobId && projectId && sessionId ? (
@@ -242,7 +256,8 @@ export default function ChatMessage({
             className={cn(
               'prose prose-xs dark:prose-invert max-w-none text-sm wrap-anywhere',
               !showAvatar && 'mt-0', // Remove top margin for consecutive messages
-              hasError && !isUser && 'text-muted-foreground' // Muted text for error messages
+              hasError && !isUser && 'text-muted-foreground', // Muted text for error messages
+              isUser && 'bg-muted/50 rounded-lg px-3 py-2 text-right' // Bubble style for user messages
             )}
           >
             {contentParts.map((part, i) =>
@@ -331,6 +346,38 @@ export default function ChatMessage({
               >
                 <RefreshCcw className="h-3 w-3" /> Regenerate response
               </button>
+            )}
+          </div>
+        )}
+
+        {/* Name, timestamp and actions - shown on hover (not for build messages) */}
+        {!metadata?.buildJobId && (
+          <div
+            className={cn(
+              'flex items-center gap-1.5 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity pt-1',
+              isUser && 'justify-end'
+            )}
+          >
+            {isUser ? (
+              <>
+                <span className="font-medium">{displayName || 'You'}</span>
+                <span>·</span>
+                <time>{formatDistanceToNow(new Date(timestamp), { addSuffix: true })}</time>
+              </>
+            ) : (
+              <>
+                <span className="font-medium">Kosuke</span>
+                <span>·</span>
+                <time>{formatDistanceToNow(new Date(timestamp), { addSuffix: true })}</time>
+                {/* Revert button for assistant messages with commit SHA */}
+                {id && projectId && sessionId && commitSha && (
+                  <MessageRevertButton
+                    message={{ id, role, timestamp, commitSha, content }}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                  />
+                )}
+              </>
             )}
           </div>
         )}
