@@ -26,7 +26,6 @@
     "knip": "knip",
     "workers:start": "npx tsx src/worker.ts",
     "workers:dev": "npx tsx watch src/worker.ts",
-    "workers:trigger-job": "npx tsx src/lib/queue/trigger.ts",
     "run-job": "npx tsx src/run-job.ts"
   },
   "dependencies": {

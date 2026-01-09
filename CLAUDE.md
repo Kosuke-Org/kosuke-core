@@ -888,32 +888,36 @@ export const usedFunction = () => {}; // Keep
 
 ## Background Jobs & BullMQ Worker Pattern - MANDATORY
 
-**Use factory functions for workers to avoid module-level side effects.**
+**Use lazy getters for queues and factory functions for workers to avoid module-level side effects.**
 
-### The Problem: Accidental Worker Initialization
+### The Problem: Build-Time Redis Connection
 
-When workers are created at module level, importing the module immediately starts workers:
+When queues or workers are created at module level, importing the module triggers Redis connection:
 
 ```typescript
-// ❌ BAD - Worker starts on import (side effect)
+// ❌ BAD - Redis connects on import (breaks `next build`)
+export const buildQueue = createQueue(QUEUE_NAMES.BUILD);
 export const buildWorker = createWorker(...);
-const events = createQueueEvents(...);
-events.on('completed', ...);
-console.log('Worker initialized'); // Runs immediately!
 ```
 
-**Consequence:** Importing this module in API routes accidentally starts workers in the Next.js container.
+**Consequence:** During `next build`, page data collection imports API routes, which imports queues, which tries to connect to Redis → build fails with `ECONNREFUSED`.
 
-### The Solution: Factory Functions
+### The Solution: Lazy Initialization
 
-Use factory functions that only initialize workers when explicitly called:
+Use getter functions for queues (lazy init) and factory functions for workers:
 
 ```typescript
 // ✅ GOOD - No side effects, safe to import anywhere
+let _buildQueue: Queue<BuildJobData> | null = null;
+
+export function getBuildQueue(): Queue<BuildJobData> {
+  if (_buildQueue) return _buildQueue;
+  _buildQueue = createQueue<BuildJobData>(QUEUE_NAMES.BUILD);
+  return _buildQueue;
+}
+
 export function createBuildWorker() {
   const worker = createWorker(...);
-  const events = createQueueEvents(...);
-  events.on('completed', ...);
   console.log('Worker initialized'); // Only runs when called
   return worker;
 }
@@ -980,27 +984,43 @@ async function main() {
 main();
 ```
 
+**Queue Module** (`src/lib/queue/queues/build.ts`):
+
+```typescript
+/**
+ * Lazy-initialized queue - NO side effects on import
+ * Redis connection only happens when getBuildQueue() is called
+ */
+import type { Queue } from 'bullmq';
+import { createQueue } from '../client';
+import { QUEUE_NAMES } from '../config';
+
+let _buildQueue: Queue<BuildJobData> | null = null;
+
+export function getBuildQueue(): Queue<BuildJobData> {
+  if (_buildQueue) return _buildQueue;
+  _buildQueue = createQueue<BuildJobData>(QUEUE_NAMES.BUILD);
+  return _buildQueue;
+}
+```
+
 **Barrel Export** (`src/lib/queue/index.ts`):
 
 ```typescript
 /**
  * BullMQ Queue Module
- * Safe to import anywhere - worker factories have NO side effects
+ * Safe to import anywhere - queue getters are lazy-initialized
  */
 
-// Queues (for enqueueing jobs in API routes)
-export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
-export { previewQueue, schedulePreviewCleanup } from './queues/previews';
+// Queue getters (for enqueueing jobs in API routes)
+export { getBuildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export { getPreviewQueue, schedulePreviewCleanup } from './queues/previews';
+export { getSubmitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
 
-// Worker factories (for worker process only, but safe to import anywhere)
+// Worker factories (for worker process only)
 export { createBuildWorker } from './workers/build';
 export { createPreviewWorker } from './workers/previews';
-
-// Helpers
-export async function enqueueBuild(data: BuildJobData): Promise<void> {
-  const { buildQueue } = await import('./queues/build');
-  await buildQueue.add('process-build', data);
-}
+export { createSubmitWorker } from './workers/submit';
 ```
 
 ### Usage Patterns
@@ -1008,10 +1028,11 @@ export async function enqueueBuild(data: BuildJobData): Promise<void> {
 **In API Routes** (enqueue jobs):
 
 ```typescript
-import { buildQueue, enqueueBuild } from '@/lib/queue';
+import { getBuildQueue } from '@/lib/queue/queues/build';
+import { JOB_NAMES } from '@/lib/queue/config';
 
-// Enqueue a build job
-await enqueueBuild({
+// Enqueue a build job - getter ensures lazy initialization
+await getBuildQueue().add(JOB_NAMES.PROCESS_BUILD, {
   buildJobId: 'abc123',
   projectId: 'proj-1',
   sessionId: 'sess-1',
@@ -1022,27 +1043,34 @@ await enqueueBuild({
 **In Worker Process** (process jobs):
 
 ```typescript
+import { getBuildQueue } from '@/lib/queue/queues/build';
+import { getPreviewQueue } from '@/lib/queue/queues/previews';
 import { createBuildWorker, createPreviewWorker } from '@/lib/queue';
 
-// Explicit initialization - only in worker process
+// Initialize workers
 const buildWorker = createBuildWorker();
 const previewWorker = createPreviewWorker();
+
+// Get queue instances for graceful shutdown
+const queues = [getBuildQueue(), getPreviewQueue()];
 ```
 
 ### Benefits
 
+✅ **No accidental Redis connections** - Queues only connect when getter is called
+✅ **Safe imports during build** - `next build` won't try to connect to Redis
 ✅ **No accidental worker initialization** - Workers only run when explicitly called
-✅ **Safe barrel exports** - Can export factory functions without side effects
-✅ **Clear initialization** - Worker lifecycle is visible and controllable
-✅ **Better testing** - Can test worker logic without starting actual workers
-✅ **Explicit control** - Worker lifecycle is visible in `src/worker.ts`
+✅ **Clear initialization** - Worker and queue lifecycle is visible and controllable
+✅ **Better testing** - Can test logic without starting actual connections
 
 ### Rules
 
+- ❌ **NEVER** create queues at module level with `export const buildQueue = createQueue(...)`
+- ✅ **ALWAYS** use lazy getter pattern: `export function getBuildQueue() { ... }`
 - ❌ **NEVER** create workers at module level with `export const worker = createWorker(...)`
-- ✅ **ALWAYS** use factory functions: `export function createWorker() { return createWorker(...); }`
+- ✅ **ALWAYS** use factory functions: `export function createBuildWorker() { ... }`
 - ✅ **ALWAYS** call worker factories explicitly in `src/worker.ts`
-- ✅ **NEVER** call worker factories in API routes (only import queues)
+- ✅ **NEVER** call worker factories in API routes (only use queue getters)
 
 ## Kosuke CLI SSE Event Handling - MANDATORY
 

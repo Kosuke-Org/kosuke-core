@@ -15,7 +15,7 @@ import {
 import { getProjectGitHubToken, getProjectOctokit } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
 import { JOB_NAMES } from '@/lib/queue/config';
-import { buildQueue } from '@/lib/queue/queues/build';
+import { getBuildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
@@ -699,7 +699,7 @@ export async function POST(
                 ? eventData.ticketsFile.slice('/app/project/'.length)
                 : eventData.ticketsFile;
 
-              await buildQueue.add(JOB_NAMES.PROCESS_BUILD, {
+              await getBuildQueue().add(JOB_NAMES.PROCESS_BUILD, {
                 buildJobId: buildJob.id,
                 chatSessionId: chatSession.id,
                 projectId,

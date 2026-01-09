@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { createQueue } from '../client';
 import { QUEUE_NAMES } from '../config';
 
@@ -28,6 +29,15 @@ export interface SubmitJobResult {
 }
 
 /**
- * Submit queue instance
+ * Lazy-initialized submit queue instance
+ * Only connects to Redis when first accessed, not on module import
  */
-export const submitQueue = createQueue<SubmitJobData>(QUEUE_NAMES.SUBMIT);
+let _submitQueue: Queue<SubmitJobData> | null = null;
+
+export function getSubmitQueue(): Queue<SubmitJobData> {
+  if (_submitQueue) {
+    return _submitQueue;
+  }
+  _submitQueue = createQueue<SubmitJobData>(QUEUE_NAMES.SUBMIT);
+  return _submitQueue;
+}

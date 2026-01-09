@@ -11,9 +11,9 @@ export {
   signalBuildCancel,
 } from './client';
 export { JOB_NAMES, QUEUE_NAMES } from './config';
-export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
-export { previewQueue, schedulePreviewCleanup } from './queues/previews';
-export { submitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
+export { getBuildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export { getPreviewQueue, schedulePreviewCleanup } from './queues/previews';
+export { getSubmitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
 export { createBuildWorker } from './workers/build';
 export { createPreviewWorker } from './workers/previews';
 export { createSubmitWorker } from './workers/submit';
@@ -63,7 +63,8 @@ export interface CancelBuildResult {
 export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBuildResult> {
   const { buildJobId, chatSessionId, projectId, sandboxClient, githubToken } = options;
 
-  const { buildQueue } = await import('./queues/build');
+  const { getBuildQueue } = await import('./queues/build');
+  const buildQueue = getBuildQueue();
   const { db } = await import('@/lib/db/drizzle');
   const { buildJobs, tasks } = await import('@/lib/db/schema');
   const { and, inArray, ne } = await import('drizzle-orm');

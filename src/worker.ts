@@ -10,9 +10,9 @@
  */
 
 import { gracefulShutdown } from '@/lib/queue/client';
-import { buildQueue } from '@/lib/queue/queues/build';
-import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
-import { submitQueue } from '@/lib/queue/queues/submit';
+import { getBuildQueue } from '@/lib/queue/queues/build';
+import { getPreviewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { getSubmitQueue } from '@/lib/queue/queues/submit';
 import { createBuildWorker } from '@/lib/queue/workers/build';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
 import { createSubmitWorker } from '@/lib/queue/workers/submit';
@@ -39,7 +39,7 @@ async function main() {
 
     // Store references for graceful shutdown
     const workers = [previewWorker, buildWorker, submitWorker];
-    const queues = [previewQueue, buildQueue, submitQueue];
+    const queues = [getPreviewQueue(), getBuildQueue(), getSubmitQueue()];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {
