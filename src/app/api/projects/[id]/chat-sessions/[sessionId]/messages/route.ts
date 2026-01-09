@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { ApiErrorHandler } from '@/lib/api/errors';
 import { auth } from '@/lib/auth';
+import { clerkService } from '@/lib/clerk';
 import { db } from '@/lib/db/drizzle';
 import { attachments, chatMessages, messageAttachments } from '@/lib/db/schema';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
@@ -70,10 +71,27 @@ export async function GET(
       {} as Record<string, (typeof attachments.$inferSelect)[]>
     );
 
-    // Add attachments to messages
+    // Extract unique userIds from user messages
+    const userIds = [
+      ...new Set(messages.filter(m => m.role === 'user' && m.userId).map(m => m.userId as string)),
+    ];
+
+    // Fetch author info for all unique users in a single batch request
+    const usersMap = await clerkService.getUsers(userIds);
+
+    // Add attachments and author info to messages
     const messagesWithAttachments = messages.map(message => ({
       ...message,
       attachments: attachmentsByMessage[message.id] || [],
+      author:
+        message.role === 'user' && message.userId && usersMap.has(message.userId)
+          ? {
+              userId: message.userId,
+              name: usersMap.get(message.userId)!.name,
+              email: usersMap.get(message.userId)!.email,
+              imageUrl: usersMap.get(message.userId)!.imageUrl,
+            }
+          : undefined,
     }));
 
     return NextResponse.json({

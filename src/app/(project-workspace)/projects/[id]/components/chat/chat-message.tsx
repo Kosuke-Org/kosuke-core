@@ -3,9 +3,9 @@
 import { formatDistanceToNow } from 'date-fns';
 import { CircleIcon, RefreshCcw } from 'lucide-react';
 import Image from 'next/image';
+import { useMemo } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useUser } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 
 // Import types and utilities
@@ -24,6 +24,8 @@ export default function ChatMessage({
   timestamp,
   isLoading = false,
   className,
+  author,
+  currentUserId,
   showAvatar = true,
   hasError = false,
   errorType = 'unknown',
@@ -37,7 +39,34 @@ export default function ChatMessage({
   const isUser = role === 'user';
   const isSystem = role === 'system';
   const isRevertMessage = isSystem && metadata?.revertInfo;
-  const { imageUrl, displayName, initials } = useUser();
+
+  // Determine if this message is from the current user
+  const isCurrentUser = useMemo(() => {
+    if (!isUser) return false;
+    if (!author?.userId || !currentUserId) return true; // Fallback to "You" if no author info
+    return author.userId === currentUserId;
+  }, [isUser, author?.userId, currentUserId]);
+
+  // Calculate display name and initials from author info
+  const { displayName, initials, imageUrl } = useMemo(() => {
+    if (!isUser || !author) {
+      return { displayName: 'User', initials: 'U', imageUrl: undefined };
+    }
+
+    // Use author's name if available, otherwise email
+    const name = author.name || author.email || 'User';
+    const nameParts = name.split(' ').filter(Boolean);
+    const calculatedInitials =
+      nameParts.length >= 2
+        ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+        : name.substring(0, 2).toUpperCase();
+
+    return {
+      displayName: name,
+      initials: calculatedInitials,
+      imageUrl: author.imageUrl,
+    };
+  }, [isUser, author]);
 
   // Get appropriate error message based on error type
   const getErrorMessage = (type: ErrorType): string => {
@@ -198,7 +227,7 @@ export default function ChatMessage({
       <div className="flex-1 space-y-2">
         {showAvatar && ( // Only show header for first message in a sequence
           <div className="flex items-center justify-between group">
-            <h4>{isUser ? 'You' : 'AI Assistant'}</h4>
+            <h4>{isUser ? (isCurrentUser ? 'You' : displayName) : 'AI Assistant'}</h4>
             <div className="flex items-center gap-2">
               {/* Add revert button for assistant messages with commit SHA */}
               {!isUser && id && projectId && sessionId && commitSha && (

@@ -133,7 +133,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
                 break;
 
               case SUBMIT_EVENTS.PR_COMPLETED:
-                prUrl = event.data.prUrl;
+                prUrl = event.data.pullRequestUrl;
                 break;
 
               case SUBMIT_EVENTS.ERROR:
@@ -141,7 +141,7 @@ async function processSubmitJob(job: { data: SubmitJobData }): Promise<SubmitJob
 
               case SUBMIT_EVENTS.DONE:
                 if (event.data.success) {
-                  prUrl = event.data.prUrl || prUrl;
+                  prUrl = event.data.pullRequestUrl || prUrl;
                 } else {
                   throw new Error(event.data.error || 'Submit failed');
                 }

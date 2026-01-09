@@ -32,6 +32,42 @@ export class ClerkService {
   // ============================================
 
   /**
+   * Get multiple users by IDs - returns a Map for efficient lookup
+   */
+  async getUsers(userIds: string[]): Promise<Map<string, ClerkUser>> {
+    if (userIds.length === 0) return new Map();
+
+    const response = await this.client.users.getUserList({
+      userId: userIds,
+    });
+
+    const userMap = new Map<string, ClerkUser>();
+    for (const user of response.data) {
+      const privateMetadata = (user.privateMetadata || {}) as UserPrivateMetadata;
+      const primaryEmail = user.emailAddresses.find(
+        email => email.id === user.primaryEmailAddressId
+      )?.emailAddress;
+
+      if (!primaryEmail) continue;
+
+      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+
+      userMap.set(user.id, {
+        id: user.id,
+        email: primaryEmail,
+        name: fullName || null,
+        imageUrl: user.imageUrl,
+        marketingEmails: privateMetadata.marketingEmails || false,
+        onboardingCompleted: privateMetadata.onboardingCompleted || false,
+        createdAt: new Date(user.createdAt),
+        updatedAt: new Date(user.updatedAt),
+      });
+    }
+
+    return userMap;
+  }
+
+  /**
    * Get user - returns clean domain object (metadata hidden)
    */
   async getUser(userId: string): Promise<ClerkUser> {

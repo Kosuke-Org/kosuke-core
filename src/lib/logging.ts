@@ -443,14 +443,14 @@ function formatSubmitEvent(event: SubmitSSEEvent): string[] {
       break;
 
     case SUBMIT_EVENTS.PR_COMPLETED:
-      lines.push(`✅ PR Created: ${event.data.prUrl}`);
+      lines.push(`✅ PR Created: ${event.data.pullRequestUrl}`);
       break;
 
     case SUBMIT_EVENTS.DONE:
       lines.push('');
       lines.push(SEPARATOR);
       lines.push(`🎉 Submit ${event.data.success ? 'Complete' : 'Failed'}`);
-      if (event.data.prUrl) lines.push(`   PR: ${event.data.prUrl}`);
+      if (event.data.pullRequestUrl) lines.push(`   PR: ${event.data.pullRequestUrl}`);
       if (event.data.error) lines.push(`   Error: ${event.data.error}`);
       lines.push(SEPARATOR);
       break;
