@@ -2,7 +2,16 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { formatDistanceToNow } from 'date-fns';
-import { Calendar, Database, Eye, FileText, Github, MoreHorizontal, Trash } from 'lucide-react';
+import {
+  Calendar,
+  Database,
+  ExternalLink,
+  Eye,
+  FileText,
+  Github,
+  MoreHorizontal,
+  Trash,
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -152,6 +161,17 @@ export function getProjectColumns(
               >
                 <Eye className="mr-2 h-4 w-4" />
                 View
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a
+                  href={`https://cloud.langfuse.com/project/${process.env.NEXT_PUBLIC_LANGFUSE_PROJECT_ID}/sessions/${project.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Explore costs
+                </a>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={e => {
