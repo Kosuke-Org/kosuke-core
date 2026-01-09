@@ -6,7 +6,7 @@ import { db } from '@/lib/db/drizzle';
 import { buildJobs } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
-import { submitQueue } from '@/lib/queue/queues/submit';
+import { getSubmitQueue } from '@/lib/queue/queues/submit';
 import { getSandboxManager } from '@/lib/sandbox';
 import { eq } from 'drizzle-orm';
 
@@ -114,7 +114,7 @@ export async function POST(
     }
 
     // Enqueue submit job
-    await submitQueue.add('submit', {
+    await getSubmitQueue().add('submit', {
       buildJobId,
       chatSessionId: session.id,
       projectId,

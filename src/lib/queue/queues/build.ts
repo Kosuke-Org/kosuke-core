@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { createQueue } from '../client';
 import { QUEUE_NAMES } from '../config';
 
@@ -31,6 +32,15 @@ export interface BuildJobResult {
 }
 
 /**
- * Build queue instance
+ * Lazy-initialized build queue instance
+ * Only connects to Redis when first accessed, not on module import
  */
-export const buildQueue = createQueue<BuildJobData>(QUEUE_NAMES.BUILD);
+let _buildQueue: Queue<BuildJobData> | null = null;
+
+export function getBuildQueue(): Queue<BuildJobData> {
+  if (_buildQueue) {
+    return _buildQueue;
+  }
+  _buildQueue = createQueue<BuildJobData>(QUEUE_NAMES.BUILD);
+  return _buildQueue;
+}

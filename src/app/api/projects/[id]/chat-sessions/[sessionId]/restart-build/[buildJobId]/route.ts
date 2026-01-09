@@ -6,7 +6,7 @@ import { db } from '@/lib/db/drizzle';
 import { buildJobs, chatMessages, tasks } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
 import { findChatSession, verifyProjectAccess } from '@/lib/projects';
-import { buildQueue } from '@/lib/queue/queues/build';
+import { getBuildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
 import { eq } from 'drizzle-orm';
@@ -191,7 +191,7 @@ export async function POST(
     console.log(`✅ Created chat message for build ${newBuildJob.id}`);
 
     // 8. Enqueue the new build
-    await buildQueue.add('build', {
+    await getBuildQueue().add('build', {
       buildJobId: newBuildJob.id,
       chatSessionId: session.id,
       projectId,

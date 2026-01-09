@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { createQueue } from '../client';
 import { JOB_NAMES, QUEUE_NAMES } from '../config';
 
@@ -9,9 +10,18 @@ export interface PreviewCleanupJobData {
 }
 
 /**
- * Preview cleanup queue instance
+ * Lazy-initialized preview cleanup queue instance
+ * Only connects to Redis when first accessed, not on module import
  */
-export const previewQueue = createQueue<PreviewCleanupJobData>(QUEUE_NAMES.PREVIEW_CLEANUP);
+let _previewQueue: Queue<PreviewCleanupJobData> | null = null;
+
+export function getPreviewQueue(): Queue<PreviewCleanupJobData> {
+  if (_previewQueue) {
+    return _previewQueue;
+  }
+  _previewQueue = createQueue<PreviewCleanupJobData>(QUEUE_NAMES.PREVIEW_CLEANUP);
+  return _previewQueue;
+}
 
 /**
  * Schedule the recurring cleanup job
@@ -22,7 +32,7 @@ export async function schedulePreviewCleanup() {
   const intervalMinutes = parseInt(process.env.CLEANUP_INTERVAL_MINUTES!, 10);
   const intervalMs = intervalMinutes * 60 * 1000;
 
-  await previewQueue.upsertJobScheduler(
+  await getPreviewQueue().upsertJobScheduler(
     JOB_NAMES.CLEANUP_INACTIVE_PREVIEWS,
     {
       every: intervalMs,
