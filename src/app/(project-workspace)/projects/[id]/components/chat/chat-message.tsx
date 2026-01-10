@@ -417,27 +417,26 @@ export default function ChatMessage({
                 )}
               </>
             )}
+            {/* Copy message button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 ml-1"
+                  onClick={handleCopyMessage}
+                >
+                  <Copy className="h-3 w-3" />
+                  <span className="sr-only">Copy message</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Copy message</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         )}
       </div>
-
-      {/* Copy message button - appears on hover */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover/message:opacity-100 transition-opacity bg-background/80 hover:bg-accent"
-            onClick={handleCopyMessage}
-          >
-            <Copy className="h-3.5 w-3.5" />
-            <span className="sr-only">Copy message</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          <p>Copy message</p>
-        </TooltipContent>
-      </Tooltip>
     </div>
   );
 }
