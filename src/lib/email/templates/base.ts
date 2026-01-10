@@ -19,11 +19,16 @@ interface BaseEmailOptions {
  * - Optional notification preferences link
  */
 export function wrapEmailTemplate({ content, showSettingsLink = false }: BaseEmailOptions): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kosuke.ai';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  const settingsLink = showSettingsLink
-    ? ` You can manage your notification preferences in your <a href="${appUrl}/settings/notifications" style="color: #666;">account settings</a>.`
-    : '';
+  if (!appUrl) {
+    console.warn('[Email] NEXT_PUBLIC_APP_URL not configured, settings link will be omitted');
+  }
+
+  const settingsLink =
+    showSettingsLink && appUrl
+      ? ` You can manage your notification preferences in your <a href="${appUrl}/settings/notifications" style="color: #666;">account settings</a>.`
+      : '';
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

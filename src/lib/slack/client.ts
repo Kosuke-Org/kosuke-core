@@ -114,7 +114,11 @@ export async function sendHumanModeMessageSlack(
 ): Promise<void> {
   const { projectId, projectName, sessionId, userName, userEmail } = options;
 
-  const adminBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.kosuke.ai';
+  const adminBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!adminBaseUrl) {
+    console.warn('[Slack] NEXT_PUBLIC_APP_URL not configured, skipping notification');
+    return;
+  }
   const adminUrl = `${adminBaseUrl}/admin/projects/${projectId}/sessions/${sessionId}`;
 
   const userDisplay = userEmail ? `${userName} (${userEmail})` : userName;

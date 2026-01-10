@@ -1,3 +1,4 @@
+import { isClerkAPIResponseError } from '@clerk/nextjs/errors';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -48,6 +49,11 @@ export async function PATCH(
       data: { organization },
     });
   } catch (error) {
+    // Handle Clerk-specific errors with meaningful messages
+    if (isClerkAPIResponseError(error)) {
+      const message = error.errors[0]?.longMessage ?? error.errors[0]?.message;
+      return ApiErrorHandler.badRequest(message ?? 'Failed to update beta status');
+    }
     console.error('[API /admin/organizations/[orgId]/beta] Error updating beta status:', error);
     return ApiErrorHandler.handle(error);
   }
