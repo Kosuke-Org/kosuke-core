@@ -1,6 +1,14 @@
 'use client';
 
-import { ArrowRight, ExternalLink, FolderPlus, Github, Info, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  ExternalLink,
+  FlaskConical,
+  FolderPlus,
+  Github,
+  Info,
+  Loader2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -11,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useOrganizationBeta } from '@/hooks/use-organization-beta';
 import { useProjectCreation } from '@/hooks/use-project-creation';
 import type { GitHubRepository } from '@/lib/types/github';
 import type { CreateProjectData } from '@/lib/types/project';
@@ -30,7 +39,7 @@ export default function ProjectCreationModal({
   open,
   onOpenChange,
   initialProjectName = '',
-  initialTab = 'create',
+  initialTab = 'import',
 }: ProjectCreationModalProps) {
   const [activeTab, setActiveTab] = useState<'create' | 'import'>(initialTab);
   const [projectName, setProjectName] = useState(initialProjectName);
@@ -38,6 +47,7 @@ export default function ProjectCreationModal({
   // Import mode state
   const [selectedRepository, setSelectedRepository] = useState<GitHubRepository>();
 
+  const { isBeta } = useOrganizationBeta();
   const { currentStep, createProject, isCreating, resetCreation } = useProjectCreation();
 
   // Auto-set project name from repository name (import mode)
@@ -85,12 +95,12 @@ export default function ProjectCreationModal({
   };
 
   const canSubmit = () => {
-    if (!projectName.trim()) return false;
-
     if (activeTab === 'create') {
-      return true; // Project name is all we need
+      // Need beta access and project name for create
+      return isBeta && !!projectName.trim();
     } else {
-      return !!selectedRepository;
+      // Need project name and repository for import
+      return !!projectName.trim() && !!selectedRepository;
     }
   };
 
@@ -148,19 +158,19 @@ export default function ProjectCreationModal({
             className="w-full"
           >
             <TabsList className="w-full mb-6">
-              <TabsTrigger value="create" className="flex items-center gap-2 flex-1">
-                <FolderPlus className="h-4 w-4" />
-                <span>Create New</span>
-              </TabsTrigger>
               <TabsTrigger value="import" className="flex items-center gap-2 flex-1">
                 <Github className="h-4 w-4" />
                 <span>Import from GitHub</span>
               </TabsTrigger>
+              <TabsTrigger value="create" className="flex items-center gap-2 flex-1">
+                <FolderPlus className="h-4 w-4" />
+                <span>Create New</span>
+              </TabsTrigger>
             </TabsList>
 
             <div className="space-y-6">
-              {/* Project Name - Only for create tab */}
-              {activeTab === 'create' && (
+              {/* Project Name - Only for create tab with beta access */}
+              {activeTab === 'create' && isBeta && (
                 <div className="space-y-2">
                   <Label htmlFor="projectName" className="text-sm font-medium">
                     Project Name
@@ -174,6 +184,20 @@ export default function ProjectCreationModal({
                     disabled={isCreating}
                   />
                 </div>
+              )}
+
+              {/* Beta access message for non-beta users */}
+              {activeTab === 'create' && !isBeta && (
+                <Card className="border-amber-500/50 bg-amber-500/5 px-4">
+                  <div className="flex items-center gap-2 text-base font-semibold text-amber-600 dark:text-amber-400">
+                    <FlaskConical className="h-5 w-5" />
+                    Beta Feature
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Creating projects from scratch is currently in beta and available to selected
+                    organizations. In the meantime, you can import an existing GitHub repository.
+                  </p>
+                </Card>
               )}
 
               <TabsContent value="import" className="space-y-4 mt-0">
@@ -215,34 +239,28 @@ export default function ProjectCreationModal({
                 </Card>
               </TabsContent>
 
-              {/* Actions */}
-              <div className="flex justify-end items-center gap-3 pt-6">
-                <Button
-                  variant="ghost"
-                  onClick={() => onOpenChange(false)}
-                  disabled={isCreating}
-                  className="h-10"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreateProject}
-                  disabled={!canSubmit() || isCreating}
-                  className="h-10 space-x-2 min-w-[140px]"
-                >
-                  {isCreating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>{getSubmitText()}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>{getSubmitText()}</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
+              {/* Actions - Hide for non-beta users on create tab */}
+              {(activeTab !== 'create' || isBeta) && (
+                <div className="flex justify-end items-center pt-6">
+                  <Button
+                    onClick={handleCreateProject}
+                    disabled={!canSubmit() || isCreating}
+                    className="h-10 space-x-2 min-w-[140px]"
+                  >
+                    {isCreating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>{getSubmitText()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{getSubmitText()}</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </Tabs>
         </div>
