@@ -196,45 +196,80 @@ export default function PreviewPanel({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       // Only process messages from the iframe's origin
-      if (!previewUrl) return;
+      if (!previewUrl) {
+        console.log('[app] No previewUrl available yet');
+        return;
+      }
 
       try {
         const iframeOrigin = new URL(previewUrl).origin;
 
         // Verify the message is from our preview iframe
         if (event.origin !== iframeOrigin) {
-          console.log('Message not from preview iframe:', event.origin, iframeOrigin);
+          console.log('[app] Message not from preview iframe:', {
+            eventOrigin: event.origin,
+            expectedIframeOrigin: iframeOrigin,
+          });
           return;
         }
 
-        console.log('Message from preview iframe:', event.data);
+        console.log('[app] Message from preview iframe:', event.data);
 
         // Handle request for parent URL
         if (event.data && event.data.type === 'PARENT_URL' && !event.data.url) {
+          console.log('[app] Processing PARENT_URL request');
+
           const params = new URLSearchParams(window.location.search);
           const iframeRedirectUrl = params.get(IFRAME_REDIRECT_URL_PARAM);
 
+          console.log('[app] Debug info:', {
+            hasIframeRef: !!iframeRef.current,
+            hasContentWindow: !!iframeRef.current?.contentWindow,
+            iframeOrigin,
+            parentUrl: window.location.href,
+            iframeRedirectUrl,
+          });
+
           // Send back the parent URL and optional iframe redirect
           if (iframeRef.current?.contentWindow) {
+            const messageToSend = {
+              type: 'PARENT_URL',
+              url: window.location.href, // Full URL with path
+              ...(iframeRedirectUrl && { iframeRedirectUrl }),
+            };
+
+            console.log(
+              '[app] Sending response to iframe:',
+              messageToSend,
+              'to origin:',
+              iframeOrigin
+            );
+
             iframeRef.current.contentWindow.postMessage(
-              {
-                type: 'PARENT_URL',
-                url: window.location.href, // Full URL with path
-                ...(iframeRedirectUrl && { iframeRedirectUrl }),
-              },
+              messageToSend,
               iframeOrigin // Send to specific origin for security
             );
+
+            console.log('[app] Message sent successfully');
+          } else {
+            console.log('[app] Cannot send message - no contentWindow available');
           }
 
           if (iframeRedirectUrl) {
+            console.log('[app] Cleaning up iframeRedirectUrl from URL params');
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.delete(IFRAME_REDIRECT_URL_PARAM);
             window.history.replaceState({}, '', newUrl.toString());
           }
+        } else {
+          console.log(
+            '[app] Ignoring message (not a PARENT_URL request or already has url):',
+            event.data
+          );
         }
       } catch (error) {
         // Invalid URL or other error - ignore
-        console.error('Error handling iframe message:', error);
+        console.error('[app] Error handling iframe message:', error);
       }
     };
 

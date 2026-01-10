@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { createQueue } from '../client';
 import { QUEUE_NAMES } from '../config';
 
@@ -27,6 +28,15 @@ export interface DeployJobResult {
 }
 
 /**
- * Deploy queue instance
+ * Lazy-initialized deploy queue instance
+ * Only connects to Redis when first accessed, not on module import
  */
-export const deployQueue = createQueue<DeployJobData>(QUEUE_NAMES.DEPLOY);
+let _deployQueue: Queue<DeployJobData> | null = null;
+
+export function getDeployQueue(): Queue<DeployJobData> {
+  if (_deployQueue) {
+    return _deployQueue;
+  }
+  _deployQueue = createQueue<DeployJobData>(QUEUE_NAMES.DEPLOY);
+  return _deployQueue;
+}

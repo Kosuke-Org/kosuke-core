@@ -10,11 +10,11 @@
  */
 
 import { gracefulShutdown } from '@/lib/queue/client';
-import { buildQueue } from '@/lib/queue/queues/build';
-import { deployQueue } from '@/lib/queue/queues/deploy';
-import { previewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
-import { submitQueue } from '@/lib/queue/queues/submit';
-import { vamosQueue } from '@/lib/queue/queues/vamos';
+import { getBuildQueue } from '@/lib/queue/queues/build';
+import { getDeployQueue } from '@/lib/queue/queues/deploy';
+import { getPreviewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
+import { getSubmitQueue } from '@/lib/queue/queues/submit';
+import { getVamosQueue } from '@/lib/queue/queues/vamos';
 import { createBuildWorker } from '@/lib/queue/workers/build';
 import { createDeployWorker } from '@/lib/queue/workers/deploy';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
@@ -45,7 +45,13 @@ async function main() {
 
     // Store references for graceful shutdown
     const workers = [previewWorker, buildWorker, vamosWorker, deployWorker, submitWorker];
-    const queues = [previewQueue, buildQueue, vamosQueue, deployQueue, submitQueue];
+    const queues = [
+      getPreviewQueue(),
+      getBuildQueue(),
+      getVamosQueue(),
+      getDeployQueue(),
+      getSubmitQueue(),
+    ];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

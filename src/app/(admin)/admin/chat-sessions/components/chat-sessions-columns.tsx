@@ -4,6 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Calendar,
+  ExternalLink,
   Eye,
   FileText,
   FolderOpen,
@@ -202,6 +203,17 @@ export function getChatSessionColumns(
               >
                 <Eye className="mr-2 h-4 w-4" />
                 View
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a
+                  href={`https://cloud.langfuse.com/project/${process.env.NEXT_PUBLIC_LANGFUSE_PROJECT_ID}/traces?filter=metadata%3BstringObject%3BkosukeSessionId%3B%3D%3B${session.id}&dateRange=90d`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Explore costs
+                </a>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={e => {

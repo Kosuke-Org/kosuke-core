@@ -5,7 +5,7 @@ import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
 import { deployJobs, projects } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
-import { deployQueue } from '@/lib/queue';
+import { getDeployQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
 
 /**
@@ -65,7 +65,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     // Add job to queue
     // Note: SandboxManager handles API keys, Render credentials, and other env vars
-    await deployQueue.add(JOB_NAMES.PROCESS_DEPLOY, {
+    await getDeployQueue().add(JOB_NAMES.PROCESS_DEPLOY, {
       deployJobId: deployJob.id,
       projectId,
       repoUrl,

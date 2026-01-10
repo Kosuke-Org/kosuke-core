@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2, RefreshCcw, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -252,7 +253,7 @@ export default function ChatInterface({
     }
   }, [sendError, handleMutationError]);
 
-  // Scroll to bottom when messages change or streaming updates
+  // Scroll to bottom when messages load, streaming updates, or user sends a message
   useEffect(() => {
     const scrollTimeout = setTimeout(() => {
       if (messagesEndRef.current) {
@@ -262,9 +263,8 @@ export default function ChatInterface({
         });
       }
     }, 100);
-
     return () => clearTimeout(scrollTimeout);
-  }, [messages, isLoadingMessages, streamingContentBlocks, reqStreamingContentBlocks]);
+  }, [messages, isLoadingMessages, streamingContentBlocks, reqStreamingContentBlocks, isSending]);
 
   // Derive a flag instead of early return to keep hook order stable
   // Requirements mode doesn't need a session, development mode does
@@ -283,11 +283,13 @@ export default function ChatInterface({
     : streamingAssistantMessageId;
   const activeCancelStream = isRequirementsMode ? reqCancelStream : cancelStream;
 
-  // Avoid duplicate assistant responses: hide streaming block once saved message arrives
+  // Avoid duplicate assistant responses: hide streaming block once saved message has CONTENT
+  // (not just when it exists - placeholder messages have null content)
   const hasSavedStreamedMessage = useMemo(() => {
-    return activeStreamingAssistantMessageId
-      ? messages.some(m => m.id === activeStreamingAssistantMessageId)
-      : false;
+    if (!activeStreamingAssistantMessageId) return false;
+    const message = messages.find(m => m.id === activeStreamingAssistantMessageId);
+    // Only consider it "saved" if it has actual content or blocks
+    return message ? Boolean(message.content || message.blocks?.length) : false;
   }, [messages, activeStreamingAssistantMessageId]);
 
   // Keep streaming UI visible while waiting for webhook-saved message
@@ -435,53 +437,60 @@ export default function ChatInterface({
               {/* Real-time streaming assistant response - use same layout as stored messages */}
               {showStreamingAssistant && (
                 <div className="animate-in fade-in-0 duration-300">
-                  <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4" role="listitem">
-                    {/* Avatar column - same as ChatMessage */}
-                    <div className="relative flex items-center justify-center h-8 w-8">
-                      <div className="bg-muted border-primary rounded-md flex items-center justify-center h-full w-full">
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-6 w-6 text-primary"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            fill="none"
-                          />
-                        </svg>
-                      </div>
-                    </div>
+                  <div className="w-full max-w-[95%] mx-auto p-4" role="listitem">
+                    <div className="space-y-1">
+                      {/* Show Kosuke logo only when we have non-thinking content blocks */}
+                      {activeStreamingContentBlocks &&
+                        activeStreamingContentBlocks.some(block => block.type !== 'thinking') && (
+                          <div className="flex">
+                            <Image
+                              src="/logo.svg"
+                              alt="Kosuke"
+                              width={20}
+                              height={20}
+                              className="hidden dark:block"
+                            />
+                            <Image
+                              src="/logo-dark.svg"
+                              alt="Kosuke"
+                              width={20}
+                              height={20}
+                              className="block dark:hidden"
+                            />
+                          </div>
+                        )}
 
-                    {/* Content column - full available width */}
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4>AI Assistant</h4>
-                        <time className="text-xs text-muted-foreground">now</time>
-                      </div>
-
-                      {/* Full-width assistant response */}
-                      {activeStreamingContentBlocks && activeStreamingContentBlocks.length > 0 ? (
+                      {/* Full-width assistant response - filter out thinking blocks during streaming */}
+                      {activeStreamingContentBlocks &&
+                      activeStreamingContentBlocks.some(block => block.type !== 'thinking') ? (
                         <AssistantResponse
                           response={{
                             id: activeStreamingAssistantMessageId!,
-                            contentBlocks: activeStreamingContentBlocks,
+                            contentBlocks: activeStreamingContentBlocks.filter(
+                              block => block.type !== 'thinking'
+                            ),
                             timestamp: new Date(),
                             status: 'streaming',
                           }}
                         />
                       ) : (
-                        // Show loading state when streaming but no content blocks yet
+                        // Show loading state with logo inline when no non-thinking content blocks yet
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                            <div className="w-2 h-2 bg-primary rounded-full animate-bounce"></div>
-                          </div>
-                          <span className="animate-pulse">Processing request...</span>
+                          <Image
+                            src="/logo.svg"
+                            alt="Kosuke"
+                            width={20}
+                            height={20}
+                            className="hidden dark:block animate-pulse"
+                          />
+                          <Image
+                            src="/logo-dark.svg"
+                            alt="Kosuke"
+                            width={20}
+                            height={20}
+                            className="block dark:hidden animate-pulse"
+                          />
+                          <span className="animate-pulse">Thinking...</span>
                         </div>
                       )}
                     </div>

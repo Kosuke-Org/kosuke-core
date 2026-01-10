@@ -5,7 +5,7 @@ import { requireSuperAdmin } from '@/lib/admin/permissions';
 import { db } from '@/lib/db/drizzle';
 import { projects, vamosJobs } from '@/lib/db/schema';
 import { getProjectGitHubToken } from '@/lib/github/installations';
-import { vamosQueue } from '@/lib/queue';
+import { getVamosQueue } from '@/lib/queue';
 import { JOB_NAMES } from '@/lib/queue/config';
 
 interface TriggerVamosBody {
@@ -69,7 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Add job to queue
     // Note: SandboxManager handles database creation, API keys, and other env vars
-    await vamosQueue.add(JOB_NAMES.PROCESS_VAMOS, {
+    await getVamosQueue().add(JOB_NAMES.PROCESS_VAMOS, {
       vamosJobId: vamosJob.id,
       projectId,
       withTests,

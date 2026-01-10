@@ -11,11 +11,11 @@ export {
   signalBuildCancel,
 } from './client';
 export { JOB_NAMES, QUEUE_NAMES } from './config';
-export { buildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
-export { deployQueue, type DeployJobData, type DeployJobResult } from './queues/deploy';
-export { previewQueue, schedulePreviewCleanup } from './queues/previews';
-export { submitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
-export { vamosQueue, type VamosJobData, type VamosJobResult } from './queues/vamos';
+export { getBuildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export { getDeployQueue, type DeployJobData, type DeployJobResult } from './queues/deploy';
+export { getPreviewQueue, schedulePreviewCleanup } from './queues/previews';
+export { getSubmitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
+export { getVamosQueue, type VamosJobData, type VamosJobResult } from './queues/vamos';
 export { createBuildWorker } from './workers/build';
 export { createDeployWorker } from './workers/deploy';
 export { createPreviewWorker } from './workers/previews';
@@ -67,7 +67,8 @@ export interface CancelBuildResult {
 export async function cancelBuild(options: CancelBuildOptions): Promise<CancelBuildResult> {
   const { buildJobId, chatSessionId, projectId, sandboxClient, githubToken } = options;
 
-  const { buildQueue } = await import('./queues/build');
+  const { getBuildQueue } = await import('./queues/build');
+  const buildQueue = getBuildQueue();
   const { db } = await import('@/lib/db/drizzle');
   const { buildJobs, tasks } = await import('@/lib/db/schema');
   const { and, inArray, ne } = await import('drizzle-orm');

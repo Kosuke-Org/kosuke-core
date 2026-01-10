@@ -3,7 +3,7 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "@Kosuke-Org/cli": "0.0.95",
+        "@Kosuke-Org/cli": "0.0.97",
         "@aws-sdk/client-s3": "^3.958.0",
         "@blocknote/core": "^0.46.0",
         "@blocknote/mantine": "^0.46.0",
@@ -117,7 +117,7 @@
     },
   },
   "packages": {
-    "@Kosuke-Org/cli": ["@Kosuke-Org/cli@0.0.95", "https://npm.pkg.github.com/download/@Kosuke-Org/cli/0.0.95/c547d99e3d5db1af034b7417e28aa9e6414f8613", { "dependencies": { "@anthropic-ai/claude-agent-sdk": "^0.1.76", "@anthropic-ai/sdk": "^0.71.2", "@aws-sdk/client-s3": "^3.962.0", "@google/generative-ai": "^0.24.1", "@langfuse/otel": "^4.5.1", "@langfuse/tracing": "^4.5.1", "@modelcontextprotocol/sdk": "^1.25.1", "@octokit/rest": "^22.0.1", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-node": "^0.208.0", "dotenv": "^17.2.3", "fastify": "^5.6.2", "glob": "^13.0.0", "ignore": "^7.0.5", "simple-git": "^3.22.0", "zod": "^3.25.76" }, "bin": { "kosuke": "dist/index.js" } }, "sha512-mzFlpUFdhXQDQr1P21QZOGbSqT9fYdv+kA4Ji44t4EXjlcbwfCXyPysmmV5yp/q8iteUhn7KMRQKW08G8tRT+g=="],
+    "@Kosuke-Org/cli": ["@Kosuke-Org/cli@0.0.97", "https://npm.pkg.github.com/download/@Kosuke-Org/cli/0.0.97/aa656a6d4cfcd493f0a13c987b7e6df71f45b7f1", { "dependencies": { "@anthropic-ai/claude-agent-sdk": "^0.1.76", "@anthropic-ai/sdk": "^0.71.2", "@aws-sdk/client-s3": "^3.962.0", "@google/generative-ai": "^0.24.1", "@langfuse/otel": "^4.5.1", "@langfuse/tracing": "^4.5.1", "@modelcontextprotocol/sdk": "^1.25.1", "@octokit/rest": "^22.0.1", "@opentelemetry/api": "^1.9.0", "@opentelemetry/sdk-node": "^0.208.0", "dotenv": "^17.2.3", "fastify": "^5.6.2", "glob": "^13.0.0", "ignore": "^7.0.5", "simple-git": "^3.22.0", "zod": "^3.25.76" }, "bin": { "kosuke": "dist/index.js" } }, "sha512-3AGrS2Fj8D1xYDSzf14N1IzubuxQYIEpfr/NeW21RZVAc0JmPRCum8VFzzMPcahKgydISFtotQrknL3VeTLU5w=="],
 
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
 

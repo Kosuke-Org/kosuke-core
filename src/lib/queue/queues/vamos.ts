@@ -1,3 +1,4 @@
+import type { Queue } from 'bullmq';
 import { createQueue } from '../client';
 import { QUEUE_NAMES } from '../config';
 
@@ -31,6 +32,15 @@ export interface VamosJobResult {
 }
 
 /**
- * Vamos queue instance
+ * Lazy-initialized vamos queue instance
+ * Only connects to Redis when first accessed, not on module import
  */
-export const vamosQueue = createQueue<VamosJobData>(QUEUE_NAMES.VAMOS);
+let _vamosQueue: Queue<VamosJobData> | null = null;
+
+export function getVamosQueue(): Queue<VamosJobData> {
+  if (_vamosQueue) {
+    return _vamosQueue;
+  }
+  _vamosQueue = createQueue<VamosJobData>(QUEUE_NAMES.VAMOS);
+  return _vamosQueue;
+}

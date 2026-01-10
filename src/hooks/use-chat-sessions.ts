@@ -27,7 +27,7 @@ export function useChatSessions(projectId: string) {
 
 // Hook to get messages for a specific chat session
 export function useChatSessionMessages(projectId: string, sessionId: string) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['chat-session-messages', projectId, sessionId],
     queryFn: async (): Promise<ChatSessionMessagesResponse> => {
       const response = await fetch(
@@ -40,7 +40,18 @@ export function useChatSessionMessages(projectId: string, sessionId: string) {
     },
     enabled: !!sessionId,
     staleTime: 1000 * 30, // 30 seconds
+    // Poll every 1.5 seconds when there are thinking messages (assistant with null content)
+    // Fast polling ensures quick updates when streaming ends
+    refetchInterval: query => {
+      const messages = query.state.data?.messages;
+      const hasThinkingMessages = messages?.some(
+        m => m.role === 'assistant' && !m.content && (!m.blocks || m.blocks.length === 0)
+      );
+      return hasThinkingMessages ? 1500 : false;
+    },
   });
+
+  return query;
 }
 
 // Hook to create a new chat session
