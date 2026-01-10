@@ -1,18 +1,29 @@
 'use client';
 
-import { Loader2, RefreshCcw } from 'lucide-react';
+import { Loader2, RefreshCcw, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 
 // Import types and hooks
+import { useAgentHealth } from '@/hooks/use-agent-health';
 import { useChatSessionMessages } from '@/hooks/use-chat-sessions';
 import { useChatState } from '@/hooks/use-chat-state';
+import { useRequirementsMessages } from '@/hooks/use-requirements-messages';
 import { useSendMessage } from '@/hooks/use-send-message';
-import type { ChatInterfaceProps } from '@/lib/types';
+import { useSendRequirementsMessage } from '@/hooks/use-send-requirements-message';
+import type {
+  AssistantBlock,
+  Attachment,
+  ChatInterfaceProps,
+  ChatMessage as ChatMessageType,
+  ErrorType,
+} from '@/lib/types';
 
 // Import components
 import AssistantResponse from './assistant-response';
@@ -20,6 +31,90 @@ import ChatInput from './chat-input';
 import ChatMessage from './chat-message';
 
 import ModelBanner from './model-banner';
+
+// Messages skeleton for when messages are loading (banner and input already rendered)
+function MessagesSkeleton() {
+  return (
+    <div className="flex flex-col">
+      {/* Assistant message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+      </div>
+
+      {/* User message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      </div>
+
+      {/* Assistant message skeleton */}
+      <div className="flex w-full max-w-[95%] mx-auto gap-3 p-4">
+        <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Full skeleton for initial page loading - exported for use in project page
+export function ChatInterfaceSkeleton() {
+  return (
+    <div className="flex flex-col h-full">
+      {/* Model Banner Skeleton */}
+      <div className="px-4">
+        <div className="flex items-center justify-between w-full px-4 py-2.5 rounded-md bg-gradient-to-r from-primary/5 to-background">
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-2 w-2 rounded-full" />
+            <Skeleton className="h-3 w-14" />
+          </div>
+        </div>
+      </div>
+
+      {/* Messages Area Skeleton */}
+      <div className="flex-1 overflow-hidden">
+        <MessagesSkeleton />
+      </div>
+
+      {/* Chat Input Skeleton */}
+      <div className="px-4 pb-0">
+        <div className="relative flex flex-col rounded-lg border border-border shadow-lg bg-background">
+          <Skeleton className="min-h-[100px] w-full rounded-lg border-0" />
+          <div className="flex items-center gap-2 px-3 absolute bottom-3 right-0">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ChatInterface({
   projectId,
@@ -30,6 +125,9 @@ export default function ChatInterface({
   isBuildInProgress = false,
   isBuildFailed = false,
   hasPullRequest = false,
+  // Requirements mode props
+  mode = 'development',
+  projectStatus = 'active',
 }: ChatInterfaceProps) {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,19 +140,76 @@ export default function ChatInterface({
     imageUrl?: string;
   } | null>(null);
 
-  // Always call hooks at the top level, even if sessionId is not available yet
-  const sendMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
-  const messagesQuery = useChatSessionMessages(projectId, sessionId || '');
+  // Mode-specific hooks - always call hooks at the top level
+  // Development mode hooks
+  const sendDevMessageMutation = useSendMessage(projectId, activeChatSessionId, sessionId || '');
+  const devMessagesQuery = useChatSessionMessages(projectId, sessionId || '');
   const chatState = useChatState(projectId, sessionId);
 
-  // Extract data from hooks
-  const { data: messagesData, isLoading: isLoadingMessages } = messagesQuery;
+  // Requirements mode hooks
+  const reqMessagesQuery = useRequirementsMessages(projectId);
+  const sendReqMessageMutation = useSendRequirementsMessage(projectId);
 
+  // Agent health - used to disable input until agent is ready
+  const { data: agentHealth } = useAgentHealth({
+    projectId,
+    enabled: Boolean(projectId),
+    pollingInterval: 10000,
+  });
+
+  // Agent is ready when running, alive, and explicitly ready
+  const isAgentReady = Boolean(agentHealth?.running && agentHealth?.alive && agentHealth?.ready);
+
+  // Extract streaming state from requirements hook
+  const {
+    isStreaming: isReqStreaming,
+    streamingContentBlocks: reqStreamingContentBlocks,
+    streamingAssistantMessageId: reqStreamingAssistantMessageId,
+    cancelStream: reqCancelStream,
+  } = sendReqMessageMutation;
+
+  // Select hooks based on mode
+  const isRequirementsMode = mode === 'requirements';
+
+  // Extract data from queries
+  const { data: devMessagesData, isLoading: isLoadingDevMessages } = devMessagesQuery;
+  const { data: reqMessagesData, isLoading: isLoadingReqMessages } = reqMessagesQuery;
+
+  // Select the appropriate loading state
+  const isLoadingMessages = isRequirementsMode ? isLoadingReqMessages : isLoadingDevMessages;
+
+  // Handle messages differently based on mode
+  // Requirements mode returns array directly, development mode returns { messages: [...] }
   const messages = useMemo(() => {
-    const msgs = messagesData?.messages || [];
-    return msgs;
-  }, [messagesData?.messages]);
+    if (isRequirementsMode) {
+      // Requirements mode: data is array of RequirementsMessage - cast to ChatMessage-compatible shape
+      return (reqMessagesData || []).map(msg => {
+        // For assistant messages without blocks but with content,
+        // create a synthetic text block to enable markdown rendering
+        let blocks: AssistantBlock[] | undefined = msg.blocks as AssistantBlock[] | undefined;
 
+        if (msg.role === 'assistant' && (!blocks || blocks.length === 0) && msg.content) {
+          blocks = [{ type: 'text', content: msg.content }];
+        }
+
+        return {
+          ...msg,
+          role: msg.role as 'user' | 'assistant' | 'system' | 'admin',
+          blocks,
+          hasError: false,
+          errorType: undefined as ErrorType | undefined,
+          commitSha: undefined as string | undefined,
+          metadata: undefined as ChatMessageType['metadata'],
+          attachments: undefined as Attachment[] | undefined,
+          adminUserId: undefined as string | undefined,
+        };
+      });
+    }
+    // Development mode: data is { messages: [...] }
+    return devMessagesData?.messages || [];
+  }, [devMessagesData, reqMessagesData, isRequirementsMode]);
+
+  // Extract development mode mutation data
   const {
     sendMessage,
     isLoading: isSending,
@@ -64,7 +219,7 @@ export default function ChatInterface({
     streamingContentBlocks,
     streamingAssistantMessageId,
     cancelStream,
-  } = sendMessageMutation;
+  } = sendDevMessageMutation;
 
   const {
     isError,
@@ -109,24 +264,38 @@ export default function ChatInterface({
       }
     }, 100);
     return () => clearTimeout(scrollTimeout);
-  }, [messages, isLoadingMessages, streamingContentBlocks, isSending]);
+  }, [messages, isLoadingMessages, streamingContentBlocks, reqStreamingContentBlocks, isSending]);
 
   // Derive a flag instead of early return to keep hook order stable
-  const hasSession = Boolean(sessionId);
+  // Requirements mode doesn't need a session, development mode does
+  const hasSession = isRequirementsMode || Boolean(sessionId);
+
+  // Check if chat input should be disabled for requirements mode
+  const isRequirementsReadonly = isRequirementsMode && projectStatus !== 'requirements';
+
+  // Select the appropriate streaming state based on mode
+  const activeIsStreaming = isRequirementsMode ? isReqStreaming : isStreaming;
+  const activeStreamingContentBlocks = isRequirementsMode
+    ? reqStreamingContentBlocks
+    : streamingContentBlocks;
+  const activeStreamingAssistantMessageId = isRequirementsMode
+    ? reqStreamingAssistantMessageId
+    : streamingAssistantMessageId;
+  const activeCancelStream = isRequirementsMode ? reqCancelStream : cancelStream;
 
   // Avoid duplicate assistant responses: hide streaming block once saved message has CONTENT
   // (not just when it exists - placeholder messages have null content)
   const hasSavedStreamedMessage = useMemo(() => {
-    if (!streamingAssistantMessageId) return false;
-    const message = messages.find(m => m.id === streamingAssistantMessageId);
+    if (!activeStreamingAssistantMessageId) return false;
+    const message = messages.find(m => m.id === activeStreamingAssistantMessageId);
     // Only consider it "saved" if it has actual content or blocks
     return message ? Boolean(message.content || message.blocks?.length) : false;
-  }, [messages, streamingAssistantMessageId]);
+  }, [messages, activeStreamingAssistantMessageId]);
 
   // Keep streaming UI visible while waiting for webhook-saved message
   const showStreamingAssistant = Boolean(
-    (isStreaming || expectingWebhookUpdate) &&
-    (!streamingAssistantMessageId || !hasSavedStreamedMessage)
+    (activeIsStreaming || (!isRequirementsMode && expectingWebhookUpdate)) &&
+    (!activeStreamingAssistantMessageId || !hasSavedStreamedMessage)
   );
 
   // Handle sending messages
@@ -136,14 +305,20 @@ export default function ChatInterface({
   ) => {
     if (!content.trim() && !options?.imageFile) return;
 
-    // Clear error state
-    clearError();
+    if (isRequirementsMode) {
+      // Requirements mode: just send content
+      sendReqMessageMutation.mutate(content);
+    } else {
+      // Development mode: use full sendMessage with options
+      // Clear error state
+      clearError();
 
-    // Save message for regeneration
-    saveLastMessage(content, options);
+      // Save message for regeneration
+      saveLastMessage(content, options);
 
-    // Send the message
-    sendMessage({ content, options });
+      // Send the message
+      sendMessage({ content, options });
+    }
   };
 
   // Handle regeneration
@@ -191,9 +366,30 @@ export default function ChatInterface({
     };
   });
 
+  // Get session mode from messages data
+  const sessionMode = devMessagesData?.sessionInfo?.mode || 'autonomous';
+  const isHumanAssisted = sessionMode === 'human_assisted';
+
   return (
     <div className={cn('flex flex-col h-full', className)} data-testid="chat-interface">
-      <ModelBanner model={model} />
+      <ModelBanner
+        model={model}
+        projectId={projectId}
+        showAgentStatus={isRequirementsMode}
+        agentHealth={agentHealth}
+      />
+
+      {/* Human-assisted mode banner */}
+      {isHumanAssisted && (
+        <div className="px-4 mt-2">
+          <Alert className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
+            <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              You&apos;re chatting with a human support agent. AI responses are paused.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       <ScrollArea className="flex-1 overflow-y-auto">
         <div className="flex flex-col">
@@ -202,9 +398,7 @@ export default function ChatInterface({
               <p className="text-muted-foreground">No session selected</p>
             </div>
           ) : messages.length === 0 && isLoadingMessages ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <MessagesSkeleton />
           ) : (
             <>
               {enhancedMessages.map(message => (
@@ -234,6 +428,7 @@ export default function ChatInterface({
                   sessionId={sessionId}
                   metadata={message.metadata}
                   attachments={message.attachments}
+                  adminUserId={message.adminUserId ?? undefined}
                 />
               ))}
 
@@ -245,8 +440,8 @@ export default function ChatInterface({
                   <div className="w-full max-w-[95%] mx-auto p-4" role="listitem">
                     <div className="space-y-1">
                       {/* Show Kosuke logo only when we have non-thinking content blocks */}
-                      {streamingContentBlocks &&
-                        streamingContentBlocks.some(block => block.type !== 'thinking') && (
+                      {activeStreamingContentBlocks &&
+                        activeStreamingContentBlocks.some(block => block.type !== 'thinking') && (
                           <div className="flex">
                             <Image
                               src="/logo.svg"
@@ -266,12 +461,12 @@ export default function ChatInterface({
                         )}
 
                       {/* Full-width assistant response - filter out thinking blocks during streaming */}
-                      {streamingContentBlocks &&
-                      streamingContentBlocks.some(block => block.type !== 'thinking') ? (
+                      {activeStreamingContentBlocks &&
+                      activeStreamingContentBlocks.some(block => block.type !== 'thinking') ? (
                         <AssistantResponse
                           response={{
-                            id: streamingAssistantMessageId!,
-                            contentBlocks: streamingContentBlocks.filter(
+                            id: activeStreamingAssistantMessageId!,
+                            contentBlocks: activeStreamingContentBlocks.filter(
                               block => block.type !== 'thinking'
                             ),
                             timestamp: new Date(),
@@ -347,19 +542,31 @@ export default function ChatInterface({
       <div className="px-4 pb-0 relative">
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isSending || isRegenerating}
-          isStreaming={isStreaming}
-          onStop={cancelStream}
+          isLoading={isSending || isRegenerating || sendReqMessageMutation.isPending}
+          isStreaming={activeIsStreaming}
+          onStop={activeCancelStream}
           placeholder={
-            hasPullRequest
-              ? 'Pull request created. Start a new chat to make more changes.'
-              : isBuildFailed
-                ? 'Build stopped. Use the restart button above to try again.'
-                : isBuildInProgress
-                  ? 'Build in progress...'
-                  : 'Type your message...'
+            !isAgentReady
+              ? 'Waiting for agent...'
+              : isRequirementsReadonly
+                ? 'Requirements have been submitted'
+                : isRequirementsMode
+                  ? 'Describe your project requirements...'
+                  : hasPullRequest
+                    ? 'Pull request created. Start a new chat to make more changes.'
+                    : isBuildFailed
+                      ? 'Build stopped. Use the restart button above to try again.'
+                      : isBuildInProgress
+                        ? 'Build in progress...'
+                        : 'Type your message...'
           }
-          disabled={isBuildInProgress || isBuildFailed || hasPullRequest}
+          disabled={
+            !isAgentReady ||
+            isBuildInProgress ||
+            isBuildFailed ||
+            isRequirementsReadonly ||
+            hasPullRequest
+          }
           data-testid="chat-input"
           className="chat-input"
         />

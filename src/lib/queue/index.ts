@@ -12,11 +12,15 @@ export {
 } from './client';
 export { JOB_NAMES, QUEUE_NAMES } from './config';
 export { getBuildQueue, type BuildJobData, type BuildJobResult } from './queues/build';
+export { getDeployQueue, type DeployJobData, type DeployJobResult } from './queues/deploy';
 export { getPreviewQueue, schedulePreviewCleanup } from './queues/previews';
 export { getSubmitQueue, type SubmitJobData, type SubmitJobResult } from './queues/submit';
+export { getVamosQueue, type VamosJobData, type VamosJobResult } from './queues/vamos';
 export { createBuildWorker } from './workers/build';
+export { createDeployWorker } from './workers/deploy';
 export { createPreviewWorker } from './workers/previews';
 export { createSubmitWorker } from './workers/submit';
+export { createVamosWorker } from './workers/vamos';
 
 export async function scheduleAllJobs() {
   const { schedulePreviewCleanup } = await import('./queues/previews');

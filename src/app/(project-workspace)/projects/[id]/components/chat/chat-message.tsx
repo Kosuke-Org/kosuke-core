@@ -1,10 +1,14 @@
 'use client';
 
 import { formatDistanceToNow } from 'date-fns';
-import { RefreshCcw } from 'lucide-react';
+import { Copy, RefreshCcw, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +16,7 @@ import { cn } from '@/lib/utils';
 import type { AssistantBlock, ChatMessageProps, ContentBlock, ErrorType } from '@/lib/types';
 import { getFileName, processMessageContent } from '@/lib/utils/message-content';
 import AssistantResponse from './assistant-response';
+import { copyToClipboard, extractMessageContent } from './copy-message-content';
 import { BuildMessage } from './build-message';
 import ChatMessageAttachments from './chat-message-attachments';
 import { MessageRevertButton } from './message-revert-button';
@@ -33,11 +38,31 @@ export default function ChatMessage({
   sessionId,
   metadata,
   attachments,
+  adminUserId: _adminUserId,
 }: ChatMessageProps) {
   const isUser = role === 'user';
   const isSystem = role === 'system';
+  const isAdmin = role === 'admin';
   const isRevertMessage = isSystem && metadata?.revertInfo;
-  const { imageUrl, initials, displayName } = useUser();
+  const { imageUrl, displayName, initials } = useUser();
+  const { toast } = useToast();
+
+  // Handle copy message content
+  const handleCopyMessage = async () => {
+    const textContent = extractMessageContent(content, blocks, role);
+    const success = await copyToClipboard(textContent);
+
+    if (success) {
+      toast({
+        description: 'Message copied to clipboard',
+      });
+    } else {
+      toast({
+        description: 'Failed to copy message',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Get appropriate error message based on error type
   const getErrorMessage = (type: ErrorType): string => {
@@ -164,7 +189,9 @@ export default function ChatMessage({
   return (
     <div
       className={cn(
-        'w-full max-w-[95%] mx-auto p-4',
+        'group/message relative w-full max-w-[95%] mx-auto p-4',
+        isAdmin &&
+          'bg-green-50/50 dark:bg-green-950/30 border border-green-100 dark:border-green-900 rounded-lg',
         !showAvatar && 'pt-1', // Reduce top padding for consecutive messages
         isLoading && 'opacity-50',
         hasError && !isUser && 'border-l-2 border-l-destructive/40', // Red left border for error messages
@@ -178,8 +205,8 @@ export default function ChatMessage({
         {showAvatar &&
           // Hide avatar for thinking messages (they show logo inline)
           (isUser || hasBlocks || content || Boolean(metadata?.buildJobId)) && (
-            <div className={cn('flex', isUser && 'justify-end')}>
-              {!isUser && (
+            <div className={cn('flex items-center gap-2', isUser && 'justify-end')}>
+              {!isUser && !isAdmin && (
                 <>
                   <Image
                     src="/logo.svg"
@@ -196,6 +223,17 @@ export default function ChatMessage({
                     className="block dark:hidden"
                   />
                 </>
+              )}
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800"
+                  >
+                    Human Support
+                  </Badge>
+                </div>
               )}
               {isUser && (
                 <Avatar className="h-6 w-6">
@@ -379,6 +417,23 @@ export default function ChatMessage({
                 )}
               </>
             )}
+            {/* Copy message button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 ml-1"
+                  onClick={handleCopyMessage}
+                >
+                  <Copy className="h-3 w-3" />
+                  <span className="sr-only">Copy message</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Copy message</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         )}
       </div>

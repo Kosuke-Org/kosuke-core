@@ -63,9 +63,9 @@ function main() {
       if (svc.type === 'bun') {
         if (!bunDir) {
           bunDir = svc.directory;
-          // Extract custom db commands
-          bunDbMigrateCmd = svc.dbMigrateCommand || '';
-          bunDbSeedCmd = svc.dbSeedCommand || '';
+          // Extract custom db commands (with defaults)
+          bunDbMigrateCmd = svc.dbMigrateCommand || 'db:migrate';
+          bunDbSeedCmd = svc.dbSeedCommand || 'db:seed';
         }
       } else if (svc.type === 'python') {
         if (!pythonDir) {
@@ -139,8 +139,9 @@ function main() {
     envLines.push(`KOSUKE_BUN_DIR=${escapeEnvValue(bunDir)}`);
     envLines.push(`KOSUKE_PYTHON_DIR=${escapeEnvValue(pythonDir)}`);
     envLines.push(`KOSUKE_HAS_REDIS=${hasRedis ? 'true' : 'false'}`);
-    envLines.push(`KOSUKE_BUN_DB_MIGRATE_CMD=${escapeEnvValue(bunDbMigrateCmd)}`);
-    envLines.push(`KOSUKE_BUN_DB_SEED_CMD=${escapeEnvValue(bunDbSeedCmd)}`);
+    // Database commands from config or defaults
+    envLines.push(`KOSUKE_BUN_DB_MIGRATE_CMD=${escapeEnvValue(bunDbMigrateCmd || 'db:migrate')}`);
+    envLines.push(`KOSUKE_BUN_DB_SEED_CMD=${escapeEnvValue(bunDbSeedCmd || 'db:seed')}`);
 
     // All other environment variables
     for (const [key, value] of Object.entries(finalEnv)) {

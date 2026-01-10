@@ -2,9 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Copy, ExternalLink, Rocket } from 'lucide-react';
+import { ChevronDown, Copy, ExternalLink, Loader2, Play, Rocket, Save } from 'lucide-react';
 import Link from 'next/link';
-import { use, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 
 import {
   AlertDialog,
@@ -17,10 +17,28 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMarkProjectReady } from '@/hooks/use-admin-projects';
+import {
+  useDeployJob,
+  useFetchDeployConfig,
+  useTriggerDeploy,
+  useUpdateDeployConfig,
+} from '@/hooks/use-admin-deploy';
+import { useMarkProjectReady, useUpdatePaymentStatus } from '@/hooks/use-admin-projects';
+import { useTriggerVamos, useVamosJob } from '@/hooks/use-admin-vamos';
 import { useToast } from '@/hooks/use-toast';
+import type { ProjectStatus } from '@/lib/db/schema';
+
+import { DeployConfigModal } from './components/deploy-config-modal';
 
 interface AdminProject {
   id: string;
@@ -32,12 +50,36 @@ interface AdminProject {
   requirementsCompletedAt: string | null;
   requirementsCompletedBy: string | null;
   githubRepoUrl: string | null;
+  status: ProjectStatus;
+  stripeInvoiceUrl: string | null;
 }
+
+// Status badge configuration
+const STATUS_CONFIG: Record<
+  ProjectStatus,
+  { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
+> = {
+  requirements: { label: 'Requirements', variant: 'secondary' },
+  requirements_ready: { label: 'Requirements Ready', variant: 'secondary' },
+  environments_ready: { label: 'Environments Ready', variant: 'secondary' },
+  waiting_for_payment: { label: 'Waiting for Payment', variant: 'outline' },
+  paid: { label: 'Paid', variant: 'default' },
+  in_development: { label: 'In Development', variant: 'default' },
+  active: { label: 'Active', variant: 'default' },
+};
 
 export default function AdminProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { toast } = useToast();
   const [markReadyDialogOpen, setMarkReadyDialogOpen] = useState(false);
+  const [stripeInvoiceUrlInput, setStripeInvoiceUrlInput] = useState('');
+  const [statusTransitionDialogOpen, setStatusTransitionDialogOpen] = useState(false);
+  const [pendingStatusTransition, setPendingStatusTransition] = useState<ProjectStatus | null>(
+    null
+  );
+
+  // Deploy UI state
+  const [deployConfigModalOpen, setDeployConfigModalOpen] = useState(false);
 
   // Fetch single project
   const { data: projects, isLoading } = useQuery<AdminProject[]>({
@@ -52,14 +94,98 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
 
   const project = projects?.find(p => p.id === id);
 
+  // Initialize stripe invoice URL input when project loads
+  useEffect(() => {
+    if (project?.stripeInvoiceUrl) {
+      setStripeInvoiceUrlInput(project.stripeInvoiceUrl);
+    }
+  }, [project?.stripeInvoiceUrl]);
+
   // Mark project as ready mutation
   const markReadyMutation = useMarkProjectReady();
 
-  const handleDeploy = () => {
-    toast({
-      title: 'Deploy Feature Coming Soon',
-      description: 'Project deployment functionality will be available soon.',
-    });
+  // Update payment status mutation
+  const updatePaymentStatusMutation = useUpdatePaymentStatus();
+
+  // Determine which mode we're in based on project status
+  // Vamos is only relevant during development, Deploy is only relevant when active
+  const isInDevelopment = project?.status === 'in_development';
+  const isActive = project?.status === 'active';
+
+  // Vamos hooks - only fetch when project is in development
+  const { data: vamosJobData } = useVamosJob(id, !!project && isInDevelopment);
+  const triggerVamosMutation = useTriggerVamos();
+
+  // Deploy hooks - only fetch when project is active
+  const { data: deployJobData } = useDeployJob(id, !!project && isActive);
+  const fetchDeployConfigMutation = useFetchDeployConfig();
+  const triggerDeployMutation = useTriggerDeploy();
+  const updateDeployConfigMutation = useUpdateDeployConfig();
+
+  // Store fetched deploy config in local state for modal
+  const [deployConfig, setDeployConfig] = useState<{
+    hasConfig: boolean;
+    config: Record<string, unknown> | null;
+    hasProductionConfig: boolean;
+    error?: string;
+  } | null>(null);
+
+  const handleVamos = () => {
+    // If there's already a running job, don't trigger again
+    if (vamosJobData?.job?.status === 'running' || vamosJobData?.job?.status === 'pending') {
+      return;
+    }
+
+    // Trigger a new vamos job
+    triggerVamosMutation.mutate({ projectId: id, withTests: true, isolated: false });
+  };
+
+  const handleDeploy = async () => {
+    // If there's already a running deploy job, don't trigger again
+    if (deployJobData?.job?.status === 'running' || deployJobData?.job?.status === 'pending') {
+      return;
+    }
+
+    // Fetch config lazily on Deploy click
+    try {
+      const config = await fetchDeployConfigMutation.mutateAsync(id);
+      setDeployConfig(config);
+
+      // If there's an error fetching/parsing config, show detailed error
+      if (config.error) {
+        toast({
+          title: 'Configuration Error',
+          description: config.error,
+          variant: 'destructive',
+        });
+        console.error('[Deploy] Config error:', config.error, config.rawContent);
+        return;
+      }
+
+      // Always open config modal to review/edit env vars before deploy
+      setDeployConfigModalOpen(true);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch config',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveDeployConfig = (
+    production: Parameters<typeof updateDeployConfigMutation.mutate>[0]['production']
+  ) => {
+    updateDeployConfigMutation.mutate(
+      { projectId: id, production },
+      {
+        onSuccess: () => {
+          setDeployConfigModalOpen(false);
+          // After saving config, trigger deploy
+          triggerDeployMutation.mutate(id);
+        },
+      }
+    );
   };
 
   const handleClone = () => {
@@ -99,7 +225,46 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     });
   };
 
-  if (isLoading) {
+  const handleSaveStripeInvoiceUrl = () => {
+    if (!project) return;
+    updatePaymentStatusMutation.mutate({
+      projectId: project.id,
+      stripeInvoiceUrl: stripeInvoiceUrlInput,
+    });
+  };
+
+  const handleStatusTransition = (newStatus: ProjectStatus) => {
+    // Require Stripe Invoice URL to be saved before transitioning to waiting_for_payment
+    if (newStatus === 'waiting_for_payment' && !project?.stripeInvoiceUrl) {
+      toast({
+        title: 'Invoice URL Required',
+        description:
+          'Please save a Stripe Invoice URL before transitioning to "Waiting for Payment".',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setPendingStatusTransition(newStatus);
+    setStatusTransitionDialogOpen(true);
+  };
+
+  const confirmStatusTransition = () => {
+    if (!project || !pendingStatusTransition) return;
+    updatePaymentStatusMutation.mutate(
+      {
+        projectId: project.id,
+        status: pendingStatusTransition,
+      },
+      {
+        onSuccess: () => {
+          setStatusTransitionDialogOpen(false);
+          setPendingStatusTransition(null);
+        },
+      }
+    );
+  };
+
+  if (isLoading || !projects) {
     return <PageSkeleton />;
   }
 
@@ -130,14 +295,78 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
               View Project Space
             </Link>
           </Button>
+          {/* Status Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={updatePaymentStatusMutation.isPending}>
+                {STATUS_CONFIG[project.status]?.label || project.status}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(Object.keys(STATUS_CONFIG) as ProjectStatus[]).map(status => (
+                <DropdownMenuItem
+                  key={status}
+                  disabled={status === project.status}
+                  onClick={() => handleStatusTransition(status)}
+                >
+                  {STATUS_CONFIG[status].label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={handleClone} variant="outline" disabled={!project.githubRepoUrl}>
             <Copy className="h-4 w-4 mr-2" />
             Clone
           </Button>
-          <Button onClick={handleDeploy}>
-            <Rocket className="h-4 w-4 mr-2" />
-            Deploy
-          </Button>
+          {project.status === 'in_development' && (
+            <Button
+              onClick={handleVamos}
+              variant="outline"
+              disabled={
+                triggerVamosMutation.isPending ||
+                vamosJobData?.job?.status === 'running' ||
+                vamosJobData?.job?.status === 'pending'
+              }
+            >
+              {triggerVamosMutation.isPending ||
+              vamosJobData?.job?.status === 'running' ||
+              vamosJobData?.job?.status === 'pending' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              {vamosJobData?.job?.status === 'running' || vamosJobData?.job?.status === 'pending'
+                ? 'Vamos Running...'
+                : 'Vamos'}
+            </Button>
+          )}
+          {project.status === 'active' && (
+            <Button
+              onClick={handleDeploy}
+              disabled={
+                fetchDeployConfigMutation.isPending ||
+                triggerDeployMutation.isPending ||
+                deployJobData?.job?.status === 'running' ||
+                deployJobData?.job?.status === 'pending'
+              }
+            >
+              {fetchDeployConfigMutation.isPending ||
+              triggerDeployMutation.isPending ||
+              deployJobData?.job?.status === 'running' ||
+              deployJobData?.job?.status === 'pending' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4 mr-2" />
+              )}
+              {fetchDeployConfigMutation.isPending
+                ? 'Loading...'
+                : deployJobData?.job?.status === 'running' ||
+                    deployJobData?.job?.status === 'pending'
+                  ? 'Deploy Running...'
+                  : 'Deploy'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -209,6 +438,82 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
         </CardContent>
       </Card>
 
+      {/* Payment Status Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">Payment Status</CardTitle>
+          <CardDescription>
+            Set the Stripe invoice URL for this project. Use the status dropdown in the header to
+            transition between payment states.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label htmlFor="stripeInvoiceUrl">Stripe Invoice URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="stripeInvoiceUrl"
+                placeholder="https://invoice.stripe.com/..."
+                value={stripeInvoiceUrlInput}
+                onChange={e => setStripeInvoiceUrlInput(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSaveStripeInvoiceUrl}
+                disabled={
+                  updatePaymentStatusMutation.isPending ||
+                  stripeInvoiceUrlInput === (project.stripeInvoiceUrl || '')
+                }
+              >
+                {updatePaymentStatusMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span className="ml-2">Save</span>
+              </Button>
+            </div>
+            {project.stripeInvoiceUrl && (
+              <p className="text-sm text-muted-foreground">
+                Current:{' '}
+                <Link
+                  href={project.stripeInvoiceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {project.stripeInvoiceUrl}
+                </Link>
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Status Transition Confirmation Dialog */}
+      <AlertDialog open={statusTransitionDialogOpen} onOpenChange={setStatusTransitionDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change status from &quot;{STATUS_CONFIG[project.status]?.label}&quot; to &quot;
+              {pendingStatusTransition && STATUS_CONFIG[pendingStatusTransition]?.label}&quot;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updatePaymentStatusMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmStatusTransition}
+              disabled={updatePaymentStatusMutation.isPending}
+            >
+              {updatePaymentStatusMutation.isPending ? 'Processing...' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Mark as Ready Confirmation Dialog */}
       <AlertDialog open={markReadyDialogOpen} onOpenChange={setMarkReadyDialogOpen}>
         <AlertDialogContent>
@@ -228,6 +533,15 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Deploy Config Modal */}
+      <DeployConfigModal
+        open={deployConfigModalOpen}
+        onOpenChange={setDeployConfigModalOpen}
+        existingConfig={deployConfig?.config || null}
+        onSave={handleSaveDeployConfig}
+        isSaving={updateDeployConfigMutation.isPending || triggerDeployMutation.isPending}
+      />
     </div>
   );
 }
@@ -235,25 +549,57 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Title skeleton */}
+      {/* Page Header - Title, Description, and Action buttons */}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2 flex-1">
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-4 w-96" />
+        <div className="space-y-1 flex-1">
+          <Skeleton className="h-9 w-48" /> {/* Project name */}
+          <Skeleton className="h-5 w-80" /> {/* Description */}
         </div>
         <div className="flex items-center gap-3">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-9 w-32" />
-          <Skeleton className="h-9 w-32" />
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-36" /> {/* View Project Space button */}
+          <Skeleton className="h-9 w-28" /> {/* Status dropdown */}
+          <Skeleton className="h-9 w-20" /> {/* Clone button */}
+          <Skeleton className="h-9 w-24" /> {/* Deploy button */}
         </div>
       </div>
 
-      {/* Card skeleton */}
+      {/* Project Overview Card */}
       <Card>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left column */}
+            <div className="space-y-4">
+              {/* Project ID */}
+              <div>
+                <Skeleton className="h-4 w-16 mb-1" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+              {/* Organization ID */}
+              <div>
+                <Skeleton className="h-4 w-24 mb-1" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              {/* Created By */}
+              <div>
+                <Skeleton className="h-4 w-20 mb-1" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              {/* GitHub Repository */}
+              <div>
+                <Skeleton className="h-4 w-28 mb-1" />
+                <Skeleton className="h-4 w-56" />
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-4">
+              {/* Created At */}
+              <div>
+                <Skeleton className="h-4 w-20 mb-1" />
+                <Skeleton className="h-4 w-72" />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

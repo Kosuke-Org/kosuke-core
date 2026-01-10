@@ -66,7 +66,7 @@ function ProjectsContent() {
     userId: user?.id ?? '',
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [initialTab, setInitialTab] = useState<'create' | 'import'>('create');
+  const [initialTab, setInitialTab] = useState<'create' | 'import'>('import');
   const queryClient = useQueryClient();
 
   // Only refetch projects if data is stale (don't force refetch on every mount)
@@ -92,15 +92,15 @@ function ProjectsContent() {
   }
 
   const handleOpenModal = () => {
-    setInitialTab('create'); // Reset to create tab when manually opening
+    setInitialTab('import'); // Reset to import tab when manually opening
     setIsModalOpen(true);
   };
 
   const handleCloseModal = (open: boolean) => {
     setIsModalOpen(open);
     if (!open) {
-      // Reset to create tab when closing
-      setInitialTab('create');
+      // Reset to import tab when closing
+      setInitialTab('import');
     }
   };
 

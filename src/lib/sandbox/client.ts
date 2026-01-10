@@ -7,14 +7,27 @@ import type { ImageInput } from '@/lib/types';
 
 import { getSandboxConfig } from './config';
 import { getSandboxManager } from './manager';
-import type { FileInfo, GitPullResponse, GitRevertResponse } from './types';
+import type {
+  AgentHealthResponse,
+  DeployConfigCommitResponse,
+  EnvironmentAnalyzeResponse,
+  EnvironmentCommitResponse,
+  EnvironmentUpdateResponse,
+  EnvironmentValuesResponse,
+  FileInfo,
+  GitPullResponse,
+  GitRevertResponse,
+  RequirementsCommitResponse,
+} from './types';
 
 export class SandboxClient {
   private baseUrl: string;
+  private sessionId: string;
 
   constructor(sessionId: string) {
     const manager = getSandboxManager();
     this.baseUrl = manager.getSandboxAgentUrl(sessionId);
+    this.sessionId = sessionId;
   }
 
   /**
@@ -22,6 +35,43 @@ export class SandboxClient {
    */
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  /**
+   * Wait for the sandbox agent to be ready
+   * Polls the health endpoint until agent responds
+   * @param maxAttempts - Max poll attempts (default: 30 = 30 seconds with 1s delay)
+   * @returns true if agent is ready, false if timeout
+   */
+  async waitForReady(maxAttempts: number = 30): Promise<boolean> {
+    const manager = getSandboxManager();
+    return manager.waitForAgent(this.sessionId, maxAttempts);
+  }
+
+  // ============================================================
+  // AGENT HEALTH
+  // ============================================================
+
+  /**
+   * Check agent health status
+   * Returns detailed info about whether the agent is alive and ready
+   */
+  async getAgentHealth(): Promise<AgentHealthResponse | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/agent/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch {
+      // Agent not responding
+      return null;
+    }
   }
 
   // ============================================================
@@ -122,6 +172,61 @@ export class SandboxClient {
     } catch {
       return false;
     }
+  }
+
+  // --- Requirements Operations ---
+
+  /**
+   * Get requirements document (.kosuke/docs.md) from sandbox
+   * Calls the sandbox's /api/requirements endpoint
+   */
+  async getRequirements(): Promise<{ docs: string; path: string; exists: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/requirements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd: '/app/project' }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get requirements: HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return {
+      docs: result.data?.docs || '',
+      path: result.data?.path || '',
+      exists: result.data?.exists !== false,
+    };
+  }
+
+  /**
+   * Commit and push requirements document to git
+   * Commits only the .kosuke/docs.md file and pushes to remote
+   */
+  async commitRequirements(
+    githubToken: string,
+    commitMessage: string = 'docs: add project requirements'
+  ): Promise<RequirementsCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/requirements/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit requirements',
+      };
+    }
+
+    return response.json();
   }
 
   // --- Git Operations ---
@@ -241,6 +346,191 @@ export class SandboxClient {
     }
 
     yield* this.parseSSEStream(response.body);
+  }
+
+  // --- Requirements Streaming ---
+
+  /**
+   * Stream requirements gathering from kosuke serve (SSE)
+   */
+  async *streamRequirements(
+    message: string,
+    cwd: string,
+    options?: {
+      previousMessages?: Array<{
+        role: 'user' | 'assistant';
+        content:
+          | string
+          | Array<{
+              type: string;
+              text?: string;
+              id?: string;
+              name?: string;
+              input?: Record<string, unknown>;
+              tool_use_id?: string;
+            }>;
+      }>;
+      isFirstRequest?: boolean;
+    }
+  ): AsyncGenerator<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/api/requirements/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({
+        message,
+        cwd,
+        previousMessages: options?.previousMessages || [],
+        isFirstRequest: options?.isFirstRequest ?? false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Requirements request failed: ${response.status} - ${error}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body from requirements endpoint');
+    }
+
+    yield* this.parseSSEStream(response.body);
+  }
+
+  // --- Environment Operations ---
+
+  /**
+   * Analyze and sync environment variables
+   * Calls the sandbox's /api/environment endpoint to analyze docs.md and update kosuke.config.json
+   * This is a synchronous REST call that waits for the analysis to complete
+   */
+  async analyzeEnvironment(cwd: string = '/app/project'): Promise<EnvironmentAnalyzeResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd }),
+      // Long timeout for AI analysis (5 minutes)
+      signal: AbortSignal.timeout(5 * 60 * 1000),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || errorData.message || `HTTP ${response.status}`,
+      };
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get environment values from kosuke.config.json
+   */
+  async getEnvironmentValues(cwd: string = '/app/project'): Promise<EnvironmentValuesResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/values`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Update environment values in kosuke.config.json
+   */
+  async updateEnvironmentValues(
+    values: Record<string, string>,
+    cwd: string = '/app/project'
+  ): Promise<EnvironmentUpdateResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/values`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd, values }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Commit and push environment configuration (kosuke.config.json) to git
+   * Commits only the kosuke.config.json file and pushes to remote
+   */
+  async commitEnvironment(
+    githubToken: string,
+    commitMessage: string = 'chore: configure environment variables'
+  ): Promise<EnvironmentCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/environment/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit environment configuration',
+      };
+    }
+
+    return response.json();
+  }
+
+  // --- Deploy Operations ---
+
+  /**
+   * Commit and push deploy configuration (kosuke.config.json) to git
+   * Commits only the kosuke.config.json file and pushes to remote
+   */
+  async commitDeployConfig(
+    githubToken: string,
+    commitMessage: string = 'chore: update production configuration'
+  ): Promise<DeployConfigCommitResponse> {
+    const response = await fetch(`${this.baseUrl}/api/deploy/config/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cwd: '/app/project',
+        githubToken,
+        commitMessage,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `HTTP ${response.status}`,
+        message: errorData.message || 'Failed to commit deploy configuration',
+      };
+    }
+
+    return response.json();
   }
 
   // ============================================================

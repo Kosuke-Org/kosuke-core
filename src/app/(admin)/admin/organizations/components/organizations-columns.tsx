@@ -63,9 +63,16 @@ export function createOrganizationsColumns({
       accessorKey: 'isPersonal',
       header: 'Type',
       cell: ({ row }) => (
-        <Badge variant={row.original.isPersonal ? 'secondary' : 'default'}>
-          {row.original.isPersonal ? 'Personal' : 'Team'}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant={row.original.isPersonal ? 'secondary' : 'default'}>
+            {row.original.isPersonal ? 'Personal' : 'Team'}
+          </Badge>
+          {row.original.isBeta && (
+            <Badge variant="outline" className="border-amber-500 text-amber-500">
+              Beta
+            </Badge>
+          )}
+        </div>
       ),
     },
     {

@@ -6,6 +6,12 @@ set -e
 # Uses KOSUKE_PYTHON_DIR from entrypoint, installs deps, starts server
 # ============================================================
 
+# Skip if agent-only mode
+if [ "$KOSUKE_SERVICES_MODE" = "agent-only" ]; then
+    echo "ℹ️ Agent-only mode: Python service disabled"
+    exec tail -f /dev/null
+fi
+
 # Check if python service is configured
 if [ -z "$KOSUKE_PYTHON_DIR" ]; then
     echo "ℹ️ No Python service defined in config, exiting"

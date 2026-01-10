@@ -1,6 +1,6 @@
 import { getRedis } from '@/lib/redis';
 import * as Sentry from '@sentry/nextjs';
-import type { WorkerOptions } from 'bullmq';
+import type { ConnectionOptions, WorkerOptions } from 'bullmq';
 import { Queue, QueueEvents, Worker } from 'bullmq';
 
 /**
@@ -11,7 +11,7 @@ const SECONDS_PER_DAY = 86400;
 
 function getDefaultQueueOptions() {
   return {
-    connection: getRedis(),
+    connection: getRedis() as unknown as ConnectionOptions,
     defaultJobOptions: {
       attempts: parseInt(process.env.QUEUE_MAX_ATTEMPTS!, 10),
       backoff: {
@@ -36,7 +36,7 @@ function getDefaultQueueOptions() {
  */
 function getDefaultWorkerOptions() {
   return {
-    connection: getRedis(),
+    connection: getRedis() as unknown as ConnectionOptions,
     concurrency: parseInt(process.env.QUEUE_WORKER_CONCURRENCY!, 10),
     removeOnComplete: { count: parseInt(process.env.QUEUE_REMOVE_ON_COMPLETE_COUNT!, 10) },
     removeOnFail: { count: parseInt(process.env.QUEUE_REMOVE_ON_FAIL_COUNT!, 10) },
@@ -46,8 +46,8 @@ function getDefaultWorkerOptions() {
 /**
  * Type-safe queue creation helper
  */
-export function createQueue<T = unknown>(name: string) {
-  return new Queue<T>(name, getDefaultQueueOptions());
+export function createQueue<T = unknown, N extends string = string>(name: string) {
+  return new Queue<T, unknown, N>(name, getDefaultQueueOptions());
 }
 
 /**
@@ -106,7 +106,7 @@ export function createWorker<T = unknown>(
  */
 export function createQueueEvents(name: string) {
   return new QueueEvents(name, {
-    connection: getRedis(),
+    connection: getRedis() as unknown as ConnectionOptions,
   });
 }
 

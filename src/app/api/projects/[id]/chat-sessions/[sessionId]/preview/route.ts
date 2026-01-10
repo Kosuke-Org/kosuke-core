@@ -74,6 +74,11 @@ export async function GET(
     const isMainSession = session.isDefault;
     const mode = isMainSession ? 'production' : 'development';
 
+    // Determine servicesMode based on project status:
+    // - 'active' → 'full' (bun + python + agent)
+    // - everything else → 'agent-only' (only agent)
+    const servicesMode = project.status === 'active' ? 'full' : 'agent-only';
+
     // Build repo URL
     const repoUrl =
       project.githubRepoUrl ||
@@ -87,6 +92,7 @@ export async function GET(
       repoUrl,
       githubToken,
       mode,
+      servicesMode,
       orgId: project.orgId ?? undefined,
     });
 

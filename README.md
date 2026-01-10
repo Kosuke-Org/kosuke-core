@@ -49,7 +49,7 @@ Ensure you have the following tools installed and configured:
   6. Click **Generate a new client secret** and copy it immediately
   7. Keep this tab open - you'll configure the callback URL after setting up Clerk
   8. Configure the app with required permissions:
-     - **Repository permissions**: Contents (Read & Write), Administration (Read & Write), Pull requests (Read & Write)
+     - **Repository permissions**: Contents (Read & Write), Administration (Read & Write), Pull requests (Read & Write), Webhooks (Read & Write)
      - **Organization permissions**: Members (Read-only)
   9. Generate a private key (download the `.pem` file)
   10. Install the app on your organization

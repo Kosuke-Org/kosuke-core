@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
         isDefault: chatSessions.isDefault,
         branchMergedAt: chatSessions.branchMergedAt,
         pullRequestNumber: chatSessions.pullRequestNumber,
+        mode: chatSessions.mode,
       })
       .from(chatSessions)
       .leftJoin(projects, eq(chatSessions.projectId, projects.id))

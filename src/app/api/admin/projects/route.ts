@@ -73,6 +73,10 @@ export async function GET(request: NextRequest) {
         createdBy: projects.createdBy,
         createdAt: projects.createdAt,
         githubRepoUrl: projects.githubRepoUrl,
+        status: projects.status,
+        stripeInvoiceUrl: projects.stripeInvoiceUrl,
+        requirementsCompletedAt: projects.requirementsCompletedAt,
+        requirementsCompletedBy: projects.requirementsCompletedBy,
       })
       .from(projects)
       .where(conditions.length > 0 ? and(...conditions) : undefined)

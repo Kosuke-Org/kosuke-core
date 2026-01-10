@@ -5,6 +5,7 @@ import { use, useMemo, useRef, useState } from 'react';
 
 import { LayoutDashboard, LogOut, Settings } from 'lucide-react';
 
+import { NavbarInbox } from '@/components/navbar-inbox';
 import { OrganizationSwitcherComponent } from '@/components/organization-switcher';
 import { ProjectSettingsModal } from '@/components/project-settings-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,16 +20,20 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChatSessions } from '@/hooks/use-chat-sessions';
+import { useConfirmEnvironment } from '@/hooks/use-confirm-environment';
+import { useConfirmRequirements } from '@/hooks/use-confirm-requirements';
 import { useLatestBuild } from '@/hooks/use-latest-build';
 import { useProject } from '@/hooks/use-projects';
+import { useRequirementsDocs } from '@/hooks/use-requirements-docs';
 import { useSubmitBuild } from '@/hooks/use-submit-build';
 import { useUser as useUserHook } from '@/hooks/use-user';
+import type { RequirementsViewMode } from '@/lib/types';
 import { ORG_ROLES } from '@/lib/types/clerk';
 import { cn } from '@/lib/utils';
 import { useClerk, useOrganization, useUser } from '@clerk/nextjs';
 
 // Import components
-import ChatInterface from './components/chat/chat-interface';
+import ChatInterface, { ChatInterfaceSkeleton } from './components/chat/chat-interface';
 import ChatSidebar from './components/chat/chat-sidebar';
 import PreviewPanel from './components/preview/preview-panel';
 import { ProjectHeader } from './components/project-header';
@@ -51,36 +56,12 @@ function ProjectLoadingSkeleton() {
               <Skeleton className="h-6 w-6 rounded" />
             </div>
             <Skeleton className="h-8 w-8 rounded-md" />
-            <div className="absolute right-2">
-              <Skeleton className="h-8 w-8 rounded-md" />
-            </div>
           </div>
         </header>
 
-        {/* Chat Content Skeleton */}
+        {/* Chat Content Skeleton - uses ChatInterfaceSkeleton */}
         <div className="flex-1 overflow-hidden">
-          <div className="flex flex-col h-full w-full">
-            <div className="p-4">
-              <Skeleton className="h-9 w-full rounded-md" />
-            </div>
-            <div className="flex-1 p-4 space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-12 rounded-full" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-3 w-3 rounded-full" />
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-3 w-1" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <ChatInterfaceSkeleton />
         </div>
       </div>
 
@@ -197,6 +178,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Reference to the ChatInterface component to maintain its state
   const chatInterfaceRef = useRef<HTMLDivElement>(null);
 
+  // Requirements-specific hooks - must be called before early returns
+  // Poll every 5s while in 'requirements' status to sync preview with sandbox updates
+  const { data: requirementsContent } = useRequirementsDocs(projectId, {
+    projectStatus: project?.status as
+      | 'requirements'
+      | 'requirements_ready'
+      | 'environments_ready'
+      | 'waiting_for_payment'
+      | 'paid'
+      | 'in_development'
+      | 'active'
+      | undefined,
+  });
+  const confirmRequirementsMutation = useConfirmRequirements(projectId);
+  const confirmEnvironmentMutation = useConfirmEnvironment(projectId);
+  const [viewMode, setViewMode] = useState<RequirementsViewMode>('game');
+
   // Loading state
   if (isProjectLoading || !user) {
     return <ProjectLoadingSkeleton />;
@@ -206,6 +204,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   if (projectError || !project) {
     notFound();
   }
+
+  // Requirements gathering mode - determine if in requirements flow (B2C statuses)
+  const isRequirementsMode =
+    project.status === 'requirements' ||
+    project.status === 'requirements_ready' ||
+    project.status === 'environments_ready' ||
+    project.status === 'waiting_for_payment' ||
+    project.status === 'paid' ||
+    project.status === 'in_development';
 
   const toggleSidebar = () => {
     // Going back to sidebar - remove session param from URL
@@ -266,42 +273,45 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
     if (isSignedIn && clerkUser) {
       return (
-        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
-              <Avatar className="h-8 w-8 cursor-pointer transition-all">
-                {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 mt-1">
-            <div className="flex items-center justify-start gap-2 p-2">
-              <div className="flex flex-col space-y-0.5">
-                <p className="text-sm font-medium">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+        <>
+          <NavbarInbox />
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-md p-0">
+                <Avatar className="h-8 w-8 cursor-pointer transition-all">
+                  {imageUrl && <AvatarImage src={imageUrl} alt={displayName || 'User'} />}
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 mt-1">
+              <div className="flex items-center justify-start gap-2 p-2">
+                <div className="flex flex-col space-y-0.5">
+                  <p className="text-sm font-medium">{displayName}</p>
+                  <p className="text-xs text-muted-foreground">{dbUser?.email}</p>
+                </div>
               </div>
-            </div>
-            <DropdownMenuSeparator />
-            <OrganizationSwitcherComponent onClose={() => setDropdownOpen(false)} />
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/projects')} className="cursor-pointer">
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>Projects</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              <OrganizationSwitcherComponent onClose={() => setDropdownOpen(false)} />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push('/projects')} className="cursor-pointer">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                <span>Projects</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/settings')} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
       );
     }
 
@@ -342,26 +352,47 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {/* Chat Content */}
             <div ref={chatInterfaceRef} className="flex-1 overflow-hidden flex">
               <div className="relative flex h-full w-full rounded-md">
-                {/* Sidebar - shown when showSidebar is true */}
-                <div className={cn('w-full h-full', !showSidebar && 'hidden')}>
-                  <ChatSidebar
-                    projectId={projectId}
-                    activeChatSessionId={activeChatSessionId}
-                    onChatSessionChange={handleSessionSelect}
-                  />
-                </div>
-                {/* Chat - always mounted to preserve stream, hidden when showing sidebar */}
-                <div className={cn('w-full h-full flex flex-col', showSidebar && 'hidden')}>
-                  <ChatInterface
-                    projectId={projectId}
-                    activeChatSessionId={activeChatSessionId}
-                    sessionId={sessionId}
-                    model={project?.model}
-                    isBuildInProgress={isBuildInProgress}
-                    isBuildFailed={isBuildFailed}
-                    hasPullRequest={Boolean(latestBuildData?.prUrl)}
-                  />
-                </div>
+                {isRequirementsMode ? (
+                  /* Requirements mode: just show chat, no sidebar */
+                  <div className="w-full h-full flex flex-col">
+                    <ChatInterface
+                      projectId={projectId}
+                      mode="requirements"
+                      model={project?.model}
+                      projectStatus={
+                        project.status as
+                          | 'requirements'
+                          | 'requirements_ready'
+                          | 'in_development'
+                          | 'active'
+                      }
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {/* Sidebar - shown when showSidebar is true */}
+                    <div className={cn('w-full h-full', !showSidebar && 'hidden')}>
+                      <ChatSidebar
+                        projectId={projectId}
+                        activeChatSessionId={activeChatSessionId}
+                        onChatSessionChange={handleSessionSelect}
+                      />
+                    </div>
+                    {/* Chat - always mounted to preserve stream, hidden when showing sidebar */}
+                    <div className={cn('w-full h-full flex flex-col', showSidebar && 'hidden')}>
+                      <ChatInterface
+                        projectId={projectId}
+                        mode="development"
+                        activeChatSessionId={activeChatSessionId}
+                        sessionId={sessionId}
+                        model={project?.model}
+                        isBuildInProgress={isBuildInProgress}
+                        isBuildFailed={isBuildFailed}
+                        hasPullRequest={Boolean(latestBuildData?.prUrl)}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -389,13 +420,37 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 isNewProject={isNewProject}
                 isSidebarCollapsed={isChatCollapsed}
                 onToggleSidebar={toggleChatCollapsed}
-                showSubmit={!showSidebar && Boolean(activeChatSessionId)}
+                showSubmit={!showSidebar && Boolean(activeChatSessionId) && !isRequirementsMode}
                 onSubmit={handleSubmitBuild}
                 canSubmit={canSubmit}
                 submitStatus={latestBuildData?.submitStatus}
                 prUrl={latestBuildData?.prUrl}
                 isSubmitting={submitBuildMutation.isPending}
                 hasSubmitted={submitBuildMutation.isSuccess}
+                // Requirements mode props
+                projectStatus={
+                  project.status as
+                    | 'requirements'
+                    | 'requirements_ready'
+                    | 'environments_ready'
+                    | 'waiting_for_payment'
+                    | 'paid'
+                    | 'in_development'
+                    | 'active'
+                }
+                stripeInvoiceUrl={project.stripeInvoiceUrl}
+                requirementsContent={requirementsContent}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                // Confirm requirements props (for RequirementsPreview)
+                onConfirmRequirements={() => confirmRequirementsMutation.mutate()}
+                canConfirmRequirements={
+                  project.status === 'requirements' && !confirmRequirementsMutation.isPending
+                }
+                isConfirmingRequirements={confirmRequirementsMutation.isPending}
+                // Confirm environment props (for EnvironmentsPreview)
+                onConfirmEnvironment={() => confirmEnvironmentMutation.mutate()}
+                isConfirmingEnvironment={confirmEnvironmentMutation.isPending}
               />
             </div>
           </div>

@@ -13,6 +13,9 @@ import {
   userHasGitHubConnected,
 } from './installations';
 
+// Re-export for convenience
+export { GITHUB_APP_INSTALL_URL, userHasGitHubConnected } from './installations';
+
 // Re-export the GitHubRepository type for use in hooks/components
 export type { GitHubRepository } from '@/lib/types/github';
 

@@ -16,6 +16,7 @@ interface UserPrivateMetadata {
 
 interface OrgPublicMetadata {
   isPersonal?: boolean;
+  isBeta?: boolean;
 }
 
 export class ClerkService {
@@ -190,6 +191,7 @@ export class ClerkService {
       imageUrl: org.imageUrl || '',
       createdBy: org.createdBy || '',
       isPersonal: publicMetadata.isPersonal || false,
+      isBeta: publicMetadata.isBeta || false,
       createdAt: new Date(org.createdAt),
       updatedAt: new Date(org.updatedAt),
     };
@@ -214,6 +216,24 @@ export class ClerkService {
         transferredAt: new Date().toISOString(),
       },
     });
+  }
+
+  /**
+   * Update organization beta status
+   */
+  async updateOrganizationBeta(orgId: string, isBeta: boolean): Promise<ClerkOrganization> {
+    const org = await this.client.organizations.getOrganization({
+      organizationId: orgId,
+    });
+
+    await this.client.organizations.updateOrganization(orgId, {
+      publicMetadata: {
+        ...(org.publicMetadata || {}),
+        isBeta,
+      },
+    });
+
+    return this.getOrganization(orgId);
   }
 
   /**
@@ -344,6 +364,7 @@ export class ClerkService {
         imageUrl: org.imageUrl || '',
         createdBy: org.createdBy || '',
         isPersonal: publicMetadata.isPersonal || false,
+        isBeta: publicMetadata.isBeta || false,
         createdAt: new Date(org.createdAt),
         updatedAt: new Date(org.updatedAt),
       };

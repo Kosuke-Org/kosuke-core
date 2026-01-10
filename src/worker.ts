@@ -11,11 +11,15 @@
 
 import { gracefulShutdown } from '@/lib/queue/client';
 import { getBuildQueue } from '@/lib/queue/queues/build';
+import { getDeployQueue } from '@/lib/queue/queues/deploy';
 import { getPreviewQueue, schedulePreviewCleanup } from '@/lib/queue/queues/previews';
 import { getSubmitQueue } from '@/lib/queue/queues/submit';
+import { getVamosQueue } from '@/lib/queue/queues/vamos';
 import { createBuildWorker } from '@/lib/queue/workers/build';
+import { createDeployWorker } from '@/lib/queue/workers/deploy';
 import { createPreviewWorker } from '@/lib/queue/workers/previews';
 import { createSubmitWorker } from '@/lib/queue/workers/submit';
+import { createVamosWorker } from '@/lib/queue/workers/vamos';
 
 async function main() {
   console.log('[WORKER] 🚀 Starting BullMQ worker process...\n');
@@ -27,19 +31,27 @@ async function main() {
     // Initialize workers (explicit - no side effects on import)
     const previewWorker = createPreviewWorker();
     const buildWorker = createBuildWorker();
+    const vamosWorker = createVamosWorker();
+    const deployWorker = createDeployWorker();
     const submitWorker = createSubmitWorker();
 
     console.log('[WORKER] ✅ Worker process initialized and ready');
     console.log('[WORKER] 📊 Active workers:');
-    console.log(
-      `[WORKER]   - Preview Cleanup (concurrency: ${process.env.CLEANUP_WORKER_CONCURRENCY})`
-    );
-    console.log(`[WORKER]   - Build (concurrency: ${process.env.BUILD_WORKER_CONCURRENCY})`);
-    console.log(`[WORKER]   - Submit (concurrency: ${process.env.SUBMIT_WORKER_CONCURRENCY})\n`);
+    console.log('[WORKER]   - Preview Cleanup (concurrency: 1)');
+    console.log('[WORKER]   - Build (concurrency: 1)');
+    console.log('[WORKER]   - Vamos (concurrency: 1)');
+    console.log('[WORKER]   - Deploy (concurrency: 1)');
+    console.log('[WORKER]   - Submit (concurrency: 1)\n');
 
     // Store references for graceful shutdown
-    const workers = [previewWorker, buildWorker, submitWorker];
-    const queues = [getPreviewQueue(), getBuildQueue(), getSubmitQueue()];
+    const workers = [previewWorker, buildWorker, vamosWorker, deployWorker, submitWorker];
+    const queues = [
+      getPreviewQueue(),
+      getBuildQueue(),
+      getVamosQueue(),
+      getDeployQueue(),
+      getSubmitQueue(),
+    ];
 
     // Graceful shutdown handlers
     process.on('SIGTERM', async () => {

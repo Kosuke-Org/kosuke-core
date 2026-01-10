@@ -1,3 +1,6 @@
+// Re-export ProjectStatus from schema for type inference
+export type { ProjectStatus } from '@/lib/db/schema';
+
 // Project Creation and Update Types
 export interface CreateProjectData {
   name: string;

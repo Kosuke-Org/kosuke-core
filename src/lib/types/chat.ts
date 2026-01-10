@@ -13,12 +13,15 @@ export type AssistantBlock =
       status: 'running' | 'completed' | 'error';
     };
 
+// Chat message role type
+type ChatMessageRole = 'user' | 'assistant' | 'system' | 'admin';
+
 // Core Chat Types
 export interface ChatMessage {
   id: string;
   content?: string; // For user messages (optional for assistant messages)
   blocks?: AssistantBlock[]; // For assistant response blocks
-  role: 'user' | 'assistant' | 'system';
+  role: ChatMessageRole;
   timestamp: Date;
   tokensInput?: number;
   tokensOutput?: number;
@@ -27,6 +30,7 @@ export interface ChatMessage {
   hasError?: boolean;
   errorType?: ErrorType;
   attachments?: Attachment[];
+  adminUserId?: string; // Clerk user ID of admin who sent the message (for admin role)
   metadata?: {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
@@ -64,7 +68,7 @@ export interface ChatMessageProps {
   id?: string;
   content?: string; // For user messages
   blocks?: AssistantBlock[]; // For assistant response blocks
-  role: 'user' | 'assistant' | 'system';
+  role: ChatMessageRole;
   timestamp: Date;
   isLoading?: boolean;
   className?: string;
@@ -84,6 +88,7 @@ export interface ChatMessageProps {
   projectId?: string;
   sessionId?: string;
   attachments?: Attachment[];
+  adminUserId?: string; // Clerk user ID of admin who sent the message (for admin role)
   metadata?: {
     revertInfo?: { messageId: string; commitSha: string; timestamp: string };
     [key: string]: unknown;
@@ -119,6 +124,15 @@ export interface ChatInterfaceProps {
   isBuildInProgress?: boolean; // Whether a build is currently in progress
   isBuildFailed?: boolean; // Whether the build has failed or been cancelled
   hasPullRequest?: boolean; // Whether a PR has been created (disables chat)
+  // Requirements mode props
+  mode?: 'development' | 'requirements'; // Chat mode - development uses sessions, requirements uses project-level messages
+  projectStatus?:
+    | 'requirements'
+    | 'requirements_ready'
+    | 'waiting_for_payment'
+    | 'paid'
+    | 'in_development'
+    | 'active'; // Project status for requirements mode
 }
 
 // Content Block Types (for streaming UI state)

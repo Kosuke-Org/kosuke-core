@@ -14,17 +14,24 @@ export interface SandboxCreateOptions {
   repoUrl: string;
   githubToken: string;
   mode: 'development' | 'production';
+  servicesMode: 'agent-only' | 'full' | 'command'; // agent-only: only agent, full: agent + bun + python, command: ephemeral command execution
   orgId?: string; // Optional - uses system default API key if not provided
+  // Command mode options (only used when servicesMode === 'command')
+  command?: string[]; // Command to run (e.g., ['kosuke', 'vamos'])
+  commandEnv?: Record<string, string>; // Additional env vars for command
+  commandTimeout?: number; // Timeout in ms (default: 1 hour)
 }
 
 export interface SandboxInfo {
   containerId: string;
   name: string;
   sessionId: string;
-  status: 'running' | 'stopped' | 'error';
-  url: string;
+  status: 'running' | 'stopped' | 'error' | 'completed';
+  url: string | null; // null when servicesMode is 'agent-only' or 'command' (no bun service)
   mode: 'development' | 'production';
   branch: string;
+  // Command mode result (only when servicesMode was 'command')
+  exitCode?: number;
 }
 
 // ============================================================
@@ -50,4 +57,92 @@ export interface GitRevertResponse {
   success: boolean;
   commitSha: string;
   error?: string;
+}
+
+export interface RequirementsCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
+}
+
+// ============================================================
+// AGENT HEALTH TYPES
+// ============================================================
+
+export interface AgentHealthResponse {
+  status: 'ok' | 'error';
+  alive: boolean;
+  ready: boolean;
+  processing: boolean;
+  uptime: number;
+  timestamp: string;
+  memory: {
+    heapUsed: number;
+    heapTotal: number;
+  };
+}
+
+// ============================================================
+// ENVIRONMENT TYPES
+// ============================================================
+
+export interface EnvironmentChange {
+  name: string;
+  action: 'added' | 'removed';
+  reason: string;
+}
+
+export interface EnvironmentAnalyzeResponse {
+  success: boolean;
+  data?: {
+    changes: EnvironmentChange[];
+    summary: string;
+  };
+  error?: string;
+}
+
+export interface EnvironmentValuesResponse {
+  success: boolean;
+  data?: {
+    environment: Record<string, string>;
+    path: string;
+    projectId: string;
+  };
+  error?: string;
+}
+
+export interface EnvironmentUpdateResponse {
+  success: boolean;
+  error?: string;
+}
+
+export interface EnvironmentCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
+}
+
+// ============================================================
+// DEPLOY TYPES
+// ============================================================
+
+export interface DeployConfigCommitResponse {
+  success: boolean;
+  data?: {
+    sha: string | null;
+    message: string;
+    branch: string;
+  };
+  error?: string;
+  message?: string;
 }

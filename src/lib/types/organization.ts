@@ -4,6 +4,7 @@ export interface AdminOrganization {
   slug: string | null;
   imageUrl: string;
   isPersonal: boolean;
+  isBeta: boolean;
   createdAt: Date;
 
   // Aggregated metrics

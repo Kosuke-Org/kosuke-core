@@ -17,6 +17,9 @@ const routeNames: Record<string, string> = {
   organizations: 'Organizations',
   projects: 'Projects',
   'chat-sessions': 'Chat Sessions',
+  updates: 'Updates',
+  jobs: 'Jobs',
+  cron: 'Cron',
 };
 
 interface AdminProject {

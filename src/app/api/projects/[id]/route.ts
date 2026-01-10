@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiErrorHandler.projectNotFound();
     }
 
+    // All projects now use GitHub App - no need to check owner's OAuth status
     return ApiResponseHandler.success(project, {
       model: process.env.ANTHROPIC_MODEL,
     });

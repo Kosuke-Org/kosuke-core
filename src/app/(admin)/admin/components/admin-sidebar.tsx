@@ -1,6 +1,14 @@
 'use client';
 
-import { ArrowLeft, Building2, Database, MessageSquare } from 'lucide-react';
+import {
+  Activity,
+  ArrowLeft,
+  Building2,
+  Clock,
+  Database,
+  Megaphone,
+  MessageSquare,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -47,6 +55,24 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
         url: '/admin/chat-sessions',
         icon: MessageSquare,
         isActive: pathname?.startsWith('/admin/chat-sessions'),
+      },
+      {
+        title: 'Updates',
+        url: '/admin/updates',
+        icon: Megaphone,
+        isActive: pathname?.startsWith('/admin/updates'),
+      },
+      {
+        title: 'Jobs',
+        url: '/admin/jobs',
+        icon: Activity,
+        isActive: pathname?.startsWith('/admin/jobs'),
+      },
+      {
+        title: 'Cron',
+        url: '/admin/cron',
+        icon: Clock,
+        isActive: pathname?.startsWith('/admin/cron'),
       },
     ],
     [pathname]

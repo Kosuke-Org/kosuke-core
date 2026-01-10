@@ -29,9 +29,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUser as useClerkUser } from '@clerk/nextjs';
 
-const GITHUB_APP_INSTALL_URL =
-  process.env.NEXT_PUBLIC_GITHUB_APP_INSTALL_URL ||
-  `https://github.com/apps/${process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app'}`;
+const GITHUB_APP_SLUG = process.env.NEXT_PUBLIC_GITHUB_APP_SLUG || 'kosuke-github-app';
+const GITHUB_APP_INSTALL_URL = `https://github.com/apps/${GITHUB_APP_SLUG}`;
 
 export default function SettingsPage() {
   const {

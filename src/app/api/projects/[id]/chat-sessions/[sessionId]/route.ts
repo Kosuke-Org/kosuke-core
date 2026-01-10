@@ -18,6 +18,7 @@ import { JOB_NAMES } from '@/lib/queue/config';
 import { getBuildQueue } from '@/lib/queue/queues/build';
 import { getSandboxConfig, getSandboxManager, SandboxClient } from '@/lib/sandbox';
 import { getSandboxDatabaseUrl } from '@/lib/sandbox/database';
+import { sendHumanModeMessageSlack } from '@/lib/slack/client';
 import { MessageAttachmentPayload, uploadFile } from '@/lib/storage';
 import type { ImageUrlContent } from '@/lib/types';
 import * as Sentry from '@sentry/nextjs';
@@ -393,6 +394,71 @@ export async function POST(
 
     if (!chatSession) {
       return ApiErrorHandler.chatSessionNotFound();
+    }
+
+    // Check if session is in human_assisted mode
+    // In this mode, save user message but don't call AI - admin will respond
+    if (chatSession.mode === 'human_assisted') {
+      // Parse request body to get message content
+      const contentType = req.headers.get('content-type') || '';
+      let messageContent: string;
+
+      if (contentType.includes('multipart/form-data')) {
+        const formData = await req.formData();
+        messageContent = (formData.get('content') as string) || '';
+      } else {
+        const body = await req.json();
+        const parseResult = sendMessageSchema.safeParse(body);
+        if (!parseResult.success) {
+          return ApiErrorHandler.validationError(parseResult.error);
+        }
+        messageContent =
+          'message' in parseResult.data
+            ? parseResult.data.message.content
+            : parseResult.data.content;
+      }
+
+      // Save user message
+      const [userMessage] = await db
+        .insert(chatMessages)
+        .values({
+          projectId,
+          chatSessionId: chatSession.id,
+          userId: userId,
+          content: messageContent,
+          role: 'user',
+          modelType: null, // Not sent to AI
+          tokensInput: 0,
+          tokensOutput: 0,
+          contextTokens: 0,
+        })
+        .returning();
+
+      // Send Slack notification for human mode message (fire and forget)
+      sendHumanModeMessageSlack({
+        projectId,
+        projectName: project.name,
+        sessionId: chatSession.id,
+        userName: userId, // Using userId as identifier
+      }).catch(() => {});
+
+      // Update session's lastActivityAt
+      await db
+        .update(chatSessions)
+        .set({ lastActivityAt: new Date() })
+        .where(eq(chatSessions.id, chatSession.id));
+
+      console.log(
+        `📝 User message saved in human_assisted mode (ID: ${userMessage.id}) - AI skipped`
+      );
+
+      // Return success without AI response
+      return NextResponse.json({
+        success: true,
+        message: 'Message saved. A support agent will respond.',
+        messageId: userMessage.id,
+        mode: 'human_assisted',
+      });
     }
 
     // Parse request body - support both JSON and FormData

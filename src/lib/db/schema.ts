@@ -53,6 +53,46 @@ export const taskStatusEnum = pgEnum('task_status', [
 ]);
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 
+// Project status enum for B2C flow
+export const projectStatusEnum = pgEnum('project_status', [
+  'requirements',
+  'requirements_ready',
+  'environments_ready',
+  'waiting_for_payment',
+  'paid',
+  'in_development',
+  'active',
+]);
+export type ProjectStatus = (typeof projectStatusEnum.enumValues)[number];
+
+// Chat session mode enum - for human-in-the-loop support
+export const chatSessionModeEnum = pgEnum('chat_session_mode', ['autonomous', 'human_assisted']);
+export type ChatSessionMode = (typeof chatSessionModeEnum.enumValues)[number];
+
+// Message type enum - distinguishes chat messages from requirements gathering messages
+export const messageTypeEnum = pgEnum('message_type', ['chat', 'requirements']);
+export type MessageType = (typeof messageTypeEnum.enumValues)[number];
+
+// Vamos job status enum
+export const vamosJobStatusEnum = pgEnum('vamos_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+export type VamosJobStatus = (typeof vamosJobStatusEnum.enumValues)[number];
+
+// Deploy job status enum
+export const deployJobStatusEnum = pgEnum('deploy_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+export type DeployJobStatus = (typeof deployJobStatusEnum.enumValues)[number];
+
 // ------------------------------------------------------------
 // TABLES
 // ------------------------------------------------------------
@@ -76,6 +116,12 @@ export const projects = pgTable('projects', {
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
   githubWebhookId: integer('github_webhook_id'), // GitHub webhook ID for cleanup on project deletion
   githubInstallationId: integer('github_installation_id'), // GitHub App installation ID for this repo (null = use env var for Kosuke-Org)
+  // B2C flow: Requirements gathering workflow
+  status: projectStatusEnum('status').notNull().default('requirements'),
+  requirementsCompletedAt: timestamp('requirements_completed_at'),
+  requirementsCompletedBy: text('requirements_completed_by'),
+  // B2C flow: Payment - Stripe invoice URL for waiting_for_payment status
+  stripeInvoiceUrl: text('stripe_invoice_url'),
 });
 
 export const chatSessions = pgTable(
@@ -102,6 +148,8 @@ export const chatSessions = pgTable(
     branchMergedBy: varchar('branch_merged_by', { length: 100 }),
     mergeCommitSha: varchar('merge_commit_sha', { length: 40 }),
     pullRequestNumber: integer('pull_request_number'),
+    // Human-in-the-loop mode - autonomous (AI responds) or human_assisted (admin responds)
+    mode: chatSessionModeEnum('mode').notNull().default('autonomous'),
   },
   table => [
     index('idx_chat_sessions_last_activity_at').on(table.lastActivityAt),
@@ -117,11 +165,12 @@ export const chatMessages = pgTable('chat_messages', {
     .notNull(),
   chatSessionId: uuid('chat_session_id')
     .references(() => chatSessions.id, { onDelete: 'cascade' })
-    .notNull(), // Make this NOT NULL - all messages must be tied to a session
+    .notNull(), // All messages must be tied to a session (requirements use default/main session)
   userId: text('user_id'), // No FK
-  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
+  role: varchar('role', { length: 20 }).notNull(), // 'user', 'assistant', 'system', or 'admin'
   content: text('content'), // For user messages (nullable for assistant messages)
   blocks: jsonb('blocks'), // For assistant message blocks (text, thinking, tools)
+  messageType: messageTypeEnum('message_type').notNull().default('chat'), // 'chat' or 'requirements'
   modelType: varchar('model_type', { length: 20 }), // 'default' or 'premium'
   timestamp: timestamp('timestamp').notNull().defaultNow(),
   tokensInput: integer('tokens_input'), // Number of tokens sent to the model
@@ -129,6 +178,7 @@ export const chatMessages = pgTable('chat_messages', {
   contextTokens: integer('context_tokens'), // Current context window size in tokens
   commitSha: text('commit_sha'), // NEW: Git commit SHA for revert functionality
   metadata: jsonb('metadata'), // NEW: System message metadata (e.g., revert info)
+  adminUserId: text('admin_user_id'), // Clerk user ID of admin who sent the message (for admin role)
 });
 
 export const attachments = pgTable('attachments', {
@@ -155,6 +205,109 @@ export const messageAttachments = pgTable('message_attachments', {
     .notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+// B2C flow: Project audit logs for status changes
+export const projectAuditLogs = pgTable(
+  'project_audit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: text('user_id'), // Clerk user ID or 'system' for automated changes
+    action: varchar('action', { length: 50 }).notNull(), // 'status_changed', 'requirements_confirmed', etc.
+    previousValue: text('previous_value'),
+    newValue: text('new_value'),
+    metadata: jsonb('metadata'), // Additional context
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => ({
+    projectIdx: index('idx_project_audit_logs_project').on(table.projectId),
+    actionIdx: index('idx_project_audit_logs_action').on(table.action),
+  })
+);
+
+export const diffs = pgTable('diffs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id')
+    .references(() => projects.id)
+    .notNull(),
+  chatMessageId: uuid('chat_message_id')
+    .references(() => chatMessages.id)
+    .notNull(),
+  filePath: text('file_path').notNull(),
+  content: text('content').notNull(), // The diff content
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // 'pending', 'applied', 'rejected'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  appliedAt: timestamp('applied_at'),
+});
+
+export const projectCommits = pgTable('project_commits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  commitSha: text('commit_sha').notNull(),
+  commitMessage: text('commit_message').notNull(),
+  commitUrl: text('commit_url'),
+  filesChanged: integer('files_changed').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const githubSyncSessions = pgTable('github_sync_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  projectId: uuid('project_id')
+    .references(() => projects.id, { onDelete: 'cascade' })
+    .notNull(),
+  triggerType: varchar('trigger_type', { length: 50 }).notNull(), // 'manual', 'webhook', 'cron'
+  status: varchar('status', { length: 20 }).default('running'), // 'running', 'completed', 'failed'
+  changes: jsonb('changes'),
+  startedAt: timestamp('started_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+  logs: text('logs'),
+});
+
+export const projectEnvironmentVariables = pgTable(
+  'project_environment_variables',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    isSecret: boolean('is_secret').default(false),
+    description: text('description'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  table => ({
+    uniqueProjectKey: unique('project_env_vars_unique_key').on(table.projectId, table.key),
+  })
+);
+
+export const projectIntegrations = pgTable(
+  'project_integrations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    integrationType: text('integration_type').notNull(), // 'clerk', 'polar', 'stripe', 'custom'
+    integrationName: text('integration_name').notNull(),
+    config: text('config').notNull().default('{}'), // JSON string
+    enabled: boolean('enabled').default(true),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  table => ({
+    uniqueProjectIntegration: unique('project_integrations_unique_key').on(
+      table.projectId,
+      table.integrationType,
+      table.integrationName
+    ),
+  })
+);
 
 // Build jobs - tracks build execution per session
 export const buildJobs = pgTable(
@@ -228,6 +381,113 @@ export const tasks = pgTable(
   ]
 );
 
+// Environment job status enum (reuses build_status pattern)
+export const environmentJobStatusEnum = pgEnum('environment_job_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+]);
+export type EnvironmentJobStatus = (typeof environmentJobStatusEnum.enumValues)[number];
+
+// Environment jobs - tracks environment analysis execution per project
+export const environmentJobs = pgTable(
+  'environment_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: environmentJobStatusEnum('status').notNull().default('pending'),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Number of environment variables found
+    variableCount: integer('variable_count'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_environment_jobs_project').on(table.projectId),
+    statusIdx: index('idx_environment_jobs_status').on(table.status),
+  })
+);
+
+// Vamos jobs - tracks vamos workflow execution per project
+export const vamosJobs = pgTable(
+  'vamos_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: vamosJobStatusEnum('status').notNull().default('pending'),
+
+    // Current phase tracking
+    phase: varchar('phase', { length: 50 }), // current phase: map, tickets, build, tests
+    totalPhases: integer('total_phases').default(6),
+    completedPhases: integer('completed_phases').default(0),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Stored SSE events as JSON array for log replay
+    logs: text('logs'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_vamos_jobs_project').on(table.projectId),
+    statusIdx: index('idx_vamos_jobs_status').on(table.status),
+  })
+);
+
+// Deploy jobs - tracks deploy execution per project
+export const deployJobs = pgTable(
+  'deploy_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+
+    // Status
+    status: deployJobStatusEnum('status').notNull().default('pending'),
+
+    // Current step tracking
+    currentStep: varchar('current_step', { length: 100 }), // e.g., "deploying postgres"
+
+    // Deployed services info (JSON array of service URLs and IDs)
+    deployedServices: text('deployed_services'),
+
+    // Error message if failed
+    error: text('error'),
+
+    // Stored SSE events as JSON array for log replay
+    logs: text('logs'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    startedAt: timestamp('started_at'),
+    completedAt: timestamp('completed_at'),
+  },
+  table => ({
+    projectIdx: index('idx_deploy_jobs_project').on(table.projectId),
+    statusIdx: index('idx_deploy_jobs_status').on(table.status),
+  })
+);
+
 // ------------------------------------------------------------
 // RELATIONS
 // ------------------------------------------------------------
@@ -235,6 +495,13 @@ export const tasks = pgTable(
 export const projectsRelations = relations(projects, ({ many }) => ({
   chatMessages: many(chatMessages),
   chatSessions: many(chatSessions),
+  diffs: many(diffs),
+  commits: many(projectCommits),
+  githubSyncSessions: many(githubSyncSessions),
+  auditLogs: many(projectAuditLogs),
+  environmentJobs: many(environmentJobs),
+  vamosJobs: many(vamosJobs),
+  deployJobs: many(deployJobs),
 }));
 
 export const chatSessionsRelations = relations(chatSessions, ({ one, many }) => ({
@@ -277,6 +544,55 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
   }),
 }));
 
+export const projectAuditLogsRelations = relations(projectAuditLogs, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectAuditLogs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const diffsRelations = relations(diffs, ({ one }) => ({
+  project: one(projects, {
+    fields: [diffs.projectId],
+    references: [projects.id],
+  }),
+  chatMessage: one(chatMessages, {
+    fields: [diffs.chatMessageId],
+    references: [chatMessages.id],
+  }),
+}));
+
+export const projectCommitsRelations = relations(projectCommits, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectCommits.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const githubSyncSessionsRelations = relations(githubSyncSessions, ({ one }) => ({
+  project: one(projects, {
+    fields: [githubSyncSessions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const projectEnvironmentVariablesRelations = relations(
+  projectEnvironmentVariables,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectEnvironmentVariables.projectId],
+      references: [projects.id],
+    }),
+  })
+);
+
+export const projectIntegrationsRelations = relations(projectIntegrations, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectIntegrations.projectId],
+    references: [projects.id],
+  }),
+}));
+
 // Organization API keys - for BYOK (Bring Your Own Key) functionality
 export const organizationApiKeys = pgTable('organization_api_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -300,6 +616,111 @@ export const userGithubConnections = pgTable('user_github_connections', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+export type UserGithubConnection = typeof userGithubConnections.$inferSelect;
+export type NewUserGithubConnection = typeof userGithubConnections.$inferInsert;
+
+// Notification type enum
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'admin_message',
+  'project_update',
+  'system',
+]);
+export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
+
+// User notifications - individual notifications for each user
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clerkUserId: text('clerk_user_id').notNull(),
+    type: notificationTypeEnum('type').notNull(),
+    title: text('title').notNull(),
+    message: text('message').notNull(),
+    linkUrl: text('link_url'), // Optional navigation link
+    linkLabel: text('link_label'), // e.g., "View Project"
+    isRead: boolean('is_read').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  table => ({
+    userIdx: index('idx_notifications_user').on(table.clerkUserId),
+    isReadIdx: index('idx_notifications_is_read').on(table.isRead),
+    createdAtIdx: index('idx_notifications_created_at').on(table.createdAt),
+  })
+);
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+
+// Product updates - global updates visible to all users (changelog, announcements)
+export const productUpdates = pgTable(
+  'product_updates',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    imageUrl: text('image_url'), // Optional thumbnail
+    linkUrl: text('link_url'), // Optional external link
+    publishedAt: timestamp('published_at').notNull().defaultNow(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  table => ({
+    publishedAtIdx: index('idx_product_updates_published_at').on(table.publishedAt),
+  })
+);
+
+export type ProductUpdate = typeof productUpdates.$inferSelect;
+export type NewProductUpdate = typeof productUpdates.$inferInsert;
+
+// Product update reads - tracks which users have seen which updates
+export const productUpdateReads = pgTable(
+  'product_update_reads',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clerkUserId: text('clerk_user_id').notNull(),
+    productUpdateId: uuid('product_update_id')
+      .notNull()
+      .references(() => productUpdates.id, { onDelete: 'cascade' }),
+    readAt: timestamp('read_at').notNull().defaultNow(),
+  },
+  table => ({
+    uniqueUserUpdate: unique('product_update_reads_unique').on(
+      table.clerkUserId,
+      table.productUpdateId
+    ),
+    userIdx: index('idx_product_update_reads_user').on(table.clerkUserId),
+  })
+);
+
+export type ProductUpdateRead = typeof productUpdateReads.$inferSelect;
+export type NewProductUpdateRead = typeof productUpdateReads.$inferInsert;
+
+// User notification settings - per-user notification preferences
+export const userNotificationSettings = pgTable('user_notification_settings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  clerkUserId: text('clerk_user_id').notNull().unique(),
+  emailNotifications: boolean('email_notifications').notNull().default(true),
+  projectUpdates: boolean('project_updates').notNull().default(true),
+  productUpdates: boolean('product_updates').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type UserNotificationSettings = typeof userNotificationSettings.$inferSelect;
+export type NewUserNotificationSettings = typeof userNotificationSettings.$inferInsert;
+
+// Relations for notification tables
+export const productUpdatesRelations = relations(productUpdates, ({ many }) => ({
+  reads: many(productUpdateReads),
+}));
+
+export const productUpdateReadsRelations = relations(productUpdateReads, ({ one }) => ({
+  productUpdate: one(productUpdates, {
+    fields: [productUpdateReads.productUpdateId],
+    references: [productUpdates.id],
+  }),
+}));
+
 export const buildJobsRelations = relations(buildJobs, ({ one, many }) => ({
   chatSession: one(chatSessions, {
     fields: [buildJobs.chatSessionId],
@@ -316,6 +737,27 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   buildJob: one(buildJobs, {
     fields: [tasks.buildJobId],
     references: [buildJobs.id],
+  }),
+}));
+
+export const environmentJobsRelations = relations(environmentJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [environmentJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const vamosJobsRelations = relations(vamosJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [vamosJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const deployJobsRelations = relations(deployJobs, ({ one }) => ({
+  project: one(projects, {
+    fields: [deployJobs.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -339,5 +781,11 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type OrganizationApiKey = typeof organizationApiKeys.$inferSelect;
 export type NewOrganizationApiKey = typeof organizationApiKeys.$inferInsert;
-export type UserGithubConnection = typeof userGithubConnections.$inferSelect;
-export type NewUserGithubConnection = typeof userGithubConnections.$inferInsert;
+export type ProjectAuditLog = typeof projectAuditLogs.$inferSelect;
+export type NewProjectAuditLog = typeof projectAuditLogs.$inferInsert;
+export type EnvironmentJob = typeof environmentJobs.$inferSelect;
+export type NewEnvironmentJob = typeof environmentJobs.$inferInsert;
+export type VamosJob = typeof vamosJobs.$inferSelect;
+export type NewVamosJob = typeof vamosJobs.$inferInsert;
+export type DeployJob = typeof deployJobs.$inferSelect;
+export type NewDeployJob = typeof deployJobs.$inferInsert;

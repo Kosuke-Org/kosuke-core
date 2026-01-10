@@ -1,6 +1,7 @@
 // Re-export all types from domain-specific files
 export * from './chat';
 export * from './chat-sessions';
+export * from './notification';
 // Export Clerk types (app-specific + re-exported from @clerk/backend)
 export type {
   ClerkOrganization,
@@ -16,6 +17,8 @@ export * from './organization';
 export * from './preview';
 export * from './preview-urls';
 export * from './project';
+export * from './requirements';
 export * from './usage';
 
-export type { EnhancedUser, UpdateProfileResponse, UserProfile, UseUserReturn } from './user';
+export type { EnhancedUser, UpdateProfileResponse, UseUserReturn, UserProfile } from './user';
+export * from './jobs';

@@ -27,6 +27,7 @@ export interface ClerkOrganization {
   imageUrl: string;
   createdBy: string;
   isPersonal: boolean;
+  isBeta: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
